@@ -43,7 +43,7 @@ def build_tutor_graph(checkpointer):
 _graph = None
 
 
-def get_tutor_graph(checkpointer=None):
+def get_tutor_graph(checkpointer):
     global _graph
     if _graph is None:
         _graph = build_tutor_graph(checkpointer)

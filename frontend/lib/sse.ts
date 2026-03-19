@@ -31,8 +31,11 @@ export async function sendAction(
   }
 }
 
-export async function startLesson(onChunk: (chunk: SSEChunk) => void): Promise<void> {
-  const res = await fetch('/api/lesson/start', { method: 'POST' })
+export async function startLesson(
+  onChunk: (chunk: SSEChunk) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch('/api/lesson/start', { method: 'POST', signal })
   if (!res.ok) throw new Error(`API error: ${res.status}`)
 
   const reader = res.body!.getReader()
@@ -63,6 +66,8 @@ export async function sendOnboardingMessage(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message }),
   })
+
+  if (!res.ok) throw new Error(`API error: ${res.status}`)
 
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()

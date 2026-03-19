@@ -11,7 +11,7 @@ interface Props {
 
 export function FillBlankCard({ question, word, onDone }: Props) {
   const [answer, setAnswer] = useState('')
-  const [startTime] = useState(Date.now())
+  const [startTime] = useState(() => Date.now())
   const [hint, setHint] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
   const [revealed, setRevealed] = useState(false)
@@ -32,17 +32,15 @@ export function FillBlankCard({ question, word, onDone }: Props) {
     const newAttempts = attempts + 1
     setAttempts(newAttempts)
     if (newAttempts === 1) {
-      setHint(`词性提示：动词（verb）`)
+      setHint(`提示：注意词形和搭配`)
     } else if (newAttempts === 2) {
       setHint(`首字母提示：${word[0].toUpperCase()}...`)
     }
   }
 
   const handleReveal = async () => {
-    await sendAction(
-      { type: 'fill_blank_answer', answer: word, response_seconds: 30 },
-      () => {},
-    )
+    const response_seconds = (Date.now() - startTime) / 1000
+    await sendAction({ type: 'fill_blank_answer', answer: word, response_seconds }, () => {})
     setRevealed(true)
     setTimeout(onDone, 2000)
   }
@@ -85,8 +83,8 @@ export function FillBlankCard({ question, word, onDone }: Props) {
             <input
               className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40"
               value={answer}
-              onChange={e => setAnswer(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               placeholder="填写答案..."
             />
             <button
@@ -110,7 +108,7 @@ export function FillBlankCard({ question, word, onDone }: Props) {
 
       {/* Attempt dots */}
       <div className="flex gap-2">
-        {[0, 1, 2].map(i => (
+        {[0, 1, 2].map((i) => (
           <div
             key={i}
             className={`w-2 h-2 rounded-full ${i < attempts ? 'bg-error' : 'bg-outline-variant'}`}

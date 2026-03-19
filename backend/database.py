@@ -1,5 +1,6 @@
 import json
 import sqlite3
+import threading
 from contextlib import contextmanager
 from datetime import date
 
@@ -70,18 +71,20 @@ CREATE TABLE IF NOT EXISTS vocab_items (
 class Database:
     def __init__(self, db_path: str = "./db.sqlite3"):
         self.db_path = db_path
+        self._lock = threading.Lock()
         self._conn_instance = sqlite3.connect(db_path, check_same_thread=False)
         self._conn_instance.row_factory = sqlite3.Row
         self._init_tables()
 
     @contextmanager
     def _conn(self):
-        try:
-            yield self._conn_instance
-            self._conn_instance.commit()
-        except Exception:
-            self._conn_instance.rollback()
-            raise
+        with self._lock:
+            try:
+                yield self._conn_instance
+                self._conn_instance.commit()
+            except Exception:
+                self._conn_instance.rollback()
+                raise
 
     def _init_tables(self):
         with self._conn() as conn:
@@ -194,7 +197,10 @@ class Database:
             """,
                 (task.article_id, task.mode, task.instruction, task.min_words),
             )
-            return cursor.lastrowid
+            row_id = cursor.lastrowid
+            if row_id is None:
+                raise RuntimeError("INSERT into writing_tasks returned no lastrowid")
+            return row_id
 
     def get_today_writing_task(self) -> WritingTask | None:
         with self._conn() as conn:
@@ -294,7 +300,10 @@ class Database:
                     sub.submitted_at.isoformat(),
                 ),
             )
-            return cursor.lastrowid
+            row_id = cursor.lastrowid
+            if row_id is None:
+                raise RuntimeError("INSERT into writing_submissions returned no lastrowid")
+            return row_id
 
     def upsert_reading_start(self, today: date) -> None:
         """Idempotent marker that reading session started today."""

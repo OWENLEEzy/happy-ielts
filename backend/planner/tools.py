@@ -1,6 +1,5 @@
 import asyncio
 import concurrent.futures
-import json
 import logging
 from datetime import date
 from typing import Literal
@@ -78,7 +77,7 @@ def _playwright_scrape(url: str) -> str:
 
 
 @tool
-def load_user_profile() -> dict:
+def load_user_profile() -> dict[str, object]:
     """Load the user's profile from the database."""
     profile = _db.get_user_profile()
     if profile is None:
@@ -97,11 +96,20 @@ def scrape_article(url: str) -> str:
         return page.get_best_text(auto_filter=True)
     except Exception as e:
         logger.warning(f"Scrapling failed for {url}: {e}. Trying Playwright.")
+    try:
         return _playwright_scrape(url)
+    except Exception as e:
+        logger.error(f"Playwright fallback failed for {url}: {e}")
+        return (
+            f"Error: could not scrape article at {url}. "
+            f"Both Scrapling and Playwright failed: {e}"
+        )
 
 
 @tool
-def highlight_key_paragraphs(full_text: str, user_goal: str, interests: list[str]) -> dict:
+def highlight_key_paragraphs(
+    full_text: str, user_goal: str, interests: list[str]
+) -> dict[str, object]:
     """Identify 3-5 core paragraphs and article logic type for a language learner."""
 
     class HighlightResult(BaseModel):
@@ -127,23 +135,40 @@ def highlight_key_paragraphs(full_text: str, user_goal: str, interests: list[str
     return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
 
 
+class ArticleContext(BaseModel):
+    """Subset of article data needed to generate a writing task."""
+
+    original_title: str = Field(description="Title of the scraped article")
+    article_logic: Literal["compare", "cause_effect", "argumentation"] = Field(
+        description="Underlying logical structure of the article"
+    )
+
+
+class ProfileContext(BaseModel):
+    """Subset of user profile data needed to generate a writing task."""
+
+    goal: str = Field(description="The user's learning goal")
+    level: int = Field(ge=1, le=10, description="Proficiency level 1-10")
+    writing_mode: Literal["professional", "ielts", "both"] = Field(
+        default="professional",
+        description="Preferred writing mode",
+    )
+
+
 @tool
-def generate_writing_task(article_json: str, profile_json: str) -> dict:
-    """Generate a writing task based on the article and user profile."""
-    article = json.loads(article_json)
-    profile = json.loads(profile_json)
+def generate_writing_task(article: ArticleContext, profile: ProfileContext) -> dict[str, object]:
+    """Generate a writing task based on the article context and user profile."""
+    import random
 
-    mode = profile.get("writing_mode", "professional")
+    mode: str = profile.writing_mode
     if mode == "both":
-        import random
-
         mode = random.choice(["professional", "ielts_task2"])
 
     prompt = f"""
-Create a writing task for a {profile["level"]}/10 English learner.
-Article logic: {article["article_logic"]}
-User goal: {profile["goal"]}
-Article title: {article["original_title"]}
+Create a writing task for a {profile.level}/10 English learner.
+Article logic: {article.article_logic}
+User goal: {profile.goal}
+Article title: {article.original_title}
 Writing mode: {mode}
 
 Fields to produce:

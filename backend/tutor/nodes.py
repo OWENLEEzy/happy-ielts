@@ -9,7 +9,7 @@ from langgraph.types import Command, interrupt
 
 from backend.database import Database
 from backend.fsrs_engine import new_card_state, update_card
-from backend.models import VocabItemCreate
+from backend.models import VocabItem, VocabItemCreate
 from backend.tutor.tools import analyze_sentence, explain_word, run_feedback
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,8 @@ def route_start(state: dict) -> Command[Literal["spaced_review", "reading"]]:
 
 def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     """Present one fill-blank card; loop until all done."""
-    item = state["review_queue"][state["review_index"]]
+    item_data = state["review_queue"][state["review_index"]]
+    item = item_data if isinstance(item_data, VocabItem) else VocabItem(**item_data)
 
     user_answer = interrupt(
         {

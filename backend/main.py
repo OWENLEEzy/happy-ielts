@@ -11,10 +11,10 @@ load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from langgraph.checkpoint.sqlite import SqliteSaver
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-    with SqliteSaver.from_conn_string("./db.sqlite3") as cp:
-        cp.setup()
+    async with AsyncSqliteSaver.from_conn_string("./db.sqlite3") as cp:
+        await cp.setup()
         app.state.checkpointer = cp
         yield
 
@@ -71,7 +71,8 @@ async def onboarding_message(body: dict):
         ):
             token, _ = chunk
             if hasattr(token, "content") and token.content:
-                yield f"data: {json.dumps({'type': 'token', 'content': token.content})}\n\n"
+                content = token.content if isinstance(token.content, str) else str(token.content)
+                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -194,15 +195,20 @@ async def update_profile(body: dict):
     new_interests_str = body.get("interests_update", "")
     if new_interests_str:
         from langchain_anthropic import ChatAnthropic
+        from pydantic import BaseModel
+
+        class _InterestList(BaseModel):
+            interests: list[str]
 
         llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
-        response = llm.invoke(f"""
+        result: _InterestList = llm.with_structured_output(_InterestList).invoke(  # type: ignore[assignment]
+            f"""
 Current interests: {profile.interests}
 User update: "{new_interests_str}"
-Return a JSON array of updated interests (3-5 items). Only the array, no explanation.
-""")
-        new_interests = json.loads(str(response.content))
-        profile = profile.model_copy(update={"interests": new_interests})
+Return 3-5 updated interest keywords.
+"""
+        )
+        profile = profile.model_copy(update={"interests": result.interests})
     db.upsert_user_profile(profile)
     return profile.model_dump()
 
