@@ -1,0 +1,49 @@
+[project]
+name = "dynamiclingo-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "langchain>=1.0,<2.0",
+    "langchain-core>=1.0,<2.0",
+    "langsmith>=0.3.4",
+    "langgraph>=1.0,<2.0",
+    "langgraph-checkpoint-sqlite",
+    "deepagents",
+    "langchain-anthropic",
+    "langchain-tavily",
+    "fastapi[standard]",
+    "uvicorn[standard]",
+    "scrapling",
+    "playwright",
+    "fsrs",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "langsmith[pytest]",
+    "pytest",
+    "pytest-asyncio",
+    "pre-commit",
+    "mypy",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+warn_return_any = false
+check_untyped_defs = true
+exclude = ["frontend/", ".venv/"]
+
+[[tool.mypy.overrides]]
+module = "backend.models"
+disallow_untyped_defs = true

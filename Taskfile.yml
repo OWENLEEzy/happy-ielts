@@ -1,0 +1,47 @@
+version: '3'
+
+tasks:
+  dev:backend:
+    cmd: uv run uvicorn backend.main:app --reload --port 8000
+
+  dev:frontend:
+    cmd: cd frontend && npm run dev
+
+  generate-types:
+    desc: "Run after models.py changes to sync TS types"
+    cmds:
+      - uv run uvicorn backend.main:app --port 8001 &
+      - sleep 2
+      - npx openapi-typescript http://localhost:8001/openapi.json -o frontend/types/api.ts
+      - kill %1
+
+  check:python:
+    cmds:
+      - uv run ruff check backend/
+      - uv run ruff format --check backend/
+      - uv run mypy backend/
+
+  check:frontend:
+    cmds:
+      - cd frontend && npx eslint .
+      - cd frontend && npx tsc --noEmit
+
+  check:
+    cmds: [task: check:python, task: check:frontend]
+
+  fix:
+    cmds:
+      - uv run ruff check --fix backend/
+      - uv run ruff format backend/
+      - cd frontend && npx eslint . --fix
+      - cd frontend && npx prettier --write .
+
+  install-hooks:
+    cmds:
+      - uv run pre-commit install
+      - uv run pre-commit install --hook-type commit-msg
+      - cd frontend && npx husky init
+      - echo "npx lint-staged" > frontend/.husky/pre-commit
+
+  test:
+    cmd: uv run pytest backend/tests/ -v
