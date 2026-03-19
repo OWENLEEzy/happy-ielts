@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import json
 import logging
 from datetime import date
@@ -52,9 +53,13 @@ Return ONLY the structured output. Do not explain your choices.
 
 
 def _playwright_scrape(url: str) -> str:
-    """Playwright fallback for JS-rendered pages."""
+    """Playwright fallback for JS-rendered pages.
 
-    async def _run():
+    Runs in a separate thread to avoid 'event loop already running' errors
+    when called from within an async FastAPI/LangChain context.
+    """
+
+    async def _run() -> str:
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
@@ -65,7 +70,11 @@ def _playwright_scrape(url: str) -> str:
             await browser.close()
             return content
 
-    return asyncio.run(_run())
+    def run_in_new_loop() -> str:
+        return asyncio.run(_run())
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(run_in_new_loop).result()
 
 
 @tool
@@ -131,10 +140,10 @@ def generate_writing_task(article_json: str, profile_json: str) -> dict:
         mode = random.choice(["professional", "ielts_task2"])
 
     prompt = f"""
-Create a writing task for a {profile['level']}/10 English learner.
-Article logic: {article['article_logic']}
-User goal: {profile['goal']}
-Article title: {article['original_title']}
+Create a writing task for a {profile["level"]}/10 English learner.
+Article logic: {article["article_logic"]}
+User goal: {profile["goal"]}
+Article title: {article["original_title"]}
 Writing mode: {mode}
 
 Fields to produce:
