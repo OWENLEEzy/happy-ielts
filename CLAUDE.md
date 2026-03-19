@@ -1,0 +1,125 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project
+
+**DynamicLingo** — 本地 AI 英语读写飞轮。每日自动抓取文章 → 深读高亮 → 写作任务 → 间隔复习生词。
+
+## Commands
+
+```bash
+# 开发
+task dev:backend          # FastAPI on :8000 (--reload)
+task dev:frontend         # Next.js on :3000
+
+# 测试
+task test                                          # 全部测试
+uv run pytest backend/tests/test_database.py -v   # 单文件
+
+# 检查 / 格式化
+task check                # ruff + mypy + eslint + tsc
+task fix                  # 自动修复所有格式问题
+
+# 类型同步（改 models.py 后必跑）
+task generate-types       # Pydantic → frontend/types/api.ts
+
+# 首次 setup
+uv sync
+task install-hooks
+cd frontend && npm install
+cp .env.example .env
+```
+
+## Architecture
+
+两个完全解耦的 loop，共享同一个 `./db.sqlite3`：
+
+```
+Slow loop (background, daily)          Fast loop (foreground, SSE)
+─────────────────────────────          ──────────────────────────────
+DeepAgent Planner                      LangGraph Tutor Graph
+  load_user_profile                      route_start  (Command routing)
+  → TavilySearch                         → spaced_review  (interrupt loop)
+  → scrape_article                       → reading  (while True: interrupt)
+  → highlight_key_paragraphs             → writing_task  (interrupt)
+  → generate_writing_task                → evaluate_writing
+  → save_daily_lesson                    → save_results
+        ↓                                       ↓
+   articles / writing_tasks            writing_submissions / vocab_items
+        └──────────────── SQLite ──────────────────┘
+```
+
+**前端路由：** Next.js `app/api/[...proxy]/route.ts` 透传到 FastAPI，无需 CORS 配置。
+
+**SSE 模式：** 所有实时交互走 `POST /api/lesson/action` → `Command(resume=action)` → `stream_mode="custom"`，**不用 WebSocket**。
+
+**Thread ID 约定：**
+- Tutor: `date.today().isoformat()`（今日唯一）
+- Planner: `f"planner-{date.today().isoformat()}"`
+- Onboarding: `"onboarding"`（固定）
+
+**Checkpointer 单例：** `SqliteSaver` 在 `main.py` lifespan 中创建一次，通过 `app.state.checkpointer` 传给所有 agent 和图，**不在各模块内单独 `from_conn_string()`**。
+
+## LangChain / LangGraph / DeepAgents 使用规则
+
+### 用哪个框架
+
+| 场景 | 框架 |
+|------|------|
+| 需要精确控制 interrupt 位置、SSE streaming | **LangGraph** (Tutor Graph) |
+| 开放式多步任务、可以让模型自主规划 | **DeepAgents** (Planner / Onboarding) |
+| 单次 LLM 调用、structured output | **LangChain** (`@tool` + `with_structured_output`) |
+
+### 必须调用的 langchain-skills（写代码前先 invoke）
+
+| 场景 | Skill |
+|------|-------|
+| 选框架前 | `langchain-skills:framework-selection` |
+| 写任何 LangGraph 节点 | `langchain-skills:langgraph-fundamentals` |
+| 写 `interrupt()` / `Command(resume=...)` | `langchain-skills:langgraph-human-in-the-loop` |
+| 写 checkpointer / thread_id / Store | `langchain-skills:langgraph-persistence` |
+| 写 `create_deep_agent()` | `langchain-skills:deep-agents-core` |
+| 写多 agent 编排 / subagent | `langchain-skills:deep-agents-orchestration` |
+| 安装或升级依赖 | `langchain-skills:langchain-dependencies` |
+| 写 `with_structured_output` / middleware | `langchain-skills:langchain-middleware` |
+
+### LangGraph 关键约定（必须遵守）
+
+**interrupt() 幂等性：** 节点 resume 时从函数顶部重新执行，`interrupt()` 之前的所有代码都会重跑。只允许 upsert（不允许 insert）在 `interrupt()` 之前。
+
+**Command routing vs static edge：** 返回 `Command(goto="X")` 的节点**不能**再加 `add_edge(A, "X")`，否则 X 执行两次。
+
+**`while True: interrupt()` 循环：** reading_session 用此模式处理多次用户动作，每次 resume 时节点重跑，`interrupt()` 立刻返回 resume value，继续执行当次动作，然后进入下一次循环再次 `interrupt()`。
+
+**`save_results` 是写作飞轮关键节点：** 必须从 `state["writing_feedback"]` 读取 `WritingFeedback`（由 `evaluate_writing` 写入），调用 `_db.save_writing_submission()` 并将 `chinglish_flags` 中的词写入 `vocab_items`（`source="writing_error"`）。
+
+### DeepAgents 关键约定
+
+**系统提示写目标，不写步骤：** Planner 系统提示用 prose 描述目标，不用编号步骤列表（与内置 `write_todos` 中间件冲突）。
+
+**工具签名用 Pydantic 类型：** `save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate)` 而不是 JSON 字符串。LangChain 会自动生成 schema 并做验证。
+
+**structured output 一律用 `with_structured_output()`：** 禁止 `json.loads(response.content)`，Claude 输出经常带 markdown code fence 导致解析失败。
+
+**Planner 单例：** `get_planner(checkpointer)` 而非 `create_planner()`，避免每次 API 请求泄漏 SQLite 连接。
+
+## 环境变量
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+TAVILY_API_KEY=tvly-...
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=ls-...
+LANGSMITH_PROJECT=dynamiclingo
+```
+
+## 模型
+
+全部使用 `claude-haiku-4-5-20251001`（在 `pyproject.toml` 的 `langchain-anthropic` 通过 `init_chat_model("anthropic:claude-haiku-4-5-20251001")` 初始化）。
+
+## 设计文档
+
+- `docs/plans/2026-03-19-dynamiclingo-impl.md` — 权威实现计划（15 个 Task，含完整代码）
+- `docs/plans/2026-03-19-dynamiclingo-design.md` — 系统设计（数据模型、API、组件树）
+- `docs/plans/2026-03-19-dynamiclingo-prd.md` — 产品需求

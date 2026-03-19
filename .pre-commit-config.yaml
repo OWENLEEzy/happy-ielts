@@ -1,0 +1,35 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: uv run mypy backend/
+        language: system
+        pass_filenames: false
+        types: [python]
+
+      - id: tsc
+        name: tsc
+        entry: bash -c 'cd frontend && npx tsc --noEmit'
+        language: system
+        pass_filenames: false
+        types: [ts, tsx]
+
+      - id: openapi-drift
+        name: Warn if models.py changed without regenerating types
+        entry: bash -c 'git diff --cached --name-only | grep -q "backend/models.py" && echo "⚠️  models.py changed — run: task generate-types" && exit 1 || exit 0'
+        language: system
+        pass_filenames: false
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
