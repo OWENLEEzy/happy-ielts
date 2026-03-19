@@ -45,8 +45,8 @@ def test_vocab_due_query():
         context_sentence="We can leverage this library.",
         source="reading_click",
         next_review=date.today().isoformat(),
-        fsrs_state={"due": date.today().isoformat(), "stability": 1.0,
-                    "difficulty": 5.0, "reps": 0, "lapses": 0, "state": 0,
+        fsrs_state={"card_id": 1, "due": date.today().isoformat(), "stability": 1.0,
+                    "difficulty": 5.0, "step": 0, "state": 0,
                     "last_review": None},
         article_id=None,
     )
