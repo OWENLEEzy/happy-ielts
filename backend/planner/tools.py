@@ -1,11 +1,13 @@
 import asyncio
 import concurrent.futures
+import json
 import logging
+import re
 from datetime import date
 from typing import Literal
 
 from langchain.tools import tool
-from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_models import ChatTongyi
 from pydantic import BaseModel, Field
 
 try:
@@ -18,8 +20,16 @@ from backend.models import ArticleCreate, WritingTaskCreate
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
+_llm = ChatTongyi(model="qwen-max")
 _db = Database()
+
+
+def _parse_json(content: str, model: type) -> object:
+    """Parse JSON from model content, stripping markdown code fences."""
+    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
+    cleaned = re.sub(r"\s*```$", "", cleaned.strip(), flags=re.MULTILINE)
+    return model(**json.loads(cleaned.strip()))
+
 
 HIGHLIGHT_PROMPT = """
 You are a language learning content curator for professional English learners.
@@ -121,13 +131,14 @@ def highlight_key_paragraphs(
 
     paragraphs = full_text.split("\n\n")
     numbered = "\n\n".join(f"[{i}] {p}" for i, p in enumerate(paragraphs))
-    result: HighlightResult = _llm.with_structured_output(HighlightResult).invoke(  # type: ignore[assignment]
+    response = _llm.invoke(
         HIGHLIGHT_PROMPT.format(
             paragraphs=numbered,
             goal=user_goal,
             interests=", ".join(interests),
         )
     )
+    result: HighlightResult = _parse_json(str(response.content), HighlightResult)  # type: ignore[assignment]
     valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
     return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
 
@@ -170,7 +181,8 @@ Fields to produce:
 - min_words: 50 for professional, 150 for ielts
 - article_id: 0  (placeholder, will be overwritten by save_daily_lesson)
 """
-    result: WritingTaskCreate = _llm.with_structured_output(WritingTaskCreate).invoke(prompt)  # type: ignore[assignment]
+    response = _llm.invoke(prompt)
+    result: WritingTaskCreate = _parse_json(str(response.content), WritingTaskCreate)  # type: ignore[assignment]
     return result.model_dump()
 
 

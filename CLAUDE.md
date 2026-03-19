@@ -41,7 +41,7 @@ Slow loop (background, daily)          Fast loop (foreground, SSE)
 ─────────────────────────────          ──────────────────────────────
 DeepAgent Planner                      LangGraph Tutor Graph
   load_user_profile                      route_start  (Command routing)
-  → TavilySearch                         → spaced_review  (interrupt loop)
+  → TavilySearchResults                         → spaced_review  (interrupt loop)
   → scrape_article                       → reading  (while True: interrupt)
   → highlight_key_paragraphs             → writing_task  (interrupt)
   → generate_writing_task                → evaluate_writing
@@ -105,7 +105,7 @@ DeepAgent Planner                      LangGraph Tutor Graph
 
 **工具签名用 Pydantic 类型：** `save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate)` 而不是 JSON 字符串。LangChain 会自动生成 schema 并做验证。
 
-**structured output 一律用 `with_structured_output()`：** 禁止 `json.loads(response.content)`，Claude 输出经常带 markdown code fence 导致解析失败。
+**structured output 一律用 `with_structured_output()`：** 禁止 `json.loads(response.content)`，模型输出经常带 markdown code fence 导致解析失败。
 
 **Planner 单例：** `get_planner(checkpointer)` 而非 `create_planner()`，避免每次 API 请求泄漏 SQLite 连接。
 
@@ -129,16 +129,17 @@ cd frontend && npx tsc --noEmit  # Type check
 ## 环境变量
 
 ```bash
-ANTHROPIC_API_KEY=sk-ant-...
+DASHSCOPE_API_KEY=sk-...
 TAVILY_API_KEY=tvly-...
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=ls-...
+LANGSMITH_TRACING=false
+LANGSMITH_API_KEY=ls-...   # 可选，tracing 关闭时不需要
 LANGSMITH_PROJECT=dynamiclingo
 ```
 
 ## 模型
 
-全部使用 `claude-haiku-4-5-20251001`，通过 `ChatAnthropic(model="claude-haiku-4-5-20251001")` 初始化。
+全部使用 `qwen-max`，通过 `ChatTongyi(model="qwen-max")` 初始化（`langchain-community`）。
+DashScope API key 从 `DASHSCOPE_API_KEY` 环境变量读取。
 
 ## 设计文档
 

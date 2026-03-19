@@ -29,7 +29,7 @@ class TutorState(TypedDict):
 
 def build_tutor_graph(checkpointer):
     graph: StateGraph = StateGraph(TutorState)  # type: ignore[type-var]
-    graph.add_node("route_start", route_start)  # type: ignore[type-var]
+    graph.add_node("route_start", route_start)  # type: ignore[type-var,call-overload]
     graph.add_node("spaced_review", spaced_review)  # type: ignore[type-var]
     graph.add_node("reading", reading_session, retry_policy=RetryPolicy(max_attempts=3))  # type: ignore[type-var]
     graph.add_node("writing_task", writing_task)  # type: ignore[type-var]

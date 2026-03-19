@@ -1,6 +1,6 @@
 from deepagents import create_deep_agent
-from langchain.chat_models import init_chat_model
 from langchain.tools import tool
+from langchain_community.chat_models import ChatTongyi
 
 from backend.database import Database
 
@@ -50,7 +50,7 @@ def create_onboarding_agent(checkpointer):
     global _onboarding_agent
     if _onboarding_agent is None:
         _onboarding_agent = create_deep_agent(
-            model=init_chat_model("anthropic:claude-haiku-4-5-20251001"),
+            model=ChatTongyi(model="qwen-max"),
             tools=[save_partial_profile],
             checkpointer=checkpointer,
             system_prompt=ONBOARDING_PROMPT,

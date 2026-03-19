@@ -1,13 +1,13 @@
 import logging
 
 from langchain.tools import tool
-from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_models import ChatTongyi
 
 from backend.models import WritingFeedback, WritingTask
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
+_llm = ChatTongyi(model="qwen-max")
 
 FEEDBACK_PROMPT = """
 You are a native English editor reviewing writing from a Chinese professional.
@@ -25,9 +25,21 @@ PASS 2 — Native fluency: Find phrases where Chinese L1 is showing through.
 
 IMPORTANT: Only flag the 1-2 most severe issues. Do not overwhelm the learner.
 Include exactly 2 rewrite_suggestions (complete rewrites of the full text).
-Be encouraging — start with what's good.
+Be encouraging — acknowledge what's good before critiquing.
 
-Return valid JSON matching the WritingFeedback schema exactly. No prose outside JSON.
+Return ONLY a JSON object with no prose, no markdown fences. Schema:
+{{
+  "overall_score": <integer 1-10>,
+  "grammar_errors": [
+    {{"original": "<phrase>", "correction": "<corrected>",
+     "explanation_zh": "<explanation in Chinese>"}}
+  ],
+  "chinglish_flags": [
+    {{"original": "<phrase>", "issue": "<word_choice|sentence_structure|logic_connector>",
+     "explanation_zh": "<explanation in Chinese>", "native_alternative": "<better phrasing>"}}
+  ],
+  "rewrite_suggestions": ["<full rewrite 1>", "<full rewrite 2>"]
+}}
 
 User's writing:
 {user_text}
@@ -67,9 +79,18 @@ Explain in Chinese (简体中文). Keep it under 150 words.
     return str(response.content)
 
 
+def _parse_json_response(content: str, model: type) -> object:
+    """Parse JSON from model content, stripping markdown code fences."""
+    import json
+    import re
+
+    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
+    cleaned = re.sub(r"\s*```$", "", cleaned.strip(), flags=re.MULTILINE)
+    return model(**json.loads(cleaned.strip()))
+
+
 def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) -> WritingFeedback:
     """Run structured writing feedback. Retries up to 3 times on parse failure."""
-    structured_llm = _llm.with_structured_output(WritingFeedback, include_raw=True)
     prompt = FEEDBACK_PROMPT.format(
         article_topic=task.instruction[:100],
         user_goal=user_goal,
@@ -77,8 +98,9 @@ def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) 
         user_text=user_text,
     )
     for attempt in range(3):
-        result: dict = structured_llm.invoke(prompt)  # type: ignore[assignment]
-        if result["parsed"] is not None:
-            return result["parsed"]
-        logger.warning(f"Feedback attempt {attempt + 1} failed: {result['raw']}")
+        try:
+            response = _llm.invoke(prompt)
+            return _parse_json_response(str(response.content), WritingFeedback)  # type: ignore[return-value]
+        except Exception as e:
+            logger.warning(f"Feedback attempt {attempt + 1} failed: {e}")
     raise ValueError("Feedback generation failed after 3 attempts")

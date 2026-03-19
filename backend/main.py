@@ -5,6 +5,7 @@ from datetime import date
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from backend.models import WritingMode
@@ -25,8 +26,11 @@ class SavePreferencesRequest(BaseModel):
 class LessonActionRequest(BaseModel):
     type: str = Field(min_length=1, max_length=50)
     word: str | None = None
+    context: str | None = None
     sentence: str | None = None
     text: str | None = None
+    answer: str | None = None
+    response_seconds: float | None = None
 
 
 class UpdateProfileRequest(BaseModel):
@@ -61,7 +65,7 @@ async def run_planner(background_tasks: BackgroundTasks):
     planner = get_planner(app.state.checkpointer)
     config = get_planner_config()
     background_tasks.add_task(
-        planner.ainvoke,
+        planner.ainvoke,  # type: ignore[attr-defined]
         {"messages": [{"role": "user", "content": "为今天准备一节课"}]},
         config,
     )
@@ -88,7 +92,7 @@ async def onboarding_message(body: OnboardingMessageRequest):
     agent = create_onboarding_agent(app.state.checkpointer)
 
     async def generate():
-        async for chunk in agent.astream(
+        async for chunk in agent.astream(  # type: ignore[attr-defined]
             {"messages": [{"role": "user", "content": body.message}]},
             config=ONBOARDING_CONFIG,
             stream_mode="messages",
@@ -151,7 +155,7 @@ async def lesson_action(action: LessonActionRequest):
     from backend.tutor.graph import get_tutor_graph
 
     graph = get_tutor_graph(app.state.checkpointer)
-    config = {"configurable": {"thread_id": date.today().isoformat()}}
+    config: RunnableConfig = {"configurable": {"thread_id": date.today().isoformat()}}
 
     async def generate():
         async for chunk in graph.astream(
@@ -171,7 +175,7 @@ async def start_lesson():
     from backend.tutor.graph import get_tutor_graph
 
     graph = get_tutor_graph(app.state.checkpointer)
-    config = {"configurable": {"thread_id": date.today().isoformat()}}
+    config: RunnableConfig = {"configurable": {"thread_id": date.today().isoformat()}}
 
     async def generate():
         async for chunk in graph.astream(
@@ -218,13 +222,13 @@ async def update_profile(body: UpdateProfileRequest):
         raise HTTPException(status_code=404, detail="Profile not found")
     new_interests_str = body.interests_update
     if new_interests_str:
-        from langchain_anthropic import ChatAnthropic
+        from langchain_community.chat_models import ChatTongyi
         from pydantic import BaseModel
 
         class _InterestList(BaseModel):
             interests: list[str]
 
-        llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
+        llm = ChatTongyi(model="qwen-max")
         result: _InterestList = llm.with_structured_output(_InterestList).invoke(  # type: ignore[assignment]
             f"""
 Current interests: {profile.interests}

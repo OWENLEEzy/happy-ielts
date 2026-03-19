@@ -1,8 +1,8 @@
 from datetime import date
 
 from deepagents import create_deep_agent
-from langchain.chat_models import init_chat_model
-from langchain_tavily import TavilySearch
+from langchain_community.chat_models import ChatTongyi
+from langchain_community.tools.tavily_search import TavilySearchResults
 
 from backend.planner.tools import (
     generate_writing_task,
@@ -12,7 +12,7 @@ from backend.planner.tools import (
     scrape_article,
 )
 
-search_articles = TavilySearch(max_results=3)
+search_articles = TavilySearchResults(max_results=3)
 
 PLANNER_SYSTEM_PROMPT = """
 你是一个语言学习内容策划师。
@@ -32,7 +32,7 @@ def get_planner(checkpointer):
     global _planner
     if _planner is None:
         _planner = create_deep_agent(
-            model=init_chat_model("anthropic:claude-haiku-4-5-20251001"),
+            model=ChatTongyi(model="qwen-max"),
             tools=[
                 load_user_profile,
                 search_articles,

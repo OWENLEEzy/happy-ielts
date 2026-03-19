@@ -28,26 +28,26 @@ function LessonContent() {
   const { data: plannerStatus } = usePlannerStatus()
   const [state, dispatch] = useReducer(lessonReducer, initialState)
 
+  const handleChunk = (chunk: SSEChunk) => {
+    switch (chunk.type) {
+      case 'fill_blank':
+        dispatch({ type: 'FILL_BLANK_RECEIVED', question: chunk.question, word: chunk.word })
+        break
+      case 'awaiting_action':
+        dispatch({ type: 'AWAITING_READING' })
+        break
+      case 'writing_task':
+        dispatch({ type: 'WRITING_TASK_RECEIVED' })
+        break
+    }
+  }
+
   useEffect(() => {
     if (!lesson) return
 
     const controller = new AbortController()
 
-    const handleChunk = (chunk: SSEChunk) => {
-      switch (chunk.type) {
-        case 'fill_blank':
-          dispatch({ type: 'FILL_BLANK_RECEIVED', question: chunk.question, word: chunk.word })
-          break
-        case 'awaiting_action':
-          dispatch({ type: 'AWAITING_READING' })
-          break
-        case 'writing_task':
-          dispatch({ type: 'WRITING_TASK_RECEIVED' })
-          break
-      }
-    }
-
-    startLesson(handleChunk, controller.signal).catch(err => {
+    startLesson(handleChunk, controller.signal).catch((err) => {
       if (err.name !== 'AbortError') console.error(err)
     })
 
@@ -63,7 +63,9 @@ function LessonContent() {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="准备中" />
             </div>
-            <h1 className="text-2xl font-extrabold font-headline text-primary mb-3">今日课程准备中…</h1>
+            <h1 className="text-2xl font-extrabold font-headline text-primary mb-3">
+              今日课程准备中…
+            </h1>
             <p className="text-on-surface-variant mb-8">
               DeepAgent Planner 正在为你抓取今日文章和生成写作任务，请稍候。
             </p>
@@ -99,21 +101,18 @@ function LessonContent() {
         <FillBlankCard
           question={state.fillBlank.question}
           word={state.fillBlank.word}
-          onDone={() => dispatch({ type: 'REVIEW_DONE' })}
+          onChunk={handleChunk}
         />
       )}
 
       {state.phase === 'reading' && (
-        <ArticleReader
-          article={lesson.article}
-          onDone={() => dispatch({ type: 'READING_DONE' })}
-        />
+        <ArticleReader article={lesson.article} onDone={() => dispatch({ type: 'READING_DONE' })} />
       )}
 
       {state.phase === 'writing' && (
         <WritingPanel
           task={lesson.task}
-          onFeedback={feedback => dispatch({ type: 'FEEDBACK_DONE', feedback })}
+          onFeedback={(feedback) => dispatch({ type: 'FEEDBACK_DONE', feedback })}
         />
       )}
 

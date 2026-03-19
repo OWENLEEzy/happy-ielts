@@ -9,7 +9,7 @@ dependencies = [
     "langgraph>=1.0,<2.0",
     "langgraph-checkpoint-sqlite>=0.0.1",
     "deepagents",
-    "langchain-anthropic>=0.3.0",
+    "langchain-community>=0.3.0",
     "langchain-tavily>=0.1",
     "fastapi[standard]",
     "uvicorn[standard]",
@@ -17,6 +17,8 @@ dependencies = [
     "playwright",
     "fsrs",
     "python-dotenv",
+    "httpx[socks]",
+    "dashscope>=1.25.14",
 ]
 
 [project.optional-dependencies]
