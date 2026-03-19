@@ -3,9 +3,9 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendOnboardingMessage } from '@/lib/sse'
 import { useOnboardingStatus } from '@/hooks/useLesson'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent } from '@/components/ui/card'
+import { Header } from '@/components/Header'
+import { MobileNav } from '@/components/MobileNav'
+import { DOG_GOLDEN } from '@/lib/constants'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -72,73 +72,142 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-4 h-screen flex flex-col">
-      <h1 className="text-xl font-bold mb-4">入学评估</h1>
-
-      <div className="flex-1 overflow-y-auto space-y-3 mb-4">
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-xl px-4 py-2 ${
-              m.role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-            }`}>
-              {m.content || (isStreaming && m.role === 'assistant' ? '...' : '')}
-            </div>
+    <div className="min-h-screen bg-background flex flex-col">
+      <Header />
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8 pb-24 md:pb-8 flex flex-col gap-4">
+        {/* Tutor intro card */}
+        <div className="flex items-center gap-3 bg-tertiary-container/25 rounded-lg p-4 border border-primary/10">
+          <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="顾问" />
           </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {showPreferenceCards ? (
-        <Card className="mb-4">
-          <CardContent className="pt-4 space-y-4">
-            <p className="font-medium">最后两步：</p>
-            <div>
-              <p className="text-sm mb-2">每日学习时长</p>
-              <div className="flex gap-2">
-                {[15, 25].map(m => (
-                  <Button
-                    key={m}
-                    variant={bandwidth === m ? 'default' : 'outline'}
-                    onClick={() => setBandwidth(m)}
-                  >{m} 分钟</Button>
-                ))}
-              </div>
+          <div>
+            <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label">
+              Professor 金毛
             </div>
-            <div>
-              <p className="text-sm mb-2">写作目标</p>
-              <div className="flex gap-2 flex-wrap">
-                {[['professional', '职场流'], ['ielts', '雅思流'], ['both', '两者']].map(([val, label]) => (
-                  <Button
-                    key={val}
-                    variant={writingMode === val ? 'default' : 'outline'}
-                    onClick={() => setWritingMode(val)}
-                  >{label}</Button>
-                ))}
-              </div>
-            </div>
-            <Button
-              className="w-full"
-              disabled={!bandwidth || !writingMode}
-              onClick={handlePreferenceSubmit}
-            >
-              开始准备今日内容 →
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSend()}
-            placeholder="输入你的回答..."
-            disabled={isStreaming}
-          />
-          <Button onClick={handleSend} disabled={isStreaming || !input.trim()}>
-            发送
-          </Button>
+            <div className="text-xs text-on-surface-variant">你的专属语言学习顾问</div>
+          </div>
         </div>
-      )}
+
+        {/* Message list */}
+        <div className="flex-1 space-y-3 overflow-y-auto">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              {m.role === 'assistant' && (
+                <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="" />
+                </div>
+              )}
+              <div
+                className={`max-w-[80%] px-4 py-3 rounded-lg text-sm leading-relaxed ${
+                  m.role === 'user'
+                    ? 'signature-gradient text-white rounded-br-sm'
+                    : 'bg-surface-container-lowest border border-outline-variant/20 text-on-surface rounded-bl-sm shadow-sm'
+                }`}
+              >
+                {m.content}
+              </div>
+            </div>
+          ))}
+          {isStreaming && (
+            <div className="flex justify-start">
+              <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="" />
+              </div>
+              <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 flex gap-1.5 items-center">
+                <span className="dot1 w-2 h-2 bg-primary rounded-full inline-block" />
+                <span className="dot2 w-2 h-2 bg-primary rounded-full inline-block" />
+                <span className="dot3 w-2 h-2 bg-primary rounded-full inline-block" />
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Preference cards (shown when agent asks for them) */}
+        {showPreferenceCards && (
+          <div className="space-y-4">
+            {/* Bandwidth */}
+            <div>
+              <div className="text-xs font-black text-primary uppercase tracking-wider font-label mb-2">
+                每日学习时长
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[15, 25, 40].map(mins => (
+                  <button
+                    key={mins}
+                    onClick={() => setBandwidth(mins)}
+                    className={`py-3 rounded-lg font-bold text-sm font-label border-2 transition-all ${
+                      bandwidth === mins
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-outline-variant/30 text-on-surface hover:border-primary/50'
+                    }`}
+                  >
+                    {mins} 分钟
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Writing mode */}
+            <div>
+              <div className="text-xs font-black text-primary uppercase tracking-wider font-label mb-2">
+                写作目标
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { val: 'professional', label: '职场英语' },
+                  { val: 'ielts',        label: '雅思备考' },
+                  { val: 'both',         label: '两者都要' },
+                ].map(o => (
+                  <button
+                    key={o.val}
+                    onClick={() => setWritingMode(o.val)}
+                    className={`py-3 rounded-lg font-bold text-sm font-label border-2 transition-all ${
+                      writingMode === o.val
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-outline-variant/30 text-on-surface hover:border-primary/50'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {bandwidth && writingMode && (
+              <button
+                onClick={handlePreferenceSubmit}
+                className="w-full signature-gradient text-white py-3 rounded-full font-bold font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform"
+              >
+                开始我的第一节课 🚀
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Input bar */}
+        {!showPreferenceCards && (
+          <div className="flex gap-2">
+            <input
+              className="flex-1 bg-surface-container-lowest border border-outline-variant/20 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40"
+              placeholder="输入你的回复..."
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !isStreaming && handleSend()}
+              disabled={isStreaming}
+            />
+            <button
+              onClick={handleSend}
+              disabled={isStreaming || !input.trim()}
+              className="signature-gradient text-white w-11 h-11 rounded-full flex items-center justify-center shadow-lg disabled:opacity-50 flex-shrink-0"
+            >
+              <span className="material-symbols-outlined text-[20px]">send</span>
+            </button>
+          </div>
+        )}
+      </main>
+      <MobileNav />
     </div>
   )
 }
