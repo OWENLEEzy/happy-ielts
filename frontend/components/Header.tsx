@@ -7,7 +7,7 @@ export function Header({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname()
 
   return (
-    <header className="sticky top-0 z-50 bg-[#fef7fe]/90 backdrop-blur-md border-b border-outline-variant/20">
+    <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-outline-variant/20">
       <div className="flex items-center justify-between max-w-5xl mx-auto px-6 py-3 gap-4">
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
@@ -23,7 +23,7 @@ export function Header({ streak = 0 }: { streak?: number }) {
         {/* Nav links (desktop) */}
         <nav className="hidden md:flex items-center gap-1">
           {[
-            { href: '/lesson',     label: '今日课程' },
+            { href: '/lesson', label: '今日课程' },
             { href: '/onboarding', label: '重新设置' },
           ].map(({ href, label }) => (
             <Link

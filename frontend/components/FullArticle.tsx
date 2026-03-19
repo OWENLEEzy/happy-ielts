@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { WordChip } from './WordChip'
 import type { Article } from '@/types'
 
 interface Props {
@@ -7,11 +8,33 @@ interface Props {
   onWordExplained?: (word: string, explanation: string) => void
 }
 
-export function FullArticle({ article }: Props) {
-  const [activeExplanation, setActiveExplanation] = useState<{ word: string; text: string } | null>(
-    null,
-  )
+function renderTokens(
+  text: string,
+  onExplained: (word: string, explanation: string) => void,
+) {
+  return text.split(/(\s+)/).map((token, i) => {
+    if (/\s+/.test(token)) return <span key={i}>{token}</span>
+    const word = token.replace(/[.,!?;:'"()\[\]]/g, '')
+    if (!word) return <span key={i}>{token}</span>
+    return (
+      <WordChip
+        key={i}
+        word={word}
+        context={text}
+        onExplained={explanation => onExplained(word, explanation)}
+      />
+    )
+  })
+}
+
+export function FullArticle({ article, onWordExplained }: Props) {
+  const [activeExplanation, setActiveExplanation] = useState<{ word: string; text: string } | null>(null)
   const paragraphs = article.full_text.split('\n\n').filter(Boolean)
+
+  const handleExplained = (word: string, explanation: string) => {
+    setActiveExplanation({ word, text: explanation })
+    onWordExplained?.(word, explanation)
+  }
 
   return (
     <div className="space-y-5 text-base leading-8 text-on-surface">
@@ -38,7 +61,7 @@ export function FullArticle({ article }: Props) {
             {isHighlighted && (
               <span className="absolute left-0 top-1 bottom-1 w-1 bg-primary rounded-full opacity-70" />
             )}
-            {para}
+            {renderTokens(para, handleExplained)}
           </p>
         )
       })}

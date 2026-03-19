@@ -130,21 +130,21 @@
 
 @layer utilities {
   .signature-gradient {
-    background: linear-gradient(135deg, #6d4ab3 0%, #a07de0 60%, #b390fe 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 55%, white) 60%, var(--primary-fixed) 100%);
   }
   .glass-panel {
-    background: rgba(254, 247, 254, 0.75);
+    background: color-mix(in srgb, var(--background) 75%, transparent);
     backdrop-filter: blur(12px);
   }
   .ai-highlight {
-    background: linear-gradient(90deg, rgba(179,144,254,0.18) 0%, rgba(109,74,179,0.08) 100%);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--primary-fixed) 18%, transparent) 0%, color-mix(in srgb, var(--primary) 8%, transparent) 100%);
     border-radius: 6px;
     padding: 2px 4px;
   }
   .vocab-word {
-    border-bottom: 2px dotted #6d4ab3;
+    border-bottom: 2px dotted var(--primary);
     cursor: help;
-    color: #6d4ab3;
+    color: var(--primary);
     font-weight: 600;
   }
   .lift {
@@ -152,7 +152,7 @@
   }
   .lift:hover {
     transform: translateY(-3px);
-    box-shadow: 0 16px 40px rgba(109, 74, 179, 0.14);
+    box-shadow: 0 16px 40px color-mix(in srgb, var(--primary) 14%, transparent);
   }
 }
 
