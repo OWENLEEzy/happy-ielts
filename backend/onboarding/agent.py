@@ -2,9 +2,9 @@ from deepagents import create_deep_agent
 from langchain.tools import tool
 from langchain_community.chat_models import ChatTongyi
 
-from backend.database import Database
+from backend.database import get_db
 
-_db = Database()
+_db = get_db()
 
 
 @tool

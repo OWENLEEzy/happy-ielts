@@ -2,7 +2,7 @@ from datetime import date
 
 from deepagents import create_deep_agent
 from langchain_community.chat_models import ChatTongyi
-from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_tavily import TavilySearch
 
 from backend.planner.tools import (
     generate_writing_task,
@@ -12,7 +12,7 @@ from backend.planner.tools import (
     scrape_article,
 )
 
-search_articles = TavilySearchResults(max_results=3)
+search_articles = TavilySearch(max_results=3)
 
 PLANNER_SYSTEM_PROMPT = """
 你是一个语言学习内容策划师。

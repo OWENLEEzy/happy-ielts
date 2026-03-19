@@ -7,7 +7,8 @@ dependencies = [
     "langchain-core>=1.0,<2.0",
     "langsmith>=0.3.4",
     "langgraph>=1.0,<2.0",
-    "langgraph-checkpoint-sqlite>=0.0.1",
+    "langgraph-checkpoint-postgres>=2.0.0",
+    "psycopg[binary,pool]>=3.2.0",
     "deepagents",
     "langchain-community>=0.3.0",
     "langchain-tavily>=0.1",
@@ -19,6 +20,7 @@ dependencies = [
     "python-dotenv",
     "httpx[socks]",
     "dashscope>=1.25.14",
+    "langgraph-checkpoint-sqlite>=3.0.3",
 ]
 
 [project.optional-dependencies]
@@ -53,5 +55,6 @@ disallow_untyped_defs = true
 [dependency-groups]
 dev = [
     "bandit>=1.9.4",
+    "pre-commit>=4.5.1",
     "pytest-cov>=7.0.0",
 ]

@@ -15,13 +15,13 @@ try:
 except (ImportError, AttributeError):
     Scraper = None  # type: ignore[assignment,misc]
 
-from backend.database import Database
+from backend.database import get_db
 from backend.models import ArticleCreate, WritingTaskCreate
 
 logger = logging.getLogger(__name__)
 
 _llm = ChatTongyi(model="qwen-max")
-_db = Database()
+_db = get_db()
 
 
 def _parse_json(content: str, model: type) -> object:
@@ -57,7 +57,9 @@ ARTICLE LOGIC DEFINITIONS:
 - cause_effect: article explains why something happened or what results from an action
 - argumentation: article makes a claim and defends it with evidence
 
-Return ONLY the structured output. Do not explain your choices.
+Return ONLY a JSON object with no prose, no markdown fences. Schema:
+{{"highlight_indices": [<0-based int>, <0-based int>, <0-based int>],
+"article_logic": "<compare|cause_effect|argumentation>"}}
 """
 
 
@@ -74,7 +76,7 @@ def _playwright_scrape(url: str) -> str:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page()
-            await page.goto(url)
+            await page.goto(url, timeout=30000)
             content = await page.inner_text("body")
             await browser.close()
             return content
@@ -83,7 +85,11 @@ def _playwright_scrape(url: str) -> str:
         return asyncio.run(_run())
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(run_in_new_loop).result()
+        future = pool.submit(run_in_new_loop)
+        try:
+            return future.result(timeout=60)
+        except concurrent.futures.TimeoutError:
+            raise RuntimeError(f"Playwright scraping timed out after 60s: {url}")
 
 
 @tool
@@ -131,16 +137,23 @@ def highlight_key_paragraphs(
 
     paragraphs = full_text.split("\n\n")
     numbered = "\n\n".join(f"[{i}] {p}" for i, p in enumerate(paragraphs))
-    response = _llm.invoke(
-        HIGHLIGHT_PROMPT.format(
-            paragraphs=numbered,
-            goal=user_goal,
-            interests=", ".join(interests),
-        )
+    prompt = HIGHLIGHT_PROMPT.format(
+        paragraphs=numbered,
+        goal=user_goal,
+        interests=", ".join(interests),
     )
-    result: HighlightResult = _parse_json(str(response.content), HighlightResult)  # type: ignore[assignment]
-    valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
-    return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
+    for attempt in range(3):
+        try:
+            response = _llm.invoke(prompt)
+            content = str(response.content).strip()
+            if not content:
+                raise ValueError("Empty response from model")
+            result: HighlightResult = _parse_json(content, HighlightResult)  # type: ignore[assignment]
+            valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
+            return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
+        except Exception as e:
+            logger.warning(f"highlight_key_paragraphs attempt {attempt + 1} failed: {e}")
+    raise ValueError("highlight_key_paragraphs failed after 3 attempts")
 
 
 class ArticleContext(BaseModel):
@@ -175,15 +188,23 @@ User goal: {profile.goal}
 Article title: {article.original_title}
 Writing mode: {mode}
 
-Fields to produce:
-- mode: "{mode}" (or ielts_task1/ielts_task2 as appropriate)
-- instruction: full task description referencing article topics (min 50 chars)
-- min_words: 50 for professional, 150 for ielts
-- article_id: 0  (placeholder, will be overwritten by save_daily_lesson)
+Return ONLY a JSON object with no prose, no markdown fences. Schema:
+{{"mode": "{mode}",
+"instruction": "<full task description referencing article topics, min 50 chars>",
+"min_words": <50 for professional or 150 for ielts>,
+"article_id": 0}}
 """
-    response = _llm.invoke(prompt)
-    result: WritingTaskCreate = _parse_json(str(response.content), WritingTaskCreate)  # type: ignore[assignment]
-    return result.model_dump()
+    for attempt in range(3):
+        try:
+            response = _llm.invoke(prompt)
+            content = str(response.content).strip()
+            if not content:
+                raise ValueError("Empty response from model")
+            result: WritingTaskCreate = _parse_json(content, WritingTaskCreate)  # type: ignore[assignment]
+            return result.model_dump()
+        except Exception as e:
+            logger.warning(f"generate_writing_task attempt {attempt + 1} failed: {e}")
+    raise ValueError("generate_writing_task failed after 3 attempts")
 
 
 @tool

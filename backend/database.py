@@ -97,6 +97,16 @@ class DatabaseProtocol(Protocol):
     ) -> tuple[int, int]: ...
 
 
+_instance: "Database | None" = None
+
+
+def get_db(db_path: str = "./db.sqlite3") -> "Database":
+    global _instance
+    if _instance is None:
+        _instance = Database(db_path)
+    return _instance
+
+
 class Database:
     def __init__(self, db_path: str = "./db.sqlite3"):
         self.db_path = db_path

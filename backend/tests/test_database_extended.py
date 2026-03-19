@@ -1,8 +1,8 @@
-"""Extended database tests — covers all Database methods with real in-memory SQLite."""
+"""Extended database tests — covers all Database methods against a real Postgres DB."""
 
 from datetime import date, datetime, timedelta
 
-from backend.database import Database
+from backend.database import DatabaseProtocol
 from backend.models import (
     ArticleCreate,
     ChinglishFlag,
@@ -77,13 +77,11 @@ def make_vocab(word: str = "leverage", next_review: str = TODAY) -> VocabItemCre
 # ---------------------------------------------------------------------------
 
 
-def test_get_user_profile_returns_none_when_empty():
-    db = Database(":memory:")
+def test_get_user_profile_returns_none_when_empty(db):
     assert db.get_user_profile() is None
 
 
-def test_upsert_user_profile_roundtrip():
-    db = Database(":memory:")
+def test_upsert_user_profile_roundtrip(db):
     profile = UserProfile(
         goal="Read AI papers",
         interests=["AI", "ML"],
@@ -100,9 +98,8 @@ def test_upsert_user_profile_roundtrip():
     assert result.writing_mode == "professional"
 
 
-def test_upsert_user_profile_overwrites():
+def test_upsert_user_profile_overwrites(db):
     """Second upsert overwrites the first — only one row ever."""
-    db = Database(":memory:")
     p1 = UserProfile(
         goal="First goal",
         interests=["tech"],
@@ -131,16 +128,14 @@ def test_upsert_user_profile_overwrites():
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_article_returns_id():
-    db = Database(":memory:")
+def test_upsert_article_returns_id(db):
     article_id = db.upsert_article(make_article())
     assert isinstance(article_id, int)
     assert article_id >= 1
 
 
-def test_upsert_article_conflict_updates_and_returns_same_id():
+def test_upsert_article_conflict_updates_and_returns_same_id(db):
     """Upserting same date twice returns the same id and updates fields."""
-    db = Database(":memory:")
     first_id = db.upsert_article(make_article(title="First"))
     second_id = db.upsert_article(make_article(title="Updated"))
     assert first_id == second_id
@@ -149,16 +144,13 @@ def test_upsert_article_conflict_updates_and_returns_same_id():
     assert result.original_title == "Updated"
 
 
-def test_get_today_article_returns_none_when_no_today_article():
-    db = Database(":memory:")
-    # Insert an article for yesterday only
+def test_get_today_article_returns_none_when_no_today_article(db):
     db.upsert_article(make_article(day=YESTERDAY))
     result = db.get_today_article()
     assert result is None
 
 
-def test_get_today_article_returns_correct_article():
-    db = Database(":memory:")
+def test_get_today_article_returns_correct_article(db):
     db.upsert_article(make_article(day=YESTERDAY, title="Old"))
     db.upsert_article(make_article(day=TODAY, title="Today's Article"))
     result = db.get_today_article()
@@ -173,17 +165,15 @@ def test_get_today_article_returns_correct_article():
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_writing_task_returns_id():
-    db = Database(":memory:")
+def test_upsert_writing_task_returns_id(db):
     article_id = db.upsert_article(make_article())
     task_id = db.upsert_writing_task(make_task(article_id))
     assert isinstance(task_id, int)
     assert task_id >= 1
 
 
-def test_upsert_writing_task_conflict_updates():
+def test_upsert_writing_task_conflict_updates(db):
     """Second upsert for same article_id updates fields and returns same id."""
-    db = Database(":memory:")
     article_id = db.upsert_article(make_article())
     first_id = db.upsert_writing_task(make_task(article_id, mode="professional"))
     second_id = db.upsert_writing_task(make_task(article_id, mode="ielts_task2"))
@@ -193,13 +183,11 @@ def test_upsert_writing_task_conflict_updates():
     assert task.mode == "ielts_task2"
 
 
-def test_get_today_writing_task_returns_none_when_no_today_article():
-    db = Database(":memory:")
+def test_get_today_writing_task_returns_none_when_no_today_article(db):
     assert db.get_today_writing_task() is None
 
 
-def test_get_today_writing_task_roundtrip():
-    db = Database(":memory:")
+def test_get_today_writing_task_roundtrip(db):
     article_id = db.upsert_article(make_article())
     db.upsert_writing_task(make_task(article_id))
     task = db.get_today_writing_task()
@@ -214,11 +202,10 @@ def test_get_today_writing_task_roundtrip():
 # ---------------------------------------------------------------------------
 
 
-def test_save_daily_lesson_returns_tuple_of_ids():
-    db = Database(":memory:")
+def test_save_daily_lesson_returns_tuple_of_ids(db):
     article = make_article()
     task_template = WritingTaskCreate(
-        article_id=0,  # will be replaced inside save_daily_lesson
+        article_id=0,
         mode="professional",
         instruction=LONG_INSTRUCTION,
         min_words=100,
@@ -230,9 +217,8 @@ def test_save_daily_lesson_returns_tuple_of_ids():
     assert task_id >= 1
 
 
-def test_save_daily_lesson_idempotent():
+def test_save_daily_lesson_idempotent(db):
     """Calling save_daily_lesson twice for the same date returns same ids."""
-    db = Database(":memory:")
     article = make_article()
     task_template = WritingTaskCreate(
         article_id=0,
@@ -246,8 +232,7 @@ def test_save_daily_lesson_idempotent():
     assert t1 == t2
 
 
-def test_save_daily_lesson_article_readable_afterwards():
-    db = Database(":memory:")
+def test_save_daily_lesson_article_readable_afterwards(db):
     article = make_article()
     task_template = WritingTaskCreate(
         article_id=0,
@@ -269,9 +254,8 @@ def test_save_daily_lesson_article_readable_afterwards():
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_vocab_item_conflict_updates():
+def test_upsert_vocab_item_conflict_updates(db):
     """Upserting the same word twice updates context_sentence and next_review."""
-    db = Database(":memory:")
     db.upsert_vocab_item(make_vocab("fluent", TODAY))
     updated = VocabItemCreate(
         word="fluent",
@@ -288,8 +272,7 @@ def test_upsert_vocab_item_conflict_updates():
     assert all_items[0].next_review == TOMORROW
 
 
-def test_get_due_vocab_items_excludes_future():
-    db = Database(":memory:")
+def test_get_due_vocab_items_excludes_future(db):
     db.upsert_vocab_item(make_vocab("now", TODAY))
     db.upsert_vocab_item(make_vocab("soon", TOMORROW))
     db.upsert_vocab_item(make_vocab("past", YESTERDAY))
@@ -300,15 +283,13 @@ def test_get_due_vocab_items_excludes_future():
     assert "soon" not in words
 
 
-def test_get_due_vocab_items_empty_when_all_future():
-    db = Database(":memory:")
+def test_get_due_vocab_items_empty_when_all_future(db):
     db.upsert_vocab_item(make_vocab("future", TOMORROW))
     due = db.get_due_vocab_items(date.today())
     assert due == []
 
 
-def test_get_all_vocab_items_returns_everything():
-    db = Database(":memory:")
+def test_get_all_vocab_items_returns_everything(db):
     db.upsert_vocab_item(make_vocab("alpha", TODAY))
     db.upsert_vocab_item(make_vocab("beta", TOMORROW))
     all_items = db.get_all_vocab_items()
@@ -316,8 +297,7 @@ def test_get_all_vocab_items_returns_everything():
     assert {item.word for item in all_items} == {"alpha", "beta"}
 
 
-def test_get_all_vocab_items_empty():
-    db = Database(":memory:")
+def test_get_all_vocab_items_empty(db):
     assert db.get_all_vocab_items() == []
 
 
@@ -326,8 +306,7 @@ def test_get_all_vocab_items_empty():
 # ---------------------------------------------------------------------------
 
 
-def test_save_writing_submission_returns_id():
-    db = Database(":memory:")
+def test_save_writing_submission_returns_id(db):
     sub = WritingSubmissionCreate(
         task_id=1,
         user_text="This is my essay text.",
@@ -355,9 +334,8 @@ def test_save_writing_submission_returns_id():
     assert sub_id >= 1
 
 
-def test_save_writing_submission_multiple_increments_id():
+def test_save_writing_submission_multiple_increments_id(db):
     """Each submission gets a unique, incrementing id."""
-    db = Database(":memory:")
 
     def make_sub(score: int) -> WritingSubmissionCreate:
         return WritingSubmissionCreate(
@@ -380,27 +358,15 @@ def test_save_writing_submission_multiple_increments_id():
 # ---------------------------------------------------------------------------
 
 
-def test_database_has_all_protocol_methods():
-    """
-    Database must implement every method declared on DatabaseProtocol.
-    Verified structurally (without @runtime_checkable) by checking attribute presence.
-    """
-    from backend.database import DatabaseProtocol
-
-    # All methods defined on the protocol
+def test_database_has_all_protocol_methods(db):
+    """Database must implement every method declared on DatabaseProtocol."""
     protocol_methods = [attr for attr in dir(DatabaseProtocol) if not attr.startswith("_")]
-
-    db = Database(":memory:")
     for method in protocol_methods:
         assert hasattr(db, method), f"Database is missing protocol method: {method}"
 
 
 def test_database_protocol_is_a_protocol():
     """DatabaseProtocol is a proper Protocol class."""
-
-    from backend.database import DatabaseProtocol
-
-    # All Protocol subclasses have _is_protocol set to True in their metaclass
     assert getattr(DatabaseProtocol, "_is_protocol", False) is True
 
 
@@ -409,7 +375,5 @@ def test_database_protocol_is_a_protocol():
 # ---------------------------------------------------------------------------
 
 
-def test_upsert_reading_start_is_noop():
-    db = Database(":memory:")
-    # Should complete without raising
+def test_upsert_reading_start_is_noop(db):
     db.upsert_reading_start(date.today())

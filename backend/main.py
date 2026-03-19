@@ -74,9 +74,9 @@ async def run_planner(background_tasks: BackgroundTasks):
 
 @app.get("/api/planner/status")
 async def planner_status():
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     article = db.get_today_article()
     task = db.get_today_writing_task()
     return {"ready": article is not None and task is not None}
@@ -108,18 +108,18 @@ async def onboarding_message(body: OnboardingMessageRequest):
 
 @app.get("/api/onboarding/status")
 async def onboarding_status():
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     profile = db.get_user_profile()
     return {"ready": profile is not None}
 
 
 @app.post("/api/onboarding/preferences")
 async def save_preferences(body: SavePreferencesRequest):
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     profile = db.get_user_profile()
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -138,9 +138,9 @@ async def save_preferences(body: SavePreferencesRequest):
 
 @app.get("/api/lesson/today")
 async def get_today_lesson():
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     article = db.get_today_article()
     task = db.get_today_writing_task()
     if article is None or task is None:
@@ -203,9 +203,9 @@ async def start_lesson():
 
 @app.get("/api/profile")
 async def get_profile():
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     profile = db.get_user_profile()
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -214,9 +214,9 @@ async def get_profile():
 
 @app.patch("/api/profile")
 async def update_profile(body: UpdateProfileRequest):
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     profile = db.get_user_profile()
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -246,8 +246,8 @@ Return 3-5 updated interest keywords.
 
 @app.get("/api/vocab")
 async def get_vocab():
-    from backend.database import Database
+    from backend.database import get_db
 
-    db = Database()
+    db = get_db()
     items = db.get_all_vocab_items()
     return [item.model_dump() for item in items]

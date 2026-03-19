@@ -7,13 +7,13 @@ from typing import Any, Literal
 from langgraph.config import get_stream_writer
 from langgraph.types import Command, interrupt
 
-from backend.database import Database
+from backend.database import get_db
 from backend.fsrs_engine import new_card_state, update_card
 from backend.models import VocabItem, VocabItemCreate
 from backend.tutor.tools import analyze_sentence, explain_word, run_feedback
 
 logger = logging.getLogger(__name__)
-_db = Database()
+_db = get_db()
 
 
 def route_start(_state: dict) -> Command[Literal["spaced_review", "reading"]]:
