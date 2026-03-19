@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html class="light" lang="zh-CN">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>DynamicLingo — 英语读写飞轮</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary":                  "#6d4ab3",
+                        "primary-dim":              "#613da6",
+                        "primary-fixed":            "#b390fe",
+                        "primary-container":        "#b390fe",
+                        "on-primary":               "#fdf7ff",
+                        "on-primary-container":     "#310072",
+                        "secondary":                "#6c596e",
+                        "secondary-container":      "#f5daf4",
+                        "on-secondary-container":   "#5f4b60",
+                        "tertiary":                 "#5c5e6e",
+                        "tertiary-container":       "#e6e6fa",
+                        "tertiary-dim":             "#505262",
+                        "on-tertiary-container":    "#525464",
+                        "background":               "#fef7fe",
+                        "surface":                  "#fef7fe",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container-low":    "#f8f1fa",
+                        "surface-container":        "#f2ebf5",
+                        "surface-container-high":   "#ede6f0",
+                        "surface-container-highest":"#e7e0ec",
+                        "surface-variant":          "#e7e0ec",
+                        "on-surface":               "#34313a",
+                        "on-surface-variant":       "#625d67",
+                        "outline":                  "#7e7983",
+                        "outline-variant":          "#b6b0bb",
+                        "error":                    "#a8364b",
+                        "error-container":          "#f97386",
+                        "on-error":                 "#fff7f7",
+                    },
+                    fontFamily: {
+                        "headline": ["Plus Jakarta Sans", "sans-serif"],
+                        "body":     ["Manrope", "sans-serif"],
+                        "label":    ["Plus Jakarta Sans", "sans-serif"],
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "sm":      "0.5rem",
+                        "lg":      "2rem",
+                        "xl":      "3rem",
+                        "full":    "9999px",
+                    },
+                },
+            },
+        }
+    </script>
+
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .signature-gradient {
+            background: linear-gradient(135deg, #6d4ab3 0%, #a07de0 60%, #b390fe 100%);
+        }
+        .glass-panel {
+            background: rgba(254, 247, 254, 0.75);
+            backdrop-filter: blur(12px);
+        }
+
+        /* --- Flashcard 3D flip --- */
+        .perspective      { perspective: 1200px; }
+        .flashcard        { transition: transform 0.55s cubic-bezier(0.4, 0.2, 0.2, 1); transform-style: preserve-3d; position: relative; }
+        .flashcard.flipped{ transform: rotateY(180deg); }
+        .card-face        { backface-visibility: hidden; -webkit-backface-visibility: hidden; position: absolute; inset: 0; }
+        .card-back        { transform: rotateY(180deg); }
+
+        /* --- AI highlight pulse --- */
+        .ai-highlight {
+            background: linear-gradient(90deg, rgba(179,144,254,0.18) 0%, rgba(109,74,179,0.08) 100%);
+            border-radius: 6px;
+            padding: 2px 4px;
+            transition: background 0.3s;
+        }
+        .ai-highlight:hover { background: rgba(179,144,254,0.3); }
+
+        /* --- Vocab underline --- */
+        .vocab-word {
+            border-bottom: 2px dotted #6d4ab3;
+            cursor: help;
+            color: #6d4ab3;
+            font-weight: 600;
+        }
+
+        /* --- SSE streaming dots --- */
+        @keyframes dot-bounce {
+            0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+            40%            { transform: scale(1.2); opacity: 1;   }
+        }
+        .dot1 { animation: dot-bounce 1.2s 0.0s infinite; }
+        .dot2 { animation: dot-bounce 1.2s 0.2s infinite; }
+        .dot3 { animation: dot-bounce 1.2s 0.4s infinite; }
+
+        /* --- Card hover lift --- */
+        .lift {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .lift:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 16px 40px rgba(109, 74, 179, 0.14);
+        }
+
+        /* --- Reading progress bar (top) --- */
+        #read-progress-bar { transition: width 0.4s ease; }
+
+        /* — Background subtle noise (optional atmosphere) — */
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.018'/%3E%3C/svg%3E");
+            pointer-events: none; z-index: 0;
+        }
+        #root { position: relative; z-index: 1; }
+    </style>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container">
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+const { createRoot } = ReactDOM;
+const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+// ─── Dog image constants ─────────────────────────────────────────────────────
+const DOG_WHITE   = "https://i.pinimg.com/736x/2f/66/f3/2f66f3078d5340540ac3c178cb8b261e.jpg";
+const DOG_GOLDEN  = "https://i.pinimg.com/736x/4d/de/1f/4dde1f6accdebbc5d858bbff163b06c3.jpg";
+const DOG_TOGETHER= "https://i.pinimg.com/736x/27/76/b3/2776b30bd673a7eefb90d0bd87372bbb.jpg";
+
+// ─── Sample data ─────────────────────────────────────────────────────────────
+const ARTICLE = {
+    title:      "The Paradox of Urban Rewilding",
+    subtitle:   "How cities are learning to coexist with nature",
+    difficulty: "B2–C1",
+    readTime:   "8 min",
+    topic:      "Environment",
+    paragraphs: [
+        {
+            id: 1, highlight: true,
+            text: "Urban rewilding — the deliberate reintroduction of wildlife and natural ecosystems into city environments — has emerged as one of the most compelling conservation strategies of the 21st century. Cities like Singapore, Berlin, and Melbourne are at the forefront of this quiet revolution, transforming rooftops, abandoned lots, and riverbanks into thriving ecological corridors.",
+        },
+        {
+            id: 2, highlight: false,
+            text: "The concept challenges a longstanding assumption: that urban development and biodiversity are mutually exclusive. In fact, recent studies suggest that well-designed green infrastructure can support species richness comparable to some semi-natural habitats. Singapore's \"City in a Garden\" vision has seen the return of over 400 bird species within metropolitan boundaries.",
+        },
+        {
+            id: 3, highlight: true,
+            text: "However, rewilding urban spaces is not without its paradoxes. The very act of planning nature — selecting which species to introduce, managing invasive growth, maintaining ecological balance — stands in tension with the philosophy of letting nature take its course. Critics argue that \"designer ecosystems\" prioritise human aesthetics over genuine ecological function.",
+        },
+        {
+            id: 4, highlight: false,
+            text: "Community engagement proves equally complex. While surveys consistently show high public support for urban greening in the abstract, resistance often emerges when concrete proposals threaten parking spaces or introduce wildlife perceived as threatening.",
+        },
+        {
+            id: 5, highlight: true,
+            text: "The economic case for urban rewilding is, paradoxically, both its greatest strength and a potential Achilles' heel. Ecosystem services — air purification, flood mitigation, urban heat island reduction — can be quantified in monetary terms, making the policy case straightforward. Yet this framing risks commodifying nature, reducing living systems to their utility value and undermining intrinsic arguments for biodiversity preservation.",
+        },
+    ],
+    vocab: [
+        { word: "rewilding",   phonetic: "/riːˈwaɪldɪŋ/",          def: "恢复野化 — returning land to a natural wild state" },
+        { word: "corridors",   phonetic: "/ˈkɒrɪdɔːrz/",           def: "生态廊道 — strips of habitat linking fragmented areas" },
+        { word: "biodiversity",phonetic: "/ˌbaɪoʊdaɪˈvɜːrsɪti/",  def: "生物多样性 — variety of plant and animal life" },
+        { word: "commodifying",phonetic: "/kəˈmɒdɪfaɪɪŋ/",        def: "商品化 — treating something as a mere commodity" },
+        { word: "intrinsic",   phonetic: "/ɪnˈtrɪnsɪk/",           def: "内在的 — belonging essentially; inherent" },
+    ],
+};
+
+const WRITING_PROMPT = "Some people argue that urban rewilding wastes valuable city resources that should instead fund housing and infrastructure. To what extent do you agree or disagree? Give reasons for your answer and include any relevant examples from your own knowledge or experience.";
+
+const VOCAB_ITEMS = [
+    { id:1, word:"pernicious",   phonetic:"/pərˈnɪʃəs/",      pos:"adj", def:"有害的，恶性的",   example:"The pernicious influence of misleading statistics cannot be overstated.", chinglish: null,                                         source:"writing_error", interval:1 },
+    { id:2, word:"commodify",    phonetic:"/kəˈmɒdɪfaɪ/",    pos:"v",   def:"将…商品化",       example:"There is a risk we may commodify nature by reducing it to economic value.", chinglish:"不要说 'commercialize nature' — 用 commodify 更精准", source:"reading",       interval:3 },
+    { id:3, word:"intrinsic",    phonetic:"/ɪnˈtrɪnsɪk/",    pos:"adj", def:"内在的，本质的",   example:"Biodiversity has intrinsic value beyond its utility to humans.",           chinglish: null,                                         source:"reading",       interval:7 },
+    { id:4, word:"mitigation",   phonetic:"/ˌmɪtɪˈɡeɪʃn/",  pos:"n",   def:"缓解，减轻",       example:"Flood mitigation strategies have become a priority for coastal cities.",    chinglish:"不要说 'reduce the disaster' — 用 mitigate/mitigation", source:"writing_error", interval:1 },
+];
+
+// ─── Shared UI atoms ─────────────────────────────────────────────────────────
+const Icon = ({ name, fill=false, size=24, cls="" }) => (
+    <span
+        className={`material-symbols-outlined leading-none select-none ${cls}`}
+        style={{ fontSize: size, fontVariationSettings: fill ? "'FILL' 1,'wght' 400" : "'FILL' 0,'wght' 400" }}
+    >{name}</span>
+);
+
+// ─── Header ──────────────────────────────────────────────────────────────────
+const Header = () => {
+    const loc = useLocation();
+    const nav = [
+        { to:"/dashboard", label:"首页",     icon:"home"       },
+        { to:"/reading",   label:"今日阅读", icon:"menu_book"  },
+        { to:"/writing",   label:"写作练习", icon:"edit_note"  },
+        { to:"/vocab",     label:"生词复习", icon:"style"      },
+    ];
+    return (
+        <header className="sticky top-0 z-50 bg-[#fef7fe]/90 backdrop-blur-md border-b border-outline-variant/20">
+            <div className="flex items-center justify-between max-w-7xl mx-auto px-6 py-3 gap-4">
+                {/* Logo */}
+                <div className="flex items-center gap-2.5 flex-shrink-0">
+                    <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
+                        <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="logo" />
+                    </div>
+                    <span className="text-lg font-black text-primary tracking-tighter font-headline hidden sm:block">DynamicLingo</span>
+                </div>
+
+                {/* Nav */}
+                <nav className="hidden md:flex gap-1">
+                    {nav.map(n => {
+                        const active = loc.pathname === n.to;
+                        return (
+                            <Link key={n.to} to={n.to}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-semibold font-label transition-all duration-200
+                                    ${active ? 'bg-primary text-white shadow-sm' : 'text-on-surface-variant hover:bg-primary/10 hover:text-primary'}`}
+                            >
+                                <Icon name={n.icon} size={17} fill={active} />
+                                {n.label}
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                {/* Right */}
+                <div className="flex items-center gap-3">
+                    <div className="hidden sm:flex items-center gap-1.5 bg-error/10 px-3 py-1.5 rounded-full text-sm font-bold text-error font-label">
+                        <Icon name="local_fire_department" fill size={17} cls="text-error" />
+                        7天
+                    </div>
+                    <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 cursor-pointer">
+                        <img src={DOG_WHITE} className="w-full h-full object-cover" alt="我" />
+                    </div>
+                </div>
+            </div>
+        </header>
+    );
+};
+
+// ─── Mobile bottom nav ────────────────────────────────────────────────────────
+const MobileNav = () => {
+    const loc = useLocation();
+    const nav = [
+        { to:"/dashboard", label:"首页",   icon:"home"      },
+        { to:"/reading",   label:"阅读",   icon:"menu_book" },
+        { to:"/writing",   label:"写作",   icon:"edit_note" },
+        { to:"/vocab",     label:"词汇",   icon:"style"     },
+    ];
+    return (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-outline-variant/20 z-50 flex justify-around py-2">
+            {nav.map(n => {
+                const active = loc.pathname === n.to;
+                return (
+                    <Link key={n.to} to={n.to} className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-xl transition-colors ${active ? 'text-primary' : 'text-on-surface-variant'}`}>
+                        <Icon name={n.icon} size={22} fill={active} />
+                        <span className="text-[10px] font-bold font-label">{n.label}</span>
+                    </Link>
+                );
+            })}
+        </nav>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SCREEN: Dashboard
+// ═══════════════════════════════════════════════════════════════════════════════
+const Dashboard = () => {
+    const navigate = useNavigate();
+
+    const stats = [
+        { label:"连续天数", value:"7",   unit:"天",  icon:"local_fire_department", fill:true,  cls:"text-error"   },
+        { label:"今日新词", value:"12",  unit:"个",  icon:"style",                 fill:false, cls:"text-primary" },
+        { label:"写作得分", value:"7.2", unit:"分",  icon:"grade",                 fill:true,  cls:"text-primary" },
+        { label:"累计词汇", value:"248", unit:"词",  icon:"library_books",         fill:false, cls:"text-tertiary"},
+    ];
+
+    return (
+        <div className="min-h-screen bg-background pb-20 md:pb-0">
+            <Header />
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+
+                {/* ── Hero ── */}
+                <section className="relative overflow-hidden bg-primary-container/20 rounded-lg p-8 md:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+                    <div className="relative z-10 max-w-lg">
+                        <span className="inline-flex items-center gap-1.5 text-[11px] font-black tracking-widest text-primary uppercase bg-primary/10 rounded-full px-3 py-1 mb-4 font-label">
+                            <Icon name="today" size={13} />今日课程 · 2026-03-19
+                        </span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold font-headline text-on-surface leading-tight mb-3">
+                            继续你的<br/><span className="text-primary">英语读写飞轮</span>
+                        </h1>
+                        <p className="text-on-surface-variant mb-6 leading-relaxed text-sm md:text-base">
+                            今日文章已就绪：<span className="font-semibold text-on-surface italic">The Paradox of Urban Rewilding</span>。深读、写作、复习生词，一气呵成。
+                        </p>
+                        <div className="flex flex-wrap gap-3">
+                            <button onClick={() => navigate('/reading')}
+                                className="signature-gradient text-white px-6 py-2.5 rounded-full font-bold text-sm shadow-lg shadow-primary/30 hover:scale-105 transition-transform flex items-center gap-2 font-label">
+                                <Icon name="play_arrow" fill size={20} />开始今日课程
+                            </button>
+                            <button onClick={() => navigate('/vocab')}
+                                className="bg-surface-container-highest text-on-surface px-5 py-2.5 rounded-full font-bold text-sm hover:bg-surface-variant transition-colors flex items-center gap-2 font-label">
+                                <Icon name="style" size={18} />复习生词 (4)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Mascot */}
+                    <div className="hidden md:flex flex-col items-center gap-3 relative flex-shrink-0">
+                        <div className="w-44 h-44 rounded-full overflow-hidden border-4 border-white shadow-xl">
+                            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="Professor 金毛" />
+                        </div>
+                        <div className="absolute -top-2 -right-4 bg-white rounded-lg shadow-lg px-3 py-2 text-xs font-bold font-label text-on-surface max-w-[130px] text-center border border-outline-variant/20">
+                            <span className="text-primary block text-[10px] uppercase tracking-wider mb-0.5">Professor 金毛说</span>
+                            今天的文章难度正合适！继续加油 🐾
+                        </div>
+                        <div className="absolute -bottom-1 -right-1 bg-primary rounded-full p-1.5 shadow-md">
+                            <Icon name="auto_awesome" fill size={16} cls="text-white" />
+                        </div>
+                    </div>
+
+                    {/* Background paw */}
+                    <div className="absolute -right-10 -bottom-10 opacity-[0.04] rotate-12 pointer-events-none">
+                        <Icon name="menu_book" size={220} cls="text-primary" />
+                    </div>
+                </section>
+
+                {/* ── Stats ── */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {stats.map(s => (
+                        <div key={s.label} className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)] lift cursor-default">
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-primary/10`}>
+                                <Icon name={s.icon} fill={s.fill} size={21} cls={s.cls} />
+                            </div>
+                            <div className="text-3xl font-black font-headline text-on-surface leading-none">
+                                {s.value}<span className="text-sm font-semibold text-on-surface-variant ml-1">{s.unit}</span>
+                            </div>
+                            <div className="text-xs text-on-surface-variant mt-1.5 font-label">{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* ── Main grid ── */}
+                <div className="grid lg:grid-cols-3 gap-6">
+
+                    {/* Left: article + writing preview */}
+                    <div className="lg:col-span-2 space-y-5">
+
+                        {/* Article card */}
+                        <div onClick={() => navigate('/reading')}
+                            className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_rgba(109,74,179,0.07)] border-l-[6px] border-primary lift cursor-pointer">
+                            <div className="flex items-start justify-between mb-4">
+                                <div className="flex flex-wrap gap-2">
+                                    <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold font-label">🌿 Environment</span>
+                                    <span className="bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-bold font-label">{ARTICLE.difficulty}</span>
+                                    <span className="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-xs font-bold font-label flex items-center gap-1">
+                                        <Icon name="schedule" size={13} />{ARTICLE.readTime}
+                                    </span>
+                                </div>
+                                <Icon name="arrow_forward" size={20} cls="text-primary mt-0.5 flex-shrink-0" />
+                            </div>
+                            <h2 className="text-xl font-bold font-headline text-on-surface mb-1">{ARTICLE.title}</h2>
+                            <p className="text-sm text-on-surface-variant mb-5">{ARTICLE.subtitle}</p>
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between text-xs font-bold font-label">
+                                    <span className="text-on-surface-variant">阅读进度</span>
+                                    <span className="text-primary">未开始</span>
+                                </div>
+                                <div className="h-2 bg-primary-container/20 rounded-full overflow-hidden">
+                                    <div className="h-full bg-primary rounded-full" style={{width:"0%"}}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Writing preview */}
+                        <div onClick={() => navigate('/writing')}
+                            className="bg-surface-container rounded-lg p-6 border-2 border-dashed border-primary/20 lift cursor-pointer">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                    <Icon name="edit_note" size={20} cls="text-primary" />
+                                </div>
+                                <div>
+                                    <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label">今日写作任务 · Task 2</div>
+                                    <div className="text-xs text-on-surface-variant">250词 · 建议25分钟</div>
+                                </div>
+                            </div>
+                            <p className="text-sm text-on-surface-variant italic leading-relaxed line-clamp-2">"{WRITING_PROMPT}"</p>
+                        </div>
+
+                        {/* Progress summary */}
+                        <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                            <div className="flex justify-between items-center mb-5">
+                                <h3 className="font-bold font-headline text-on-surface">本周进度</h3>
+                                <span className="text-xs text-primary font-bold font-label">Band 6.5 → 8.0</span>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 mb-5">
+                                <div className="bg-surface-container-low p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-black text-on-surface font-headline">6.5</div>
+                                    <div className="text-xs text-on-surface-variant font-label">当前</div>
+                                </div>
+                                <div className="signature-gradient p-4 rounded-lg text-center text-white shadow-md">
+                                    <div className="text-2xl font-black font-headline">8.0</div>
+                                    <div className="text-xs opacity-80 font-label">目标</div>
+                                </div>
+                                <div className="bg-surface-container-low p-4 rounded-lg text-center">
+                                    <div className="text-2xl font-black text-tertiary font-headline">12</div>
+                                    <div className="text-xs text-on-surface-variant font-label">天后考试</div>
+                                </div>
+                            </div>
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between text-xs font-bold font-label">
+                                    <span className="text-on-surface-variant">整体进度</span>
+                                    <span className="text-primary">72%</span>
+                                </div>
+                                <div className="h-3 bg-primary-container/20 rounded-full overflow-hidden relative">
+                                    <div className="absolute inset-y-0 left-0 bg-primary rounded-full" style={{width:"72%"}}></div>
+                                    <div className="absolute inset-y-0 flex items-center" style={{left:"calc(72% - 10px)"}}>
+                                        <div className="w-5 h-5 bg-white border-2 border-primary rounded-full flex items-center justify-center shadow-sm">
+                                            <Icon name="pets" fill size={11} cls="text-primary" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right */}
+                    <div className="space-y-5">
+
+                        {/* Word of the Day */}
+                        <div className="signature-gradient rounded-lg p-6 text-white relative overflow-hidden shadow-xl">
+                            <div className="absolute -top-6 -right-6 opacity-10 rotate-12 pointer-events-none">
+                                <Icon name="auto_awesome" fill size={120} cls="text-white" />
+                            </div>
+                            <div className="flex items-center gap-2 mb-4">
+                                <Icon name="stars" fill size={18} />
+                                <span className="text-[11px] font-black uppercase tracking-widest font-label">今日单词</span>
+                            </div>
+                            <h3 className="text-3xl font-black font-headline italic mb-1">pernicious</h3>
+                            <p className="text-sm opacity-75 mb-4 font-label">/pərˈnɪʃəs/ · adj</p>
+                            <div className="bg-white/15 backdrop-blur-sm rounded-lg p-3 text-sm leading-relaxed mb-4">
+                                有害的，恶性的 — especially in a gradual or subtle way
+                            </div>
+                            <p className="text-xs border-l-2 border-white/30 pl-3 opacity-85 italic leading-relaxed">
+                                "The pernicious influence of misleading statistics on public opinion cannot be overstated."
+                            </p>
+                        </div>
+
+                        {/* Vocab due */}
+                        <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                            <div className="flex justify-between items-center mb-4">
+                                <span className="font-bold font-headline text-on-surface text-sm">待复习生词</span>
+                                <button onClick={() => {}} className="text-primary text-xs font-bold font-label hover:underline flex items-center gap-0.5">
+                                    全部 <Icon name="arrow_forward_ios" size={11} />
+                                </button>
+                            </div>
+                            <div className="space-y-1">
+                                {VOCAB_ITEMS.map(v => (
+                                    <div key={v.id} className="flex items-center gap-3 py-2.5 border-b border-outline-variant/15 last:border-0">
+                                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${v.interval === 1 ? 'bg-error' : v.interval <= 3 ? 'bg-primary' : 'bg-outline-variant'}`}/>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-sm font-bold text-on-surface font-label">{v.word}</div>
+                                            <div className="text-xs text-on-surface-variant truncate">{v.def}</div>
+                                        </div>
+                                        <div className="text-xs text-on-surface-variant font-label flex-shrink-0">{v.interval === 1 ? '今日' : `${v.interval}天`}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Study buddy */}
+                        <div className="bg-secondary-container/30 rounded-lg p-5 border border-dashed border-primary/20">
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
+                                    <img src={DOG_WHITE} className="w-full h-full object-cover" alt="我" />
+                                </div>
+                                <div className="text-xs font-black text-primary font-label uppercase tracking-wider">小白的今日目标</div>
+                            </div>
+                            {[
+                                { label:"完成今日阅读", done:false },
+                                { label:"写作 250+ 词",  done:false },
+                                { label:"复习 4 个生词", done:false },
+                            ].map(g => (
+                                <div key={g.label} className="flex items-center gap-2.5 py-2">
+                                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center ${g.done ? 'bg-primary border-primary' : 'border-outline-variant'}`}>
+                                        {g.done && <Icon name="check" fill size={11} cls="text-white" />}
+                                    </div>
+                                    <span className={`text-xs font-label ${g.done ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{g.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </main>
+            <MobileNav />
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SCREEN: Reading
+// ═══════════════════════════════════════════════════════════════════════════════
+const Reading = () => {
+    const navigate = useNavigate();
+    const [progress,      setProgress]     = useState(0);
+    const [activeVocab,   setActiveVocab]  = useState(null);
+    const [showTip,       setShowTip]      = useState(true);
+    const scrollRef = useRef(null);
+
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const onScroll = () => {
+            const pct = Math.min(100, Math.round(el.scrollTop / (el.scrollHeight - el.clientHeight) * 100));
+            setProgress(isNaN(pct) ? 0 : pct);
+        };
+        el.addEventListener('scroll', onScroll);
+        return () => el.removeEventListener('scroll', onScroll);
+    }, []);
+
+    /* Highlight vocab words inside a paragraph */
+    const renderPara = (text) => {
+        const tokens = text.split(/(\s+)/);
+        return tokens.map((token, i) => {
+            const clean = token.replace(/[.,;"()]/g, '').toLowerCase();
+            const vocabItem = ARTICLE.vocab.find(v => v.word === clean);
+            if (vocabItem) {
+                return (
+                    <span key={i}>
+                        <span
+                            className="vocab-word cursor-pointer relative"
+                            onClick={() => setActiveVocab(av => av?.word === vocabItem.word ? null : vocabItem)}
+                        >{token}</span>
+                        {activeVocab?.word === vocabItem.word && (
+                            <span className="inline-flex ml-1 bg-on-surface text-background text-xs rounded-lg px-3 py-1.5 font-label shadow-xl align-middle z-10">
+                                {vocabItem.phonetic} · {vocabItem.def}
+                            </span>
+                        )}
+                    </span>
+                );
+            }
+            return <span key={i}>{token}</span>;
+        });
+    };
+
+    return (
+        <div className="min-h-screen bg-background flex flex-col">
+            <Header />
+            {/* Thin progress bar below header */}
+            <div className="h-1 bg-primary-container/20 sticky top-[57px] z-40">
+                <div id="read-progress-bar" className="h-full bg-primary rounded-r-full" style={{width:`${progress}%`}} />
+            </div>
+
+            <div className="flex flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 gap-8 pb-20 md:pb-8" ref={scrollRef} style={{overflowY:'auto', maxHeight:'calc(100vh - 72px)'}}>
+
+                {/* Article main column */}
+                <article className="flex-1 min-w-0 space-y-6">
+                    {/* Meta */}
+                    <div>
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            <span className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold font-label">🌿 Environment</span>
+                            <span className="bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-bold font-label">{ARTICLE.difficulty}</span>
+                            <span className="bg-surface-container-high text-on-surface-variant px-3 py-1 rounded-full text-xs font-bold font-label flex items-center gap-1">
+                                <Icon name="schedule" size={13} />{ARTICLE.readTime}
+                            </span>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold font-headline text-on-surface mb-2">{ARTICLE.title}</h1>
+                        <p className="text-on-surface-variant text-lg leading-relaxed mb-4">{ARTICLE.subtitle}</p>
+                        <div className="flex items-center gap-2 text-xs text-on-surface-variant font-label">
+                            <Icon name="smart_toy" fill size={14} cls="text-primary" />
+                            AI 已高亮 3 个核心段落 ·
+                            <span className="text-primary font-bold">{ARTICLE.vocab.length} 个关键词</span>已添加生词库
+                        </div>
+                    </div>
+
+                    {/* Tutor tip */}
+                    {showTip && (
+                        <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
+                                <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="Tutor" />
+                            </div>
+                            <div className="flex-1">
+                                <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">Professor 金毛提示</div>
+                                <p className="text-sm text-on-surface leading-relaxed">注意<span className="font-bold text-primary">紫色高亮段落</span>——这些是今日写作任务的核心论点来源。<span className="font-semibold underline decoration-dotted decoration-primary cursor-help">点击蓝色词汇</span>可查看释义。</p>
+                            </div>
+                            <button onClick={() => setShowTip(false)} className="text-on-surface-variant hover:text-on-surface mt-0.5">
+                                <Icon name="close" size={17} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Paragraphs */}
+                    <div className="space-y-5 text-base leading-8 text-on-surface">
+                        {ARTICLE.paragraphs.map(p => (
+                            <p key={p.id} className={`${p.highlight ? 'ai-highlight relative pl-4' : ''}`}>
+                                {p.highlight && <span className="absolute left-0 top-1 bottom-1 w-1 bg-primary rounded-full opacity-70" />}
+                                {renderPara(p.text)}
+                            </p>
+                        ))}
+                    </div>
+
+                    {/* Vocab list */}
+                    <div className="pt-8 border-t border-outline-variant/20">
+                        <div className="flex items-center gap-2 mb-5">
+                            <Icon name="style" fill size={20} cls="text-primary" />
+                            <h2 className="text-lg font-bold font-headline text-on-surface">本文关键词汇</h2>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-3">
+                            {ARTICLE.vocab.map(v => (
+                                <div key={v.word} className="bg-surface-container-low rounded-lg p-4 border border-outline-variant/10">
+                                    <div className="flex items-baseline gap-2 mb-1">
+                                        <span className="font-bold text-primary font-headline text-base">{v.word}</span>
+                                        <span className="text-xs text-on-surface-variant font-label">{v.phonetic}</span>
+                                    </div>
+                                    <p className="text-sm text-on-surface-variant">{v.def}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* CTA */}
+                    <div className="bg-primary-container/20 rounded-lg p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div>
+                            <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label mb-1">文章阅读完成 🎉</div>
+                            <h3 className="text-lg font-bold font-headline text-on-surface">准备好写作了吗？</h3>
+                            <p className="text-sm text-on-surface-variant mt-1">基于本文的写作任务已就绪，250词，建议25分钟</p>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="hidden sm:block w-12 h-12 rounded-full overflow-hidden border-2 border-white shadow-md">
+                                <img src={DOG_TOGETHER} className="w-full h-full object-cover" alt="完成" />
+                            </div>
+                            <button onClick={() => navigate('/writing')}
+                                className="signature-gradient text-white px-6 py-2.5 rounded-full font-bold text-sm shadow-lg shadow-primary/25 hover:scale-105 transition-transform flex items-center gap-2 font-label whitespace-nowrap">
+                                <Icon name="edit_note" size={18} />开始写作
+                            </button>
+                        </div>
+                    </div>
+                </article>
+
+                {/* Right sidebar */}
+                <aside className="hidden xl:flex flex-col gap-5 w-60 flex-shrink-0 sticky top-4 h-fit">
+                    <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                        <div className="text-[11px] font-black text-primary uppercase tracking-widest mb-2 font-label">阅读进度</div>
+                        <div className="text-4xl font-black font-headline text-on-surface mb-2">{progress}%</div>
+                        <div className="h-2 bg-primary-container/20 rounded-full overflow-hidden">
+                            <div className="h-full bg-primary rounded-full transition-all duration-500" style={{width:`${progress}%`}} />
+                        </div>
+                    </div>
+                    <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                        <div className="text-[11px] font-black text-primary uppercase tracking-widest mb-3 font-label">学习检查点</div>
+                        {[
+                            { label:"识别主要论点",   done: progress > 15 },
+                            { label:"理解3个核心词",  done: progress > 40 },
+                            { label:"完成全文阅读",   done: progress >= 90 },
+                            { label:"完成写作任务",   done: false          },
+                        ].map(g => (
+                            <div key={g.label} className="flex items-center gap-2.5 py-2">
+                                <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${g.done ? 'bg-primary border-primary' : 'border-outline-variant'}`}>
+                                    {g.done && <Icon name="check" fill size={12} cls="text-white" />}
+                                </div>
+                                <span className={`text-xs font-label ${g.done ? 'line-through text-on-surface-variant' : 'text-on-surface'}`}>{g.label}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="bg-secondary-container/30 rounded-lg p-4 border border-dashed border-primary/15">
+                        <div className="flex items-center gap-2 mb-2">
+                            <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20">
+                                <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+                            </div>
+                            <span className="text-[10px] font-black text-primary font-label uppercase tracking-wider">Professor 金毛</span>
+                        </div>
+                        <p className="text-xs text-on-surface leading-relaxed italic">"第5段中 'Achilles' heel' 是固定搭配，写作时用它替换 'weakness' 可大幅提升词汇评分！"</p>
+                    </div>
+                </aside>
+            </div>
+            <MobileNav />
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SCREEN: Writing
+// ═══════════════════════════════════════════════════════════════════════════════
+const Writing = () => {
+    const navigate = useNavigate();
+    const [text,       setText]       = useState('');
+    const [streaming,  setStreaming]   = useState(false);
+    const [submitted,  setSubmitted]   = useState(false);
+    const [feedback,   setFeedback]    = useState(null);
+
+    const wordCount = text.trim() === '' ? 0 : text.trim().split(/\s+/).length;
+    const MIN = 250;
+
+    const handleSubmit = () => {
+        setStreaming(true);
+        setTimeout(() => {
+            setStreaming(false);
+            setSubmitted(true);
+            setFeedback({
+                overall: 7.0,
+                scores:  { task:7.0, coherence:7.5, vocab:6.5, grammar:7.0 },
+                strengths: [
+                    "论点结构清晰，主题句定位准确",
+                    "正确使用了 'intrinsic value' 和 'mitigation'",
+                ],
+                chinglish: [
+                    { wrong:"very importance",       correct:"of great importance / critically important" },
+                    { wrong:"have a big influence to", correct:"have a significant influence on"          },
+                ],
+                suggestion: "建议在第2段加入具体数据（如新加坡案例），词汇分数可提升至7.5+。",
+            });
+        }, 2600);
+    };
+
+    const reset = () => { setText(''); setSubmitted(false); setFeedback(null); setStreaming(false); };
+
+    return (
+        <div className="min-h-screen bg-background pb-20 md:pb-0">
+            <Header />
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+                <div className="grid lg:grid-cols-5 gap-8 items-start">
+
+                    {/* Writing panel */}
+                    <div className="lg:col-span-3 space-y-5">
+
+                        {/* Prompt */}
+                        <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="signature-gradient text-white text-xs font-black px-3 py-1 rounded-full font-label">Task 2</span>
+                                <span className="text-xs text-on-surface-variant font-label">250词最低 · 建议25分钟</span>
+                            </div>
+                            <p className="text-on-surface leading-relaxed font-medium">"{WRITING_PROMPT}"</p>
+                            <div className="mt-4 grid sm:grid-cols-3 gap-2">
+                                {[
+                                    "先表明立场，再展开论据",
+                                    "可引用今日文章中的案例",
+                                    "检查逻辑词：however / therefore",
+                                ].map((tip, i) => (
+                                    <div key={i} className="bg-surface-container-low rounded-lg p-3 text-xs text-on-surface-variant leading-relaxed">
+                                        <Icon name="tips_and_updates" fill size={13} cls="text-primary mb-1 block" />
+                                        {tip}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {!submitted ? (
+                            /* Editor */
+                            <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                                <textarea
+                                    className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low p-5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40 text-on-surface leading-8 font-body text-sm"
+                                    rows={13}
+                                    placeholder="在此输入你的文章... (至少250词)"
+                                    value={text}
+                                    onChange={e => setText(e.target.value)}
+                                    disabled={streaming}
+                                />
+                                <div className="mt-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-bold font-label">
+                                            <span className={wordCount >= MIN ? 'text-primary' : wordCount > 200 ? 'text-on-surface' : 'text-on-surface-variant'}>{wordCount}</span>
+                                            <span className="text-on-surface-variant"> / {MIN} 词</span>
+                                        </span>
+                                        <div className="w-20 h-2 bg-primary-container/20 rounded-full overflow-hidden">
+                                            <div className={`h-full rounded-full transition-all duration-300 ${wordCount >= MIN ? 'bg-primary' : 'bg-primary/40'}`}
+                                                style={{width:`${Math.min(100, (wordCount/MIN)*100)}%`}} />
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={handleSubmit}
+                                        disabled={wordCount < MIN || streaming}
+                                        className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm font-label transition-all
+                                            ${wordCount >= MIN && !streaming
+                                                ? 'signature-gradient text-white shadow-lg shadow-primary/25 hover:scale-105 cursor-pointer'
+                                                : 'bg-surface-container-highest text-on-surface-variant cursor-not-allowed opacity-60'}`}
+                                    >
+                                        {streaming ? (
+                                            <>
+                                                <span className="flex gap-1">
+                                                    {[0,1,2].map(i => <span key={i} className={`w-2 h-2 bg-white rounded-full inline-block ${['dot1','dot2','dot3'][i]}`} />)}
+                                                </span>
+                                                AI 批改中
+                                            </>
+                                        ) : (
+                                            <><Icon name="send" size={17} />提交批改</>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                        ) : feedback && (
+                            /* Feedback */
+                            <div className="space-y-4">
+                                {/* Score */}
+                                <div className="signature-gradient rounded-lg p-7 text-white shadow-xl relative overflow-hidden">
+                                    <div className="absolute -top-8 -right-8 opacity-10 pointer-events-none">
+                                        <Icon name="grade" fill size={160} cls="text-white" />
+                                    </div>
+                                    <div className="flex items-start justify-between relative z-10 mb-6">
+                                        <div>
+                                            <div className="text-[11px] font-black uppercase tracking-widest opacity-75 mb-1 font-label">综合评分</div>
+                                            <div className="text-6xl font-black font-headline">{feedback.overall}</div>
+                                            <div className="text-sm opacity-70 mt-1 font-label">Band Score</div>
+                                        </div>
+                                        <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
+                                            <img src={DOG_TOGETHER} className="w-full h-full object-cover" alt="完成！" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 gap-2 relative z-10">
+                                        {[
+                                            { k:"task",      label:"任务", v:feedback.scores.task      },
+                                            { k:"coherence", label:"衔接", v:feedback.scores.coherence },
+                                            { k:"vocab",     label:"词汇", v:feedback.scores.vocab     },
+                                            { k:"grammar",   label:"语法", v:feedback.scores.grammar   },
+                                        ].map(s => (
+                                            <div key={s.k} className="bg-white/15 backdrop-blur-sm rounded-lg p-3 text-center">
+                                                <div className="text-xl font-black font-headline">{s.v}</div>
+                                                <div className="text-xs opacity-75 font-label">{s.label}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Strengths */}
+                                <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Icon name="thumb_up" fill size={19} cls="text-primary" />
+                                        <span className="font-bold font-headline text-on-surface">做得好的地方</span>
+                                    </div>
+                                    {feedback.strengths.map((s, i) => (
+                                        <div key={i} className="flex items-start gap-3 py-2.5 border-b border-outline-variant/10 last:border-0">
+                                            <Icon name="check_circle" fill size={16} cls="text-primary mt-0.5 flex-shrink-0" />
+                                            <p className="text-sm text-on-surface">{s}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Chinglish */}
+                                <div className="bg-error/5 border border-error/10 rounded-lg p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <Icon name="flag" fill size={19} cls="text-error" />
+                                        <span className="font-bold font-headline text-on-surface">中式英语提醒</span>
+                                        <span className="ml-auto text-xs bg-error/10 text-error px-2 py-0.5 rounded-full font-label font-bold">{feedback.chinglish.length} 处</span>
+                                    </div>
+                                    {feedback.chinglish.map((c, i) => (
+                                        <div key={i} className="bg-surface-container-lowest rounded-lg p-4 mb-3 last:mb-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <span className="line-through text-error text-sm font-bold font-label">"{c.wrong}"</span>
+                                                <Icon name="arrow_forward" size={14} cls="text-on-surface-variant" />
+                                                <span className="text-primary text-sm font-bold font-label">"{c.correct}"</span>
+                                            </div>
+                                            <div className="text-xs text-on-surface-variant mt-1">已加入生词库，稍后复习</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* AI tip */}
+                                <div className="bg-tertiary-container/25 rounded-lg p-5 flex gap-3">
+                                    <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
+                                        <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+                                    </div>
+                                    <div>
+                                        <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">Professor 金毛建议</div>
+                                        <p className="text-sm text-on-surface leading-relaxed">{feedback.suggestion}</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3">
+                                    <button onClick={reset}
+                                        className="flex-1 bg-surface-container-highest text-on-surface py-3 rounded-full font-bold text-sm font-label hover:bg-surface-variant transition-colors flex items-center justify-center gap-2">
+                                        <Icon name="refresh" size={17} />重新写作
+                                    </button>
+                                    <button onClick={() => navigate('/vocab')}
+                                        className="flex-1 signature-gradient text-white py-3 rounded-full font-bold text-sm font-label hover:scale-105 transition-transform shadow-lg shadow-primary/25 flex items-center justify-center gap-2">
+                                        <Icon name="style" size={17} />复习新词 ({feedback.chinglish.length})
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Reference sidebar */}
+                    <aside className="lg:col-span-2 space-y-5 sticky top-24 h-fit">
+                        <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="font-bold font-headline text-on-surface text-sm">文章核心观点</span>
+                                <button onClick={() => {}} className="text-primary text-xs font-label font-bold hover:underline flex items-center gap-0.5">
+                                    返回全文 <Icon name="arrow_forward_ios" size={11} />
+                                </button>
+                            </div>
+                            {ARTICLE.paragraphs.filter(p => p.highlight).map(p => (
+                                <div key={p.id} className="border-l-4 border-primary pl-4 py-2 mb-4 last:mb-0">
+                                    <p className="text-xs text-on-surface leading-relaxed line-clamp-3">{p.text}</p>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                            <div className="font-bold font-headline text-on-surface text-sm mb-4">可用高级词汇</div>
+                            <div className="flex flex-wrap gap-2">
+                                {[...ARTICLE.vocab, ...VOCAB_ITEMS.slice(0,2)].map(v => (
+                                    <span key={v.word} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold font-label cursor-pointer hover:bg-primary/20 transition-colors">
+                                        {v.word}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="signature-gradient rounded-lg p-5 text-white relative overflow-hidden shadow-lg">
+                            <div className="absolute -bottom-4 -right-4 opacity-10 pointer-events-none">
+                                <Icon name="pets" fill size={80} cls="text-white" />
+                            </div>
+                            <div className="flex items-center gap-2 mb-3">
+                                <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 border border-white/30">
+                                    <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+                                </div>
+                                <span className="text-[11px] font-black font-label uppercase tracking-wider opacity-80">Professor 金毛的写作公式</span>
+                            </div>
+                            <p className="text-sm leading-relaxed opacity-90">
+                                引言 (1段) → 支持论点 (2段) → 反对论点 (1段) → 总结 (1段)。每段都要有<span className="font-black">主题句 + 例证 + 小结</span>。
+                            </p>
+                        </div>
+                    </aside>
+                </div>
+            </main>
+            <MobileNav />
+        </div>
+    );
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SCREEN: Vocab
+// ═══════════════════════════════════════════════════════════════════════════════
+const Vocab = () => {
+    const navigate  = useNavigate();
+    const [idx,      setIdx]       = useState(0);
+    const [flipped,  setFlipped]   = useState(false);
+    const [done,     setDone]      = useState([]);   // [{word, difficulty}]
+
+    const current   = VOCAB_ITEMS[idx];
+    const completed = done.length === VOCAB_ITEMS.length;
+
+    const rate = (difficulty) => {
+        setDone(prev => [...prev, { word: current.word, difficulty }]);
+        setFlipped(false);
+        if (idx + 1 < VOCAB_ITEMS.length) {
+            setTimeout(() => setIdx(i => i + 1), 320);
+        }
+    };
+
+    const ratingBtns = [
+        { label:"记不住", emoji:"😰", val:"hard",    style:"bg-error/10 text-error border border-error/20 hover:bg-error/20"                                     },
+        { label:"模糊",   emoji:"🤔", val:"medium",  style:"bg-tertiary/10 text-tertiary border border-tertiary/20 hover:bg-tertiary/20"                          },
+        { label:"清楚",   emoji:"😊", val:"easy",    style:"bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20"                              },
+        { label:"滚瓜烂熟", emoji:"🐾", val:"perfect","style":"signature-gradient text-white shadow-lg shadow-primary/25 hover:opacity-95"                         },
+    ];
+
+    return (
+        <div className="min-h-screen bg-background pb-20 md:pb-0">
+            <Header />
+            <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+
+                {/* Header row */}
+                <div className="flex items-center justify-between mb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold font-headline text-on-surface">间隔复习</h1>
+                        <p className="text-on-surface-variant text-sm font-label mt-0.5">今日待复习 · {VOCAB_ITEMS.length} 个生词</p>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-3xl font-black text-primary font-headline leading-none">
+                            {done.length}<span className="text-base font-semibold text-on-surface-variant">/{VOCAB_ITEMS.length}</span>
+                        </div>
+                        <div className="text-xs text-on-surface-variant font-label">已完成</div>
+                    </div>
+                </div>
+
+                {/* Progress bar */}
+                <div className="h-2.5 bg-primary-container/20 rounded-full mb-8 overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all duration-500" style={{width:`${(done.length / VOCAB_ITEMS.length) * 100}%`}} />
+                </div>
+
+                {!completed ? (
+                    <div className="space-y-6">
+                        {/* Flashcard */}
+                        <div className="perspective h-72 cursor-pointer" onClick={() => setFlipped(f => !f)}>
+                            <div className={`flashcard w-full h-full ${flipped ? 'flipped' : ''}`}>
+                                {/* Front */}
+                                <div className="card-face bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_rgba(109,74,179,0.12)] flex flex-col items-center justify-center p-8 text-center">
+                                    <div className={`text-[11px] font-black uppercase tracking-widest mb-4 font-label px-3 py-1 rounded-full ${current.source === 'writing_error' ? 'bg-error/10 text-error' : 'bg-primary/10 text-primary'}`}>
+                                        {current.source === 'writing_error' ? '🚩 写作错误来源' : '📖 阅读高亮'}
+                                    </div>
+                                    <div className="text-5xl font-black font-headline text-on-surface mb-3">{current.word}</div>
+                                    <div className="text-on-surface-variant font-label text-sm mb-6">{current.phonetic} · {current.pos}</div>
+                                    <div className="flex items-center gap-2 text-xs text-on-surface-variant font-label">
+                                        <Icon name="touch_app" size={16} />点击翻转查看释义
+                                    </div>
+                                </div>
+                                {/* Back */}
+                                <div className="card-face card-back signature-gradient rounded-lg shadow-xl flex flex-col justify-between p-7 text-white">
+                                    <div>
+                                        <div className="text-2xl font-black font-headline mb-1">{current.word}</div>
+                                        <div className="text-sm opacity-75 mb-4 font-label">{current.phonetic} · {current.pos}</div>
+                                        <div className="bg-white/20 rounded-lg p-4 text-base font-medium mb-4">{current.def}</div>
+                                        <p className="text-sm opacity-90 border-l-2 border-white/30 pl-3 italic leading-relaxed">"{current.example}"</p>
+                                    </div>
+                                    {current.chinglish && (
+                                        <div className="bg-white/15 rounded-lg p-3 mt-3">
+                                            <Icon name="flag" fill size={13} cls="text-white mr-1 align-text-bottom" />
+                                            <span className="text-xs font-bold font-label">{current.chinglish}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Rating buttons — only after flip */}
+                        {flipped && (
+                            <div className="grid grid-cols-4 gap-2">
+                                {ratingBtns.map(btn => (
+                                    <button key={btn.val} onClick={() => rate(btn.val)}
+                                        className={`${btn.style} rounded-lg py-3.5 flex flex-col items-center gap-1.5 transition-all hover:scale-105 font-label`}>
+                                        <span className="text-2xl">{btn.emoji}</span>
+                                        <span className="text-xs font-bold">{btn.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Word list */}
+                        <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+                            <div className="font-bold font-headline text-on-surface mb-4 text-sm">今日词单</div>
+                            <div className="space-y-1">
+                                {VOCAB_ITEMS.map((v, i) => {
+                                    const isDone = done.find(d => d.word === v.word);
+                                    const isCur  = i === idx && !completed;
+                                    return (
+                                        <div key={v.id} className={`flex items-center gap-3 py-2.5 px-3 rounded-lg transition-colors ${isCur ? 'bg-primary/10' : 'hover:bg-surface-container-low'}`}>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black flex-shrink-0 font-label ${isDone ? 'bg-primary text-white' : isCur ? 'bg-primary/20 text-primary' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                                                {isDone ? '✓' : i + 1}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="font-bold text-sm text-on-surface font-label">{v.word}</span>
+                                                <span className="text-xs text-on-surface-variant ml-2 hidden sm:inline">{v.def}</span>
+                                            </div>
+                                            {v.source === 'writing_error' && <Icon name="flag" fill size={14} cls="text-error flex-shrink-0" />}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    /* Completion */
+                    <div className="text-center py-12 space-y-6">
+                        <div className="w-36 h-36 rounded-full overflow-hidden border-4 border-primary shadow-xl mx-auto">
+                            <img src={DOG_TOGETHER} className="w-full h-full object-cover" alt="完成！" />
+                        </div>
+                        <div>
+                            <h2 className="text-3xl font-black font-headline text-on-surface mb-2">今日复习完成！🎉</h2>
+                            <p className="text-on-surface-variant">{VOCAB_ITEMS.length} 个生词已复习，明日安排已更新。</p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4 max-w-xs mx-auto">
+                            {[
+                                { label:"记不住", count:done.filter(d => d.difficulty==='hard').length,    color:"text-error"   },
+                                { label:"清楚",   count:done.filter(d => d.difficulty==='easy').length,    color:"text-primary" },
+                                { label:"滚瓜烂熟", count:done.filter(d => d.difficulty==='perfect').length, color:"text-primary" },
+                            ].map(s => (
+                                <div key={s.label} className="bg-surface-container-lowest rounded-lg p-4 shadow-sm">
+                                    <div className={`text-2xl font-black font-headline ${s.color}`}>{s.count}</div>
+                                    <div className="text-xs text-on-surface-variant font-label">{s.label}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex gap-3 justify-center">
+                            <button onClick={() => { setIdx(0); setDone([]); setFlipped(false); }}
+                                className="bg-surface-container-highest text-on-surface px-6 py-2.5 rounded-full font-bold text-sm font-label hover:bg-surface-variant transition-colors flex items-center gap-2">
+                                <Icon name="refresh" size={17} />再来一遍
+                            </button>
+                            <button onClick={() => navigate('/dashboard')}
+                                className="signature-gradient text-white px-6 py-2.5 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform flex items-center gap-2">
+                                <Icon name="home" size={17} />返回首页
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </main>
+            <MobileNav />
+        </div>
+    );
+};
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+const App = () => (
+    <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/reading"   element={<Reading />}   />
+            <Route path="/writing"   element={<Writing />}   />
+            <Route path="/vocab"     element={<Vocab />}     />
+        </Routes>
+    </MemoryRouter>
+);
+
+createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

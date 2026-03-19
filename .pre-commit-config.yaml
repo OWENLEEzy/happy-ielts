@@ -24,7 +24,7 @@ repos:
 
       - id: openapi-drift
         name: Warn if models.py changed without regenerating types
-        entry: bash -c 'git diff --cached --name-only | grep -q "backend/models.py" && echo "⚠️  models.py changed — run: task generate-types" && exit 1 || exit 0'
+        entry: "bash -c 'git diff --cached --name-only | grep -q backend/models.py && ! git diff --cached --name-only | grep -q frontend/types/api.ts && echo models.py changed -- run task generate-types && exit 1; exit 0'"
         language: system
         pass_filenames: false
 

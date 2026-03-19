@@ -1,11 +1,16 @@
 import operator
 from typing import Annotated
+
+from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
-from langgraph.graph import StateGraph, START, END
 
 from backend.tutor.nodes import (
-    route_start, spaced_review, reading_session,
-    writing_task, evaluate_writing, save_results,
+    evaluate_writing,
+    reading_session,
+    route_start,
+    save_results,
+    spaced_review,
+    writing_task,
 )
 
 
@@ -21,20 +26,18 @@ class TutorState(TypedDict):
 
 
 def build_tutor_graph(checkpointer):
-    return (
-        StateGraph(TutorState)
-        .add_node("route_start", route_start)
-        .add_node("spaced_review", spaced_review)
-        .add_node("reading", reading_session)
-        .add_node("writing_task", writing_task)
-        .add_node("evaluate_writing", evaluate_writing)
-        .add_node("save_results", save_results)
-        .add_edge(START, "route_start")
-        .add_edge("writing_task", "evaluate_writing")
-        .add_edge("evaluate_writing", "save_results")
-        .add_edge("save_results", END)
-        .compile(checkpointer=checkpointer)
-    )
+    graph: StateGraph = StateGraph(TutorState)  # type: ignore[type-var]
+    graph.add_node("route_start", route_start)  # type: ignore[type-var]
+    graph.add_node("spaced_review", spaced_review)  # type: ignore[type-var]
+    graph.add_node("reading", reading_session)  # type: ignore[type-var]
+    graph.add_node("writing_task", writing_task)  # type: ignore[type-var]
+    graph.add_node("evaluate_writing", evaluate_writing)  # type: ignore[type-var]
+    graph.add_node("save_results", save_results)  # type: ignore[type-var]
+    graph.add_edge(START, "route_start")
+    graph.add_edge("writing_task", "evaluate_writing")
+    graph.add_edge("evaluate_writing", "save_results")
+    graph.add_edge("save_results", END)
+    return graph.compile(checkpointer=checkpointer)
 
 
 _graph = None

@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import logging
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
-from langgraph.types import Command, interrupt
 from langgraph.config import get_stream_writer
+from langgraph.types import Command, interrupt
 
 from backend.database import Database
-from backend.fsrs_engine import update_card, new_card_state
+from backend.fsrs_engine import new_card_state, update_card
 from backend.models import VocabItemCreate
-from backend.tutor.tools import explain_word, analyze_sentence, run_feedback
+from backend.tutor.tools import analyze_sentence, explain_word, run_feedback
 
 logger = logging.getLogger(__name__)
 _db = Database()
@@ -22,7 +23,7 @@ def route_start(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     task = _db.get_today_writing_task()
     due_items = _db.get_due_vocab_items(date.today())
 
-    updates = {
+    updates: dict[str, Any] = {
         "user_profile": profile,
         "today_article": article,
         "today_task": task,
@@ -40,11 +41,13 @@ def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     """Present one fill-blank card; loop until all done."""
     item = state["review_queue"][state["review_index"]]
 
-    user_answer = interrupt({
-        "type": "fill_blank",
-        "question": f"Fill in the blank: {item.context_sentence.replace(item.word, '______')}",
-        "word": item.word,
-    })
+    user_answer = interrupt(
+        {
+            "type": "fill_blank",
+            "question": f"Fill in the blank: {item.context_sentence.replace(item.word, '______')}",
+            "word": item.word,
+        }
+    )
 
     is_correct = user_answer.get("answer", "").strip().lower() == item.word.lower()
     response_seconds = user_answer.get("response_seconds", 10.0)
@@ -73,31 +76,41 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
     _db.upsert_reading_start(date.today())
 
     while True:
-        user_action = interrupt({
-            "type": "awaiting_action",
-            "article_full_text": state["today_article"].full_text if state["today_article"] else "",
-            "highlight_indices": state["today_article"].highlight_indices if state["today_article"] else [],
-            "user_level": state["user_profile"].level if state["user_profile"] else 5,
-        })
+        user_action = interrupt(
+            {
+                "type": "awaiting_action",
+                "article_full_text": state["today_article"].full_text
+                if state["today_article"]
+                else "",
+                "highlight_indices": (
+                    state["today_article"].highlight_indices if state["today_article"] else []
+                ),
+                "user_level": state["user_profile"].level if state["user_profile"] else 5,
+            }
+        )
 
         writer = get_stream_writer()
         action_type = user_action.get("type")
 
         if action_type == "explain_word":
-            result = explain_word.invoke({
-                "word": user_action["word"],
-                "context": user_action.get("context", ""),
-                "level": state["user_profile"].level if state["user_profile"] else 5,
-            })
+            result = explain_word.invoke(
+                {
+                    "word": user_action["word"],
+                    "context": user_action.get("context", ""),
+                    "level": state["user_profile"].level if state["user_profile"] else 5,
+                }
+            )
             if state["today_article"]:
-                _db.upsert_vocab_item(VocabItemCreate(
-                    word=user_action["word"],
-                    context_sentence=user_action.get("context", ""),
-                    source="reading_click",
-                    next_review=date.today().isoformat(),
-                    fsrs_state=new_card_state(),
-                    article_id=state["today_article"].id,
-                ))
+                _db.upsert_vocab_item(
+                    VocabItemCreate(
+                        word=user_action["word"],
+                        context_sentence=user_action.get("context", ""),
+                        source="reading_click",
+                        next_review=date.today().isoformat(),
+                        fsrs_state=new_card_state(),
+                        article_id=state["today_article"].id,
+                    )
+                )
             writer({"type": "word_explanation", "result": result})
 
         elif action_type == "analyze_sentence":
@@ -113,11 +126,13 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
 def writing_task(state: dict) -> dict:
     """Present writing task and wait for submission."""
     task = state["today_task"]
-    user_action = interrupt({
-        "type": "writing_task",
-        "instruction": task.instruction if task else "",
-        "min_words": task.min_words if task else 50,
-    })
+    user_action = interrupt(
+        {
+            "type": "writing_task",
+            "instruction": task.instruction if task else "",
+            "min_words": task.min_words if task else 50,
+        }
+    )
     return {"user_writing": user_action.get("text", "")}
 
 
@@ -148,6 +163,7 @@ def evaluate_writing(state: dict) -> dict:
 def save_results(state: dict) -> dict:
     """Persist submission and update vocab from writing errors."""
     from backend.models import WritingSubmissionCreate
+
     feedback = state.get("writing_feedback")
     task = state.get("today_task")
     user_text = state.get("user_writing", "")
@@ -164,12 +180,14 @@ def save_results(state: dict) -> dict:
         _db.save_writing_submission(sub)
         article_id = state["today_article"].id if state["today_article"] else None
         for flag in feedback.chinglish_flags:
-            _db.upsert_vocab_item(VocabItemCreate(
-                word=flag.original,
-                context_sentence=flag.original,
-                source="writing_error",
-                next_review=date.today().isoformat(),
-                fsrs_state=new_card_state(),
-                article_id=article_id,
-            ))
+            _db.upsert_vocab_item(
+                VocabItemCreate(
+                    word=flag.original,
+                    context_sentence=flag.original,
+                    source="writing_error",
+                    next_review=date.today().isoformat(),
+                    fsrs_state=new_card_state(),
+                    article_id=article_id,
+                )
+            )
     return {"user_writing": None, "writing_feedback": None}

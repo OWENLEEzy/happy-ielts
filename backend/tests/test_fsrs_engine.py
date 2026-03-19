@@ -1,11 +1,9 @@
-import pytest
 from datetime import date, timedelta
+
 from backend.fsrs_engine import (
+    map_answer_to_rating,
     new_card_state,
     update_card,
-    map_answer_to_rating,
-    serialize_card,
-    deserialize_card,
 )
 
 
@@ -42,6 +40,7 @@ def test_serialize_deserialize_roundtrip():
 
 def test_map_answer_to_rating():
     from fsrs import Rating
+
     assert map_answer_to_rating(False, 5.0) == Rating.Again
     assert map_answer_to_rating(True, 20.0) == Rating.Hard
     assert map_answer_to_rating(True, 10.0) == Rating.Good

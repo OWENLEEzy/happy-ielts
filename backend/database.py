@@ -1,12 +1,17 @@
 import json
 import sqlite3
-from datetime import date
 from contextlib import contextmanager
+from datetime import date
+
 from backend.models import (
-    UserProfile, ArticleCreate, Article,
-    WritingTaskCreate, WritingTask,
-    VocabItemCreate, VocabItem,
+    Article,
+    ArticleCreate,
+    UserProfile,
+    VocabItem,
+    VocabItemCreate,
     WritingSubmissionCreate,
+    WritingTask,
+    WritingTaskCreate,
 )
 
 CREATE_TABLES = """
@@ -84,8 +89,10 @@ class Database:
 
     def upsert_user_profile(self, profile: UserProfile) -> None:
         with self._conn() as conn:
-            conn.execute("""
-                INSERT INTO user_profile (id, goal, interests, level, bandwidth_minutes, writing_mode)
+            conn.execute(
+                """
+                INSERT INTO user_profile
+                    (id, goal, interests, level, bandwidth_minutes, writing_mode)
                 VALUES (1, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     goal=excluded.goal,
@@ -93,13 +100,15 @@ class Database:
                     level=excluded.level,
                     bandwidth_minutes=excluded.bandwidth_minutes,
                     writing_mode=excluded.writing_mode
-            """, (
-                profile.goal,
-                json.dumps(profile.interests),
-                profile.level,
-                profile.bandwidth_minutes,
-                profile.writing_mode,
-            ))
+            """,
+                (
+                    profile.goal,
+                    json.dumps(profile.interests),
+                    profile.level,
+                    profile.bandwidth_minutes,
+                    profile.writing_mode,
+                ),
+            )
 
     def get_user_profile(self) -> UserProfile | None:
         with self._conn() as conn:
@@ -116,7 +125,8 @@ class Database:
 
     def upsert_article(self, article: ArticleCreate) -> int:
         with self._conn() as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 INSERT INTO articles (date, source_url, original_title, full_text,
                                       highlight_indices, article_logic, topic_tags)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -127,18 +137,23 @@ class Database:
                     highlight_indices=excluded.highlight_indices,
                     article_logic=excluded.article_logic,
                     topic_tags=excluded.topic_tags
-            """, (
-                article.date,
-                article.source_url,
-                article.original_title,
-                article.full_text,
-                json.dumps(article.highlight_indices),
-                article.article_logic,
-                json.dumps(article.topic_tags),
-            ))
-            return cursor.lastrowid or conn.execute(
-                "SELECT id FROM articles WHERE date=?", (article.date,)
-            ).fetchone()["id"]
+            """,
+                (
+                    article.date,
+                    article.source_url,
+                    article.original_title,
+                    article.full_text,
+                    json.dumps(article.highlight_indices),
+                    article.article_logic,
+                    json.dumps(article.topic_tags),
+                ),
+            )
+            return (
+                cursor.lastrowid
+                or conn.execute("SELECT id FROM articles WHERE date=?", (article.date,)).fetchone()[
+                    "id"
+                ]
+            )
 
     def get_today_article(self) -> Article | None:
         with self._conn() as conn:
@@ -164,24 +179,33 @@ class Database:
                 "SELECT id FROM writing_tasks WHERE article_id=?", (task.article_id,)
             ).fetchone()
             if existing:
-                conn.execute("""
+                conn.execute(
+                    """
                     UPDATE writing_tasks SET mode=?, instruction=?, min_words=?
                     WHERE article_id=?
-                """, (task.mode, task.instruction, task.min_words, task.article_id))
+                """,
+                    (task.mode, task.instruction, task.min_words, task.article_id),
+                )
                 return existing["id"]
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 INSERT INTO writing_tasks (article_id, mode, instruction, min_words)
                 VALUES (?, ?, ?, ?)
-            """, (task.article_id, task.mode, task.instruction, task.min_words))
+            """,
+                (task.article_id, task.mode, task.instruction, task.min_words),
+            )
             return cursor.lastrowid
 
     def get_today_writing_task(self) -> WritingTask | None:
         with self._conn() as conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
                 SELECT wt.* FROM writing_tasks wt
                 JOIN articles a ON wt.article_id = a.id
                 WHERE a.date=?
-            """, (date.today().isoformat(),)).fetchone()
+            """,
+                (date.today().isoformat(),),
+            ).fetchone()
             if row is None:
                 return None
             return WritingTask(
@@ -194,7 +218,8 @@ class Database:
 
     def upsert_vocab_item(self, item: VocabItemCreate) -> None:
         with self._conn() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO vocab_items (word, context_sentence, source, next_review,
                                          fsrs_state, article_id)
                 VALUES (?, ?, ?, ?, ?, ?)
@@ -204,20 +229,22 @@ class Database:
                     next_review=excluded.next_review,
                     fsrs_state=excluded.fsrs_state,
                     article_id=excluded.article_id
-            """, (
-                item.word,
-                item.context_sentence,
-                item.source,
-                item.next_review,
-                json.dumps(item.fsrs_state),
-                item.article_id,
-            ))
+            """,
+                (
+                    item.word,
+                    item.context_sentence,
+                    item.source,
+                    item.next_review,
+                    json.dumps(item.fsrs_state),
+                    item.article_id,
+                ),
+            )
 
     def get_due_vocab_items(self, today: date) -> list[VocabItem]:
         with self._conn() as conn:
             rows = conn.execute(
                 "SELECT * FROM vocab_items WHERE next_review <= ? ORDER BY next_review",
-                (today.isoformat(),)
+                (today.isoformat(),),
             ).fetchall()
             return [
                 VocabItem(
@@ -250,20 +277,23 @@ class Database:
 
     def save_writing_submission(self, sub: WritingSubmissionCreate) -> int:
         with self._conn() as conn:
-            cursor = conn.execute("""
+            cursor = conn.execute(
+                """
                 INSERT INTO writing_submissions
                     (task_id, user_text, overall_score, grammar_errors,
                      chinglish_flags, rewrite_suggestions, submitted_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                sub.task_id,
-                sub.user_text,
-                sub.overall_score,
-                json.dumps([e.model_dump() for e in sub.grammar_errors]),
-                json.dumps([f.model_dump() for f in sub.chinglish_flags]),
-                json.dumps(sub.rewrite_suggestions),
-                sub.submitted_at.isoformat(),
-            ))
+            """,
+                (
+                    sub.task_id,
+                    sub.user_text,
+                    sub.overall_score,
+                    json.dumps([e.model_dump() for e in sub.grammar_errors]),
+                    json.dumps([f.model_dump() for f in sub.chinglish_flags]),
+                    json.dumps(sub.rewrite_suggestions),
+                    sub.submitted_at.isoformat(),
+                ),
+            )
             return cursor.lastrowid
 
     def upsert_reading_start(self, today: date) -> None:

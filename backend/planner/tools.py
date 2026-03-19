@@ -3,9 +3,11 @@ import json
 import logging
 from datetime import date
 from typing import Literal
-from pydantic import BaseModel, Field
+
 from langchain.tools import tool
 from langchain_anthropic import ChatAnthropic
+from pydantic import BaseModel, Field
+
 try:
     from scrapling import Scraper  # type: ignore[attr-defined]
 except (ImportError, AttributeError):
@@ -16,7 +18,7 @@ from backend.models import ArticleCreate, WritingTaskCreate
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
+_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
 _db = Database()
 
 HIGHLIGHT_PROMPT = """
@@ -51,8 +53,10 @@ Return ONLY the structured output. Do not explain your choices.
 
 def _playwright_scrape(url: str) -> str:
     """Playwright fallback for JS-rendered pages."""
+
     async def _run():
         from playwright.async_api import async_playwright
+
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page()
@@ -60,6 +64,7 @@ def _playwright_scrape(url: str) -> str:
             content = await page.inner_text("body")
             await browser.close()
             return content
+
     return asyncio.run(_run())
 
 
@@ -89,6 +94,7 @@ def scrape_article(url: str) -> str:
 @tool
 def highlight_key_paragraphs(full_text: str, user_goal: str, interests: list[str]) -> dict:
     """Identify 3-5 core paragraphs and article logic type for a language learner."""
+
     class HighlightResult(BaseModel):
         highlight_indices: list[int] = Field(
             description="0-based indices of 3-5 core paragraphs",
@@ -101,13 +107,12 @@ def highlight_key_paragraphs(full_text: str, user_goal: str, interests: list[str
 
     paragraphs = full_text.split("\n\n")
     numbered = "\n\n".join(f"[{i}] {p}" for i, p in enumerate(paragraphs))
-    result = (
-        _llm.with_structured_output(HighlightResult)
-        .invoke(HIGHLIGHT_PROMPT.format(
+    result: HighlightResult = _llm.with_structured_output(HighlightResult).invoke(  # type: ignore[assignment]
+        HIGHLIGHT_PROMPT.format(
             paragraphs=numbered,
             goal=user_goal,
             interests=", ".join(interests),
-        ))
+        )
     )
     valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
     return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
@@ -122,6 +127,7 @@ def generate_writing_task(article_json: str, profile_json: str) -> dict:
     mode = profile.get("writing_mode", "professional")
     if mode == "both":
         import random
+
         mode = random.choice(["professional", "ielts_task2"])
 
     prompt = f"""
@@ -137,7 +143,7 @@ Fields to produce:
 - min_words: 50 for professional, 150 for ielts
 - article_id: 0  (placeholder, will be overwritten by save_daily_lesson)
 """
-    result = _llm.with_structured_output(WritingTaskCreate).invoke(prompt)
+    result: WritingTaskCreate = _llm.with_structured_output(WritingTaskCreate).invoke(prompt)  # type: ignore[assignment]
     return result.model_dump()
 
 

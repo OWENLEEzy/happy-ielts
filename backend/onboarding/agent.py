@@ -13,8 +13,12 @@ def save_partial_profile(
     interests: list[str],
     level: int,
 ) -> str:
-    """Save initial profile fields after AI conversation (phases 1-3). Frontend handles phases 4-5."""
+    """Save initial profile fields after AI conversation (phases 1-3).
+
+    Frontend handles phases 4-5 (bandwidth and writing mode).
+    """
     from backend.models import UserProfile
+
     profile = UserProfile(
         goal=goal,
         interests=interests,

@@ -2,9 +2,9 @@ import json
 from contextlib import asynccontextmanager
 from datetime import date
 
+from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
-from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -12,6 +12,7 @@ load_dotenv()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from langgraph.checkpoint.sqlite import SqliteSaver
+
     with SqliteSaver.from_conn_string("./db.sqlite3") as cp:
         cp.setup()
         app.state.checkpointer = cp
@@ -28,9 +29,11 @@ async def health():
 
 # ─── Planner ──────────────────────────────────────────────────────────────────
 
+
 @app.post("/api/planner/run")
 async def run_planner(background_tasks: BackgroundTasks):
     from backend.planner.agent import get_planner, get_planner_config
+
     planner = get_planner(app.state.checkpointer)
     config = get_planner_config()
     background_tasks.add_task(
@@ -44,6 +47,7 @@ async def run_planner(background_tasks: BackgroundTasks):
 @app.get("/api/planner/status")
 async def planner_status():
     from backend.database import Database
+
     db = Database()
     article = db.get_today_article()
     task = db.get_today_writing_task()
@@ -52,9 +56,11 @@ async def planner_status():
 
 # ─── Onboarding ───────────────────────────────────────────────────────────────
 
+
 @app.post("/api/onboarding/message")
 async def onboarding_message(body: dict):
-    from backend.onboarding.agent import create_onboarding_agent, ONBOARDING_CONFIG
+    from backend.onboarding.agent import ONBOARDING_CONFIG, create_onboarding_agent
+
     agent = create_onboarding_agent(app.state.checkpointer)
 
     async def generate():
@@ -74,6 +80,7 @@ async def onboarding_message(body: dict):
 @app.get("/api/onboarding/status")
 async def onboarding_status():
     from backend.database import Database
+
     db = Database()
     profile = db.get_user_profile()
     return {"ready": profile is not None}
@@ -82,23 +89,28 @@ async def onboarding_status():
 @app.post("/api/onboarding/preferences")
 async def save_preferences(body: dict):
     from backend.database import Database
+
     db = Database()
     profile = db.get_user_profile()
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
-    updated = profile.model_copy(update={
-        "bandwidth_minutes": body.get("bandwidth_minutes", 25),
-        "writing_mode": body.get("writing_mode", "professional"),
-    })
+    updated = profile.model_copy(
+        update={
+            "bandwidth_minutes": body.get("bandwidth_minutes", 25),
+            "writing_mode": body.get("writing_mode", "professional"),
+        }
+    )
     db.upsert_user_profile(updated)
     return {"status": "ok"}
 
 
 # ─── Lesson ───────────────────────────────────────────────────────────────────
 
+
 @app.get("/api/lesson/today")
 async def get_today_lesson():
     from backend.database import Database
+
     db = Database()
     article = db.get_today_article()
     task = db.get_today_writing_task()
@@ -109,8 +121,10 @@ async def get_today_lesson():
 
 @app.post("/api/lesson/action")
 async def lesson_action(action: dict):
-    from backend.tutor.graph import get_tutor_graph
     from langgraph.types import Command
+
+    from backend.tutor.graph import get_tutor_graph
+
     graph = get_tutor_graph(app.state.checkpointer)
     config = {"configurable": {"thread_id": date.today().isoformat()}}
 
@@ -130,14 +144,22 @@ async def lesson_action(action: dict):
 async def start_lesson():
     """Initialize or resume today's LangGraph session."""
     from backend.tutor.graph import get_tutor_graph
+
     graph = get_tutor_graph(app.state.checkpointer)
     config = {"configurable": {"thread_id": date.today().isoformat()}}
 
     async def generate():
         async for chunk in graph.astream(
-            {"user_profile": None, "today_article": None, "today_task": None,
-             "review_queue": [], "review_index": 0, "user_writing": None,
-             "writing_feedback": None, "messages": []},
+            {
+                "user_profile": None,
+                "today_article": None,
+                "today_task": None,
+                "review_queue": [],
+                "review_index": 0,
+                "user_writing": None,
+                "writing_feedback": None,
+                "messages": [],
+            },
             config=config,
             stream_mode="custom",
         ):
@@ -149,9 +171,11 @@ async def start_lesson():
 
 # ─── Profile ──────────────────────────────────────────────────────────────────
 
+
 @app.get("/api/profile")
 async def get_profile():
     from backend.database import Database
+
     db = Database()
     profile = db.get_user_profile()
     if profile is None:
@@ -162,6 +186,7 @@ async def get_profile():
 @app.patch("/api/profile")
 async def update_profile(body: dict):
     from backend.database import Database
+
     db = Database()
     profile = db.get_user_profile()
     if profile is None:
@@ -169,13 +194,14 @@ async def update_profile(body: dict):
     new_interests_str = body.get("interests_update", "")
     if new_interests_str:
         from langchain_anthropic import ChatAnthropic
-        llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
+
+        llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
         response = llm.invoke(f"""
 Current interests: {profile.interests}
 User update: "{new_interests_str}"
 Return a JSON array of updated interests (3-5 items). Only the array, no explanation.
 """)
-        new_interests = json.loads(response.content)
+        new_interests = json.loads(str(response.content))
         profile = profile.model_copy(update={"interests": new_interests})
     db.upsert_user_profile(profile)
     return profile.model_dump()
@@ -183,9 +209,11 @@ Return a JSON array of updated interests (3-5 items). Only the array, no explana
 
 # ─── Vocab ────────────────────────────────────────────────────────────────────
 
+
 @app.get("/api/vocab")
 async def get_vocab():
     from backend.database import Database
+
     db = Database()
     items = db.get_all_vocab_items()
     return [item.model_dump() for item in items]

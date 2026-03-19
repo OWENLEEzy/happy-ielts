@@ -1,5 +1,4 @@
-from fsrs import Scheduler, Card, Rating, State
-
+from fsrs import Card, Rating, Scheduler
 
 _scheduler = Scheduler()
 
@@ -30,8 +29,8 @@ def update_card(fsrs_state: dict, is_correct: bool, response_seconds: float) -> 
 
 
 def serialize_card(card: Card) -> dict:
-    return card.to_dict()
+    return card.to_dict()  # type: ignore[return-value]
 
 
 def deserialize_card(data: dict) -> Card:
-    return Card.from_dict(data)
+    return Card.from_dict(data)  # type: ignore[arg-type]

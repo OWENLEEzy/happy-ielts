@@ -1,16 +1,16 @@
 from datetime import date
+
 from deepagents import create_deep_agent
 from langchain.chat_models import init_chat_model
+from langchain_tavily import TavilySearch
 
 from backend.planner.tools import (
-    load_user_profile,
-    scrape_article,
-    highlight_key_paragraphs,
     generate_writing_task,
+    highlight_key_paragraphs,
+    load_user_profile,
     save_daily_lesson,
+    scrape_article,
 )
-
-from langchain_tavily import TavilySearch
 
 search_articles = TavilySearch(max_results=3)
 

@@ -1,11 +1,13 @@
 import logging
+
 from langchain.tools import tool
 from langchain_anthropic import ChatAnthropic
+
 from backend.models import WritingFeedback, WritingTask
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
+_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
 
 FEEDBACK_PROMPT = """
 You are a native English editor reviewing writing from a Chinese professional.
@@ -47,7 +49,7 @@ The learner is level {level}/10. Adjust depth accordingly:
 Respond in Chinese (简体中文). Keep it under 100 words.
 """
     response = _llm.invoke(prompt)
-    return response.content
+    return str(response.content)
 
 
 @tool
@@ -62,7 +64,7 @@ Use color labels in your response like [主语], [谓语], [宾语], [从句].
 Explain in Chinese (简体中文). Keep it under 150 words.
 """
     response = _llm.invoke(prompt)
-    return response.content
+    return str(response.content)
 
 
 def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) -> WritingFeedback:
@@ -75,7 +77,7 @@ def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) 
         user_text=user_text,
     )
     for attempt in range(3):
-        result = structured_llm.invoke(prompt)
+        result: dict = structured_llm.invoke(prompt)  # type: ignore[assignment]
         if result["parsed"] is not None:
             return result["parsed"]
         logger.warning(f"Feedback attempt {attempt + 1} failed: {result['raw']}")
