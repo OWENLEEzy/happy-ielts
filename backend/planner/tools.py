@@ -1,8 +1,4 @@
-import asyncio
-import concurrent.futures
-import json
 import logging
-import re
 from datetime import date
 from typing import Literal
 
@@ -17,18 +13,12 @@ except (ImportError, AttributeError):
 
 from backend.database import get_db
 from backend.models import ArticleCreate, WritingTaskCreate
+from backend.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
 _llm = ChatTongyi(model="qwen-max")
 _db = get_db()
-
-
-def _parse_json(content: str, model: type) -> object:
-    """Parse JSON from model content, stripping markdown code fences."""
-    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
-    cleaned = re.sub(r"\s*```$", "", cleaned.strip(), flags=re.MULTILINE)
-    return model(**json.loads(cleaned.strip()))
 
 
 HIGHLIGHT_PROMPT = """
@@ -63,33 +53,22 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
 """
 
 
-def _playwright_scrape(url: str) -> str:
-    """Playwright fallback for JS-rendered pages.
+def _trafilatura_scrape(url: str) -> str:
+    """Scrape article text using httpx + trafilatura (controlled 20s timeout, no system proxy)."""
+    import httpx
+    import trafilatura
 
-    Runs in a separate thread to avoid 'event loop already running' errors
-    when called from within an async FastAPI/LangChain context.
-    """
-
-    async def _run() -> str:
-        from playwright.async_api import async_playwright
-
-        async with async_playwright() as p:
-            browser = await p.chromium.launch()
-            page = await browser.new_page()
-            await page.goto(url, timeout=30000)
-            content = await page.inner_text("body")
-            await browser.close()
-            return content
-
-    def run_in_new_loop() -> str:
-        return asyncio.run(_run())
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(run_in_new_loop)
-        try:
-            return future.result(timeout=60)
-        except concurrent.futures.TimeoutError:
-            raise RuntimeError(f"Playwright scraping timed out after 60s: {url}")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0"
+    }
+    # trust_env=False bypasses system proxy (all_proxy / HTTPS_PROXY) that can hang
+    with httpx.Client(trust_env=False, follow_redirects=True, timeout=20) as client:
+        response = client.get(url, headers=headers)
+    response.raise_for_status()
+    text = trafilatura.extract(response.text, include_comments=False, include_tables=False)
+    if not text:
+        raise RuntimeError(f"trafilatura: no extractable text from {url}")
+    return text
 
 
 @tool
@@ -103,7 +82,7 @@ def load_user_profile() -> dict[str, object]:
 
 @tool
 def scrape_article(url: str) -> str:
-    """Scrape the full text of an article. Falls back to Playwright if Scrapling fails."""
+    """Scrape the full text of an article. Falls back to trafilatura if Scrapling fails."""
     try:
         if Scraper is None:
             raise ImportError("Scraper not available in this scrapling version")
@@ -111,11 +90,11 @@ def scrape_article(url: str) -> str:
         page = scraper.get(url)
         return page.get_best_text(auto_filter=True)
     except Exception as e:
-        logger.warning(f"Scrapling failed for {url}: {e}. Trying Playwright.")
+        logger.warning(f"Scrapling failed for {url}: {e}. Trying trafilatura.")
     try:
-        return _playwright_scrape(url)
+        return _trafilatura_scrape(url)
     except Exception as e:
-        logger.error(f"Playwright fallback failed for {url}: {e}")
+        logger.error(f"trafilatura fallback failed for {url}: {e}")
         raise RuntimeError(f"Could not scrape article: {url}")
 
 
@@ -148,7 +127,7 @@ def highlight_key_paragraphs(
             content = str(response.content).strip()
             if not content:
                 raise ValueError("Empty response from model")
-            result: HighlightResult = _parse_json(content, HighlightResult)  # type: ignore[assignment]
+            result: HighlightResult = parse_json(content, HighlightResult)  # type: ignore[assignment]
             valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
             return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
         except Exception as e:
@@ -200,7 +179,7 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
             content = str(response.content).strip()
             if not content:
                 raise ValueError("Empty response from model")
-            result: WritingTaskCreate = _parse_json(content, WritingTaskCreate)  # type: ignore[assignment]
+            result: WritingTaskCreate = parse_json(content, WritingTaskCreate)  # type: ignore[assignment]
             return result.model_dump()
         except Exception as e:
             logger.warning(f"generate_writing_task attempt {attempt + 1} failed: {e}")
@@ -211,9 +190,5 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
 def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> str:
     """Save today's article and writing task to the database. Call as the final step."""
     article = article.model_copy(update={"date": date.today().isoformat()})
-    article_id = _db.upsert_article(article)
-
-    task = task.model_copy(update={"article_id": article_id})
-    _db.upsert_writing_task(task)
-
+    _db.save_daily_lesson(article, task)
     return f"Saved: '{article.original_title}'"

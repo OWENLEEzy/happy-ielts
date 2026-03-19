@@ -1,10 +1,11 @@
+import asyncio
 import json
 from contextlib import asynccontextmanager
 from datetime import date
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
@@ -41,7 +42,7 @@ class UpdateProfileRequest(BaseModel):
 async def lifespan(app: FastAPI):
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-    async with AsyncSqliteSaver.from_conn_string("./db.sqlite3") as cp:
+    async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
         await cp.setup()
         app.state.checkpointer = cp
         yield
@@ -59,16 +60,34 @@ async def health():
 
 
 @app.post("/api/planner/run")
-async def run_planner(background_tasks: BackgroundTasks):
-    from backend.planner.agent import get_planner, get_planner_config
+async def run_planner():
+    import threading
 
-    planner = get_planner(app.state.checkpointer)
-    config = get_planner_config()
-    background_tasks.add_task(
-        planner.ainvoke,  # type: ignore[attr-defined]
-        {"messages": [{"role": "user", "content": "为今天准备一节课"}]},
-        config,
-    )
+    from backend.database import get_db
+
+    db = get_db()
+    if db.get_today_article() is not None:
+        return {"status": "already_ready", "date": date.today().isoformat()}
+
+    async def _run_planner() -> None:
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+        from backend.planner.agent import create_deep_agent_planner, get_planner_config
+
+        async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
+            await cp.setup()
+            planner = create_deep_agent_planner(cp)
+            config = get_planner_config()
+            await planner.ainvoke(  # type: ignore[attr-defined]
+                {"messages": [{"role": "user", "content": "为今天准备一节课"}]},
+                config,
+            )
+
+    def run_in_thread() -> None:
+        asyncio.run(_run_planner())
+
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
     return {"status": "started", "date": date.today().isoformat()}
 
 
@@ -177,6 +196,10 @@ async def start_lesson():
     graph = get_tutor_graph(app.state.checkpointer)
     config: RunnableConfig = {"configurable": {"thread_id": date.today().isoformat()}}
 
+    checkpoint_tuple = await app.state.checkpointer.aget_tuple(config)
+    if checkpoint_tuple is not None and checkpoint_tuple.metadata.get("next"):
+        return JSONResponse({"status": "already_started"}, status_code=409)
+
     async def generate():
         async for chunk in graph.astream(
             {
@@ -222,13 +245,14 @@ async def update_profile(body: UpdateProfileRequest):
         raise HTTPException(status_code=404, detail="Profile not found")
     new_interests_str = body.interests_update
     if new_interests_str:
-        from langchain_community.chat_models import ChatTongyi
         from pydantic import BaseModel
+
+        from backend.llm import get_llm
 
         class _InterestList(BaseModel):
             interests: list[str]
 
-        llm = ChatTongyi(model="qwen-max")
+        llm = get_llm()
         result: _InterestList = llm.with_structured_output(_InterestList).invoke(  # type: ignore[assignment]
             f"""
 Current interests: {profile.interests}

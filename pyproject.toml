@@ -7,20 +7,19 @@ dependencies = [
     "langchain-core>=1.0,<2.0",
     "langsmith>=0.3.4",
     "langgraph>=1.0,<2.0",
-    "langgraph-checkpoint-postgres>=2.0.0",
-    "psycopg[binary,pool]>=3.2.0",
     "deepagents",
     "langchain-community>=0.3.0",
     "langchain-tavily>=0.1",
     "fastapi[standard]",
     "uvicorn[standard]",
     "scrapling",
-    "playwright",
     "fsrs",
     "python-dotenv",
     "httpx[socks]",
     "dashscope>=1.25.14",
     "langgraph-checkpoint-sqlite>=3.0.3",
+    "trafilatura>=2.0.0",
+    "langchain-openai>=0.3.0",
 ]
 
 [project.optional-dependencies]

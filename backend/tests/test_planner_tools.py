@@ -22,6 +22,6 @@ def test_scrape_article_falls_back_on_exception():
     with patch("backend.planner.tools.Scraper") as mock_cls:
         mock_cls.return_value.get.side_effect = Exception("blocked")
         # Playwright fallback also mocked to avoid network calls in tests
-        with patch("backend.planner.tools._playwright_scrape", return_value="fallback text"):
+        with patch("backend.planner.tools._trafilatura_scrape", return_value="fallback text"):
             result = scrape_article.invoke({"url": "https://example.com/article"})
     assert result == "fallback text"

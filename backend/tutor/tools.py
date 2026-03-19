@@ -1,13 +1,14 @@
 import logging
 
 from langchain.tools import tool
-from langchain_community.chat_models import ChatTongyi
 
+from backend.llm import get_llm
 from backend.models import WritingFeedback, WritingTask
+from backend.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatTongyi(model="qwen-max")
+_llm = get_llm()
 
 FEEDBACK_PROMPT = """
 You are a native English editor reviewing writing from a Chinese professional.
@@ -79,16 +80,6 @@ Explain in Chinese (简体中文). Keep it under 150 words.
     return str(response.content)
 
 
-def _parse_json_response(content: str, model: type) -> object:
-    """Parse JSON from model content, stripping markdown code fences."""
-    import json
-    import re
-
-    cleaned = re.sub(r"^```(?:json)?\s*", "", content.strip(), flags=re.MULTILINE)
-    cleaned = re.sub(r"\s*```$", "", cleaned.strip(), flags=re.MULTILINE)
-    return model(**json.loads(cleaned.strip()))
-
-
 def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) -> WritingFeedback:
     """Run structured writing feedback. Retries up to 3 times on parse failure."""
     prompt = FEEDBACK_PROMPT.format(
@@ -100,7 +91,7 @@ def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) 
     for attempt in range(3):
         try:
             response = _llm.invoke(prompt)
-            return _parse_json_response(str(response.content), WritingFeedback)  # type: ignore[return-value]
+            return parse_json(str(response.content), WritingFeedback)  # type: ignore[return-value]
         except Exception as e:
             logger.warning(f"Feedback attempt {attempt + 1} failed: {e}")
     raise ValueError("Feedback generation failed after 3 attempts")
