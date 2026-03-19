@@ -1,11 +1,9 @@
-import asyncio
-import concurrent.futures
 import logging
 from datetime import date
 from typing import Literal
 
 from langchain.tools import tool
-from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_models import ChatTongyi
 from pydantic import BaseModel, Field
 
 try:
@@ -13,13 +11,15 @@ try:
 except (ImportError, AttributeError):
     Scraper = None  # type: ignore[assignment,misc]
 
-from backend.database import Database
+from backend.database import get_db
 from backend.models import ArticleCreate, WritingTaskCreate
+from backend.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatAnthropic(model="claude-haiku-4-5-20251001")  # type: ignore[call-arg]
-_db = Database()
+_llm = ChatTongyi(model="qwen-max")
+_db = get_db()
+
 
 HIGHLIGHT_PROMPT = """
 You are a language learning content curator for professional English learners.
@@ -47,33 +47,28 @@ ARTICLE LOGIC DEFINITIONS:
 - cause_effect: article explains why something happened or what results from an action
 - argumentation: article makes a claim and defends it with evidence
 
-Return ONLY the structured output. Do not explain your choices.
+Return ONLY a JSON object with no prose, no markdown fences. Schema:
+{{"highlight_indices": [<0-based int>, <0-based int>, <0-based int>],
+"article_logic": "<compare|cause_effect|argumentation>"}}
 """
 
 
-def _playwright_scrape(url: str) -> str:
-    """Playwright fallback for JS-rendered pages.
+def _trafilatura_scrape(url: str) -> str:
+    """Scrape article text using httpx + trafilatura (controlled 20s timeout, no system proxy)."""
+    import httpx
+    import trafilatura
 
-    Runs in a separate thread to avoid 'event loop already running' errors
-    when called from within an async FastAPI/LangChain context.
-    """
-
-    async def _run() -> str:
-        from playwright.async_api import async_playwright
-
-        async with async_playwright() as p:
-            browser = await p.chromium.launch()
-            page = await browser.new_page()
-            await page.goto(url)
-            content = await page.inner_text("body")
-            await browser.close()
-            return content
-
-    def run_in_new_loop() -> str:
-        return asyncio.run(_run())
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(run_in_new_loop).result()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0"
+    }
+    # trust_env=False bypasses system proxy (all_proxy / HTTPS_PROXY) that can hang
+    with httpx.Client(trust_env=False, follow_redirects=True, timeout=20) as client:
+        response = client.get(url, headers=headers)
+    response.raise_for_status()
+    text = trafilatura.extract(response.text, include_comments=False, include_tables=False)
+    if not text:
+        raise RuntimeError(f"trafilatura: no extractable text from {url}")
+    return text
 
 
 @tool
@@ -87,7 +82,7 @@ def load_user_profile() -> dict[str, object]:
 
 @tool
 def scrape_article(url: str) -> str:
-    """Scrape the full text of an article. Falls back to Playwright if Scrapling fails."""
+    """Scrape the full text of an article. Falls back to trafilatura if Scrapling fails."""
     try:
         if Scraper is None:
             raise ImportError("Scraper not available in this scrapling version")
@@ -95,11 +90,11 @@ def scrape_article(url: str) -> str:
         page = scraper.get(url)
         return page.get_best_text(auto_filter=True)
     except Exception as e:
-        logger.warning(f"Scrapling failed for {url}: {e}. Trying Playwright.")
+        logger.warning(f"Scrapling failed for {url}: {e}. Trying trafilatura.")
     try:
-        return _playwright_scrape(url)
+        return _trafilatura_scrape(url)
     except Exception as e:
-        logger.error(f"Playwright fallback failed for {url}: {e}")
+        logger.error(f"trafilatura fallback failed for {url}: {e}")
         raise RuntimeError(f"Could not scrape article: {url}")
 
 
@@ -121,15 +116,23 @@ def highlight_key_paragraphs(
 
     paragraphs = full_text.split("\n\n")
     numbered = "\n\n".join(f"[{i}] {p}" for i, p in enumerate(paragraphs))
-    result: HighlightResult = _llm.with_structured_output(HighlightResult).invoke(  # type: ignore[assignment]
-        HIGHLIGHT_PROMPT.format(
-            paragraphs=numbered,
-            goal=user_goal,
-            interests=", ".join(interests),
-        )
+    prompt = HIGHLIGHT_PROMPT.format(
+        paragraphs=numbered,
+        goal=user_goal,
+        interests=", ".join(interests),
     )
-    valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
-    return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
+    for attempt in range(3):
+        try:
+            response = _llm.invoke(prompt)
+            content = str(response.content).strip()
+            if not content:
+                raise ValueError("Empty response from model")
+            result: HighlightResult = parse_json(content, HighlightResult)  # type: ignore[assignment]
+            valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
+            return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
+        except Exception as e:
+            logger.warning(f"highlight_key_paragraphs attempt {attempt + 1} failed: {e}")
+    raise ValueError("highlight_key_paragraphs failed after 3 attempts")
 
 
 class ArticleContext(BaseModel):
@@ -164,23 +167,28 @@ User goal: {profile.goal}
 Article title: {article.original_title}
 Writing mode: {mode}
 
-Fields to produce:
-- mode: "{mode}" (or ielts_task1/ielts_task2 as appropriate)
-- instruction: full task description referencing article topics (min 50 chars)
-- min_words: 50 for professional, 150 for ielts
-- article_id: 0  (placeholder, will be overwritten by save_daily_lesson)
+Return ONLY a JSON object with no prose, no markdown fences. Schema:
+{{"mode": "{mode}",
+"instruction": "<full task description referencing article topics, min 50 chars>",
+"min_words": <50 for professional or 150 for ielts>,
+"article_id": 0}}
 """
-    result: WritingTaskCreate = _llm.with_structured_output(WritingTaskCreate).invoke(prompt)  # type: ignore[assignment]
-    return result.model_dump()
+    for attempt in range(3):
+        try:
+            response = _llm.invoke(prompt)
+            content = str(response.content).strip()
+            if not content:
+                raise ValueError("Empty response from model")
+            result: WritingTaskCreate = parse_json(content, WritingTaskCreate)  # type: ignore[assignment]
+            return result.model_dump()
+        except Exception as e:
+            logger.warning(f"generate_writing_task attempt {attempt + 1} failed: {e}")
+    raise ValueError("generate_writing_task failed after 3 attempts")
 
 
 @tool
 def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> str:
     """Save today's article and writing task to the database. Call as the final step."""
     article = article.model_copy(update={"date": date.today().isoformat()})
-    article_id = _db.upsert_article(article)
-
-    task = task.model_copy(update={"article_id": article_id})
-    _db.upsert_writing_task(task)
-
+    _db.save_daily_lesson(article, task)
     return f"Saved: '{article.original_title}'"

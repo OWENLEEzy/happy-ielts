@@ -2,14 +2,15 @@
 import { useState } from 'react'
 import { sendAction } from '@/lib/sse'
 import { DOG_GOLDEN } from '@/lib/constants'
+import type { SSEChunk } from '@/types'
 
 interface Props {
   question: string
   word: string
-  onDone: () => void
+  onChunk: (chunk: SSEChunk) => void
 }
 
-export function FillBlankCard({ question, word, onDone }: Props) {
+export function FillBlankCard({ question, word, onChunk }: Props) {
   const [answer, setAnswer] = useState('')
   const [startTime] = useState(() => Date.now())
   const [hint, setHint] = useState<string | null>(null)
@@ -23,9 +24,8 @@ export function FillBlankCard({ question, word, onDone }: Props) {
     if (isCorrect || attempts >= 2) {
       await sendAction(
         { type: 'fill_blank_answer', answer: isCorrect ? answer : word, response_seconds },
-        () => {},
+        onChunk,
       )
-      onDone()
       return
     }
 
@@ -40,9 +40,8 @@ export function FillBlankCard({ question, word, onDone }: Props) {
 
   const handleReveal = async () => {
     const response_seconds = (Date.now() - startTime) / 1000
-    await sendAction({ type: 'fill_blank_answer', answer: word, response_seconds }, () => {})
     setRevealed(true)
-    setTimeout(onDone, 2000)
+    await sendAction({ type: 'fill_blank_answer', answer: word, response_seconds }, onChunk)
   }
 
   return (

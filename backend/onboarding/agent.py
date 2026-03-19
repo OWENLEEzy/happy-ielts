@@ -1,10 +1,10 @@
 from deepagents import create_deep_agent
-from langchain.chat_models import init_chat_model
 from langchain.tools import tool
 
-from backend.database import Database
+from backend.database import get_db
+from backend.llm import get_llm
 
-_db = Database()
+_db = get_db()
 
 
 @tool
@@ -43,19 +43,14 @@ ONBOARDING_PROMPT = """
 对话语气：专业、温和、简洁，不要过度热情。
 """
 
-_onboarding_agent: object | None = None  # Singleton to avoid leaking SQLite connections
-
 
 def create_onboarding_agent(checkpointer):
-    global _onboarding_agent
-    if _onboarding_agent is None:
-        _onboarding_agent = create_deep_agent(
-            model=init_chat_model("anthropic:claude-haiku-4-5-20251001"),
-            tools=[save_partial_profile],
-            checkpointer=checkpointer,
-            system_prompt=ONBOARDING_PROMPT,
-        )
-    return _onboarding_agent
+    return create_deep_agent(
+        model=get_llm(),
+        tools=[save_partial_profile],
+        checkpointer=checkpointer,
+        system_prompt=ONBOARDING_PROMPT,
+    )
 
 
 ONBOARDING_CONFIG = {"configurable": {"thread_id": "onboarding"}}

@@ -1,0 +1,12 @@
+frontend/
+docs/
+.git/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+db.sqlite3
+db.sqlite3-shm
+db.sqlite3-wal
+.env
+.coverage

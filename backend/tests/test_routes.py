@@ -35,7 +35,7 @@ SAMPLE_ARTICLE = Article(
     source_url="https://example.com",
     original_title="Sample Article",
     full_text=LONG_TEXT,
-    highlight_indices=[0, 1],
+    highlight_indices=[0, 1, 2],
     article_logic="compare",
     topic_tags=["tech"],
 )
@@ -101,14 +101,14 @@ def test_health(client: TestClient):
 
 
 # ---------------------------------------------------------------------------
-# GET /api/vocab — patches backend.database.Database (lazy import in route)
+# GET /api/vocab
 # ---------------------------------------------------------------------------
 
 
 def test_get_vocab_empty(client: TestClient):
     """Returns 200 with empty list when no vocab items exist."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_all_vocab_items.return_value = []
+    mock_db = _mock_db(get_all_vocab_items=[])
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/vocab")
     assert r.status_code == 200
     assert r.json() == []
@@ -116,8 +116,8 @@ def test_get_vocab_empty(client: TestClient):
 
 def test_get_vocab_with_items(client: TestClient):
     """Returns 200 with serialised vocab items."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_all_vocab_items.return_value = [SAMPLE_VOCAB]
+    mock_db = _mock_db(get_all_vocab_items=[SAMPLE_VOCAB])
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/vocab")
     assert r.status_code == 200
     data = r.json()
@@ -132,16 +132,16 @@ def test_get_vocab_with_items(client: TestClient):
 
 def test_get_profile_not_found(client: TestClient):
     """Returns 404 when no profile exists."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_user_profile.return_value = None
+    mock_db = _mock_db(get_user_profile=None)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/profile")
     assert r.status_code == 404
 
 
 def test_get_profile_exists(client: TestClient):
     """Returns 200 with profile when one exists."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_user_profile.return_value = SAMPLE_PROFILE
+    mock_db = _mock_db(get_user_profile=SAMPLE_PROFILE)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/profile")
     assert r.status_code == 200
     data = r.json()
@@ -156,18 +156,16 @@ def test_get_profile_exists(client: TestClient):
 
 def test_get_lesson_today_not_ready(client: TestClient):
     """Returns 404 when planner hasn't run yet."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_today_article.return_value = None
-        MockDb.return_value.get_today_writing_task.return_value = None
+    mock_db = _mock_db(get_today_article=None, get_today_writing_task=None)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/lesson/today")
     assert r.status_code == 404
 
 
 def test_get_lesson_today_ready(client: TestClient):
     """Returns 200 with article and task when lesson is ready."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_today_article.return_value = SAMPLE_ARTICLE
-        MockDb.return_value.get_today_writing_task.return_value = SAMPLE_TASK
+    mock_db = _mock_db(get_today_article=SAMPLE_ARTICLE, get_today_writing_task=SAMPLE_TASK)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/lesson/today")
     assert r.status_code == 200
     data = r.json()
@@ -178,9 +176,8 @@ def test_get_lesson_today_ready(client: TestClient):
 
 def test_get_lesson_today_article_without_task_returns_404(client: TestClient):
     """Returns 404 when article exists but task is missing."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_today_article.return_value = SAMPLE_ARTICLE
-        MockDb.return_value.get_today_writing_task.return_value = None
+    mock_db = _mock_db(get_today_article=SAMPLE_ARTICLE, get_today_writing_task=None)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/lesson/today")
     assert r.status_code == 404
 
@@ -218,16 +215,16 @@ def test_onboarding_message_valid_body_accepted(client: TestClient):
 
 
 def test_onboarding_status_not_ready(client: TestClient):
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_user_profile.return_value = None
+    mock_db = _mock_db(get_user_profile=None)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/onboarding/status")
     assert r.status_code == 200
     assert r.json() == {"ready": False}
 
 
 def test_onboarding_status_ready(client: TestClient):
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_user_profile.return_value = SAMPLE_PROFILE
+    mock_db = _mock_db(get_user_profile=SAMPLE_PROFILE)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/onboarding/status")
     assert r.status_code == 200
     assert r.json() == {"ready": True}
@@ -239,18 +236,16 @@ def test_onboarding_status_ready(client: TestClient):
 
 
 def test_planner_status_not_ready(client: TestClient):
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_today_article.return_value = None
-        MockDb.return_value.get_today_writing_task.return_value = None
+    mock_db = _mock_db(get_today_article=None, get_today_writing_task=None)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/planner/status")
     assert r.status_code == 200
     assert r.json() == {"ready": False}
 
 
 def test_planner_status_ready(client: TestClient):
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_today_article.return_value = SAMPLE_ARTICLE
-        MockDb.return_value.get_today_writing_task.return_value = SAMPLE_TASK
+    mock_db = _mock_db(get_today_article=SAMPLE_ARTICLE, get_today_writing_task=SAMPLE_TASK)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/planner/status")
     assert r.status_code == 200
     assert r.json() == {"ready": True}
@@ -263,8 +258,8 @@ def test_planner_status_ready(client: TestClient):
 
 def test_save_preferences_not_found(client: TestClient):
     """Returns 404 when no profile exists yet."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_user_profile.return_value = None
+    mock_db = _mock_db(get_user_profile=None)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.post(
             "/api/onboarding/preferences",
             json={"bandwidth_minutes": 30, "writing_mode": "professional"},
@@ -274,12 +269,12 @@ def test_save_preferences_not_found(client: TestClient):
 
 def test_save_preferences_updates_profile(client: TestClient):
     """Returns 200 and calls upsert when profile exists."""
-    with patch("backend.database.Database") as MockDb:
-        MockDb.return_value.get_user_profile.return_value = SAMPLE_PROFILE
+    mock_db = _mock_db(get_user_profile=SAMPLE_PROFILE)
+    with patch("backend.database.get_db", return_value=mock_db):
         r = client.post(
             "/api/onboarding/preferences",
             json={"bandwidth_minutes": 45, "writing_mode": "ielts_task2"},
         )
     assert r.status_code == 200
     assert r.json() == {"status": "ok"}
-    MockDb.return_value.upsert_user_profile.assert_called_once()
+    mock_db.upsert_user_profile.assert_called_once()

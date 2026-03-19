@@ -19,7 +19,7 @@ class ArticleCreate(BaseModel):
     source_url: str
     original_title: str
     full_text: str = Field(min_length=100)
-    highlight_indices: list[int] = Field(min_length=2, max_length=5)
+    highlight_indices: list[int] = Field(min_length=3, max_length=5)
     article_logic: Literal["compare", "cause_effect", "argumentation"]
     topic_tags: list[str] = Field(min_length=1, max_length=5)
 

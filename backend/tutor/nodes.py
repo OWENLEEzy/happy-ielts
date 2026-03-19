@@ -7,16 +7,16 @@ from typing import Any, Literal
 from langgraph.config import get_stream_writer
 from langgraph.types import Command, interrupt
 
-from backend.database import Database
+from backend.database import get_db
 from backend.fsrs_engine import new_card_state, update_card
 from backend.models import VocabItem, VocabItemCreate
 from backend.tutor.tools import analyze_sentence, explain_word, run_feedback
 
 logger = logging.getLogger(__name__)
-_db = Database()
+_db = get_db()
 
 
-def route_start(state: dict) -> Command[Literal["spaced_review", "reading"]]:
+def route_start(_state: dict) -> Command[Literal["spaced_review", "reading"]]:
     """Load profile + article + task, then route based on due vocab."""
     profile = _db.get_user_profile()
     article = _db.get_today_article()
@@ -42,13 +42,13 @@ def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     item_data = state["review_queue"][state["review_index"]]
     item = item_data if isinstance(item_data, VocabItem) else VocabItem(**item_data)
 
-    user_answer = interrupt(
-        {
-            "type": "fill_blank",
-            "question": f"Fill in the blank: {item.context_sentence.replace(item.word, '______')}",
-            "word": item.word,
-        }
-    )
+    event = {
+        "type": "fill_blank",
+        "question": f"Fill in the blank: {item.context_sentence.replace(item.word, '______')}",
+        "word": item.word,
+    }
+    get_stream_writer()(event)
+    user_answer = interrupt(event)
 
     is_correct = user_answer.get("answer", "").strip().lower() == item.word.lower()
     response_seconds = user_answer.get("response_seconds", 10.0)
@@ -77,20 +77,17 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
     _db.upsert_reading_start(date.today())
 
     while True:
-        user_action = interrupt(
-            {
-                "type": "awaiting_action",
-                "article_full_text": state["today_article"].full_text
-                if state["today_article"]
-                else "",
-                "highlight_indices": (
-                    state["today_article"].highlight_indices if state["today_article"] else []
-                ),
-                "user_level": state["user_profile"].level if state["user_profile"] else 5,
-            }
-        )
-
         writer = get_stream_writer()
+        awaiting_event = {
+            "type": "awaiting_action",
+            "article_full_text": state["today_article"].full_text if state["today_article"] else "",
+            "highlight_indices": (
+                state["today_article"].highlight_indices if state["today_article"] else []
+            ),
+            "user_level": state["user_profile"].level if state["user_profile"] else 5,
+        }
+        writer(awaiting_event)
+        user_action = interrupt(awaiting_event)
         action_type = user_action.get("type")
 
         if action_type == "explain_word":
@@ -135,13 +132,13 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
 def writing_task(state: dict) -> dict:
     """Present writing task and wait for submission."""
     task = state["today_task"]
-    user_action = interrupt(
-        {
-            "type": "writing_task",
-            "instruction": task.instruction if task else "",
-            "min_words": task.min_words if task else 50,
-        }
-    )
+    event = {
+        "type": "writing_task",
+        "instruction": task.instruction if task else "",
+        "min_words": task.min_words if task else 50,
+    }
+    get_stream_writer()(event)
+    user_action = interrupt(event)
     return {"user_writing": user_action.get("text", "")}
 
 

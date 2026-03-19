@@ -1,11 +1,9 @@
 from datetime import date
 
-from backend.database import Database
 from backend.models import ArticleCreate, UserProfile, VocabItemCreate
 
 
-def test_upsert_and_get_user_profile():
-    db = Database(":memory:")
+def test_upsert_and_get_user_profile(db):
     profile = UserProfile(
         goal="Read TypeScript docs",
         interests=["TypeScript", "LangGraph"],
@@ -20,8 +18,7 @@ def test_upsert_and_get_user_profile():
     assert result.level == 6
 
 
-def test_upsert_article_and_get_today():
-    db = Database(":memory:")
+def test_upsert_article_and_get_today(db):
     article = ArticleCreate(
         date=date.today().isoformat(),
         source_url="https://example.com/article",
@@ -42,8 +39,7 @@ def test_upsert_article_and_get_today():
     assert result.highlight_indices == [0, 2]
 
 
-def test_vocab_due_query():
-    db = Database(":memory:")
+def test_vocab_due_query(db):
     item = VocabItemCreate(
         word="leverage",
         context_sentence="We can leverage this library.",
