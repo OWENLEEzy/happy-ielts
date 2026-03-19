@@ -2,60 +2,111 @@
 import { useState } from 'react'
 import { FullArticle } from './FullArticle'
 import { sendAction } from '@/lib/sse'
-import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { DOG_GOLDEN } from '@/lib/constants'
 import type { Article } from '@/types'
 
 interface Props {
   article: Article
-  onDoneReading: () => void
+  onDone: () => void
 }
 
-export function ArticleReader({ article, onDoneReading }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [analysis, setAnalysis] = useState('')
-  const [currentSentence, setCurrentSentence] = useState('')
+export function ArticleReader({ article, onDone }: Props) {
+  const [showTip, setShowTip] = useState(true)
+  const [doneLoading, setDoneLoading] = useState(false)
 
-  const handleSentenceClick = async (sentence: string) => {
-    setCurrentSentence(sentence)
-    setDrawerOpen(true)
-    setAnalysis('')
-    let buffer = ''
-    await sendAction(
-      { type: 'analyze_sentence', sentence },
-      chunk => {
-        if (chunk.type === 'sentence_analysis') {
-          buffer += chunk.result
-          setAnalysis(buffer)
-        }
-      },
-    )
-  }
-
-  const handleDoneReading = async () => {
+  const handleDone = async () => {
+    setDoneLoading(true)
     await sendAction({ type: 'done_reading' }, () => {})
-    onDoneReading()
+    onDone()
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-4">
-      <FullArticle article={article} onSentenceClick={handleSentenceClick} />
-
-      <div className="mt-6 flex justify-end">
-        <Button onClick={handleDoneReading} size="lg">
-          完成阅读 → 去写作
-        </Button>
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-24">
+      {/* Article meta */}
+      <div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          {article.topic_tags.map(tag => (
+            <span
+              key={tag}
+              className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold font-label"
+            >
+              {tag}
+            </span>
+          ))}
+          <span className="bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-bold font-label capitalize">
+            {article.article_logic.replace('_', ' ')}
+          </span>
+        </div>
+        <h1 className="text-2xl md:text-3xl font-extrabold font-headline text-on-surface mb-2">
+          {article.original_title}
+        </h1>
+        <div className="flex items-center gap-2 text-xs text-on-surface-variant font-label">
+          <span
+            className="material-symbols-outlined text-[14px]"
+            style={{ fontVariationSettings: "'FILL' 1" }}
+          >
+            smart_toy
+          </span>
+          AI 已高亮 {article.highlight_indices.length} 个核心段落 · 紫色高亮段落是今日写作的核心论点
+        </div>
       </div>
 
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="bottom" className="h-64">
-          <SheetHeader>
-            <SheetTitle className="text-sm text-gray-500 font-normal">句子分析</SheetTitle>
-          </SheetHeader>
-          <p className="text-sm italic text-gray-600 mb-2">&ldquo;{currentSentence}&rdquo;</p>
-          <p className="text-sm leading-relaxed">{analysis || '分析中...'}</p>
-        </SheetContent>
-      </Sheet>
+      {/* AI tutor tip */}
+      {showTip && (
+        <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">
+              Professor 金毛提示
+            </div>
+            <p className="text-sm text-on-surface leading-relaxed">
+              注意<span className="font-bold text-primary">紫色高亮段落</span>——
+              这些是今日写作任务的核心论点来源。
+            </p>
+          </div>
+          <button
+            onClick={() => setShowTip(false)}
+            className="text-on-surface-variant hover:text-on-surface"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* Article body */}
+      <FullArticle article={article} />
+
+      {/* CTA */}
+      <div className="bg-primary-container/20 rounded-lg p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-8">
+        <div>
+          <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label mb-1">
+            阅读完成
+          </div>
+          <h3 className="text-lg font-bold font-headline text-on-surface">准备好开始写作了吗？</h3>
+          <p className="text-sm text-on-surface-variant mt-1">基于本文的写作任务已就绪</p>
+        </div>
+        <button
+          onClick={handleDone}
+          disabled={doneLoading}
+          className="signature-gradient text-white px-6 py-2.5 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform disabled:opacity-60 flex items-center gap-2 whitespace-nowrap"
+        >
+          {doneLoading ? (
+            <>
+              <span className="dot1 w-2 h-2 bg-white rounded-full inline-block" />
+              <span className="dot2 w-2 h-2 bg-white rounded-full inline-block" />
+              <span className="dot3 w-2 h-2 bg-white rounded-full inline-block" />
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-[18px]">edit_note</span>
+              开始写作
+            </>
+          )}
+        </button>
+      </div>
     </div>
   )
 }

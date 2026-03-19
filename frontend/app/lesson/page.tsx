@@ -68,22 +68,17 @@ export default function LessonPage() {
       )}
 
       {state.phase === 'reading' && (
-        <ArticleReader
-          article={lesson.article}
-          onDoneReading={() => dispatch({ type: 'READING_DONE' })}
-        />
+        <ArticleReader article={lesson.article} onDone={() => dispatch({ type: 'READING_DONE' })} />
       )}
 
       {state.phase === 'writing' && (
         <WritingPanel
           task={lesson.task}
-          onFeedback={feedback => dispatch({ type: 'FEEDBACK_DONE', feedback })}
+          onFeedback={(feedback) => dispatch({ type: 'FEEDBACK_DONE', feedback })}
         />
       )}
 
-      {state.phase === 'feedback' && state.feedback && (
-        <FeedbackView feedback={state.feedback} />
-      )}
+      {state.phase === 'feedback' && state.feedback && <FeedbackView feedback={state.feedback} />}
     </main>
   )
 }

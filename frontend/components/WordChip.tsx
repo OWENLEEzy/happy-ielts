@@ -1,43 +1,39 @@
 'use client'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { sendAction } from '@/lib/sse'
 import { useState } from 'react'
+import { sendAction } from '@/lib/sse'
 
 interface Props {
   word: string
   context: string
+  onExplained?: (explanation: string) => void
 }
 
-export function WordChip({ word, context }: Props) {
-  const [explanation, setExplanation] = useState('')
-  const [isOpen, setIsOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+export function WordChip({ word, context, onExplained }: Props) {
+  const [loading, setLoading] = useState(false)
 
   const handleClick = async () => {
-    setIsOpen(true)
-    if (explanation) return
-    setIsLoading(true)
+    if (loading) return
+    setLoading(true)
     let buffer = ''
-    await sendAction({ type: 'explain_word', word, context }, (chunk) => {
-      if (chunk.type === 'word_explanation') {
-        buffer += chunk.result
-        setExplanation(buffer)
-      }
-    })
-    setIsLoading(false)
+    await sendAction(
+      { type: 'explain_word', word, context },
+      chunk => {
+        if (chunk.type === 'word_explanation') {
+          buffer += chunk.result
+          onExplained?.(buffer)
+        }
+      },
+    )
+    setLoading(false)
   }
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger
-        className="cursor-pointer underline decoration-dotted underline-offset-2 hover:bg-yellow-100 rounded px-0.5 bg-transparent border-none p-0 font-inherit text-inherit"
-        onClick={handleClick}
-      >
-        {word}
-      </PopoverTrigger>
-      <PopoverContent className="max-w-xs text-sm">
-        {isLoading ? '解释中...' : explanation || '点击获取解释'}
-      </PopoverContent>
-    </Popover>
+    <span
+      className={`vocab-word inline ${loading ? 'opacity-60' : 'hover:opacity-80'} transition-opacity`}
+      onClick={handleClick}
+      title="点击查看释义"
+    >
+      {word}
+    </span>
   )
 }

@@ -1,51 +1,47 @@
 'use client'
-import { WordChip } from './WordChip'
+import { useState } from 'react'
 import type { Article } from '@/types'
 
 interface Props {
   article: Article
-  onSentenceClick: (sentence: string) => void
+  onWordExplained?: (word: string, explanation: string) => void
 }
 
-function renderParagraph(text: string, isHighlighted: boolean, onSentenceClick: (s: string) => void) {
-  const words = text.split(/(\s+)/)
-  return (
-    <p
-      key={text.slice(0, 20)}
-      className={`mb-4 leading-relaxed ${isHighlighted ? 'bg-yellow-50 border-l-4 border-yellow-400 pl-3 py-1' : ''}`}
-      onDoubleClick={() => onSentenceClick(text)}
-      title="双击分析句子"
-    >
-      {words.map((token, i) =>
-        /\s+/.test(token) ? (
-          <span key={i}>{token}</span>
-        ) : (
-          <WordChip key={i} word={token.replace(/[.,!?;:'"()\[\]]/g, '')} context={text} />
-        )
-      )}
-    </p>
+export function FullArticle({ article }: Props) {
+  const [activeExplanation, setActiveExplanation] = useState<{ word: string; text: string } | null>(
+    null,
   )
-}
-
-export function FullArticle({ article, onSentenceClick }: Props) {
-  const paragraphs = article.full_text.split('\n\n')
+  const paragraphs = article.full_text.split('\n\n').filter(Boolean)
 
   return (
-    <div className="prose max-w-none">
-      <h2 className="text-xl font-bold mb-2">{article.original_title}</h2>
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {article.topic_tags.map(tag => (
-          <span key={tag} className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded text-xs">{tag}</span>
-        ))}
-        <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
-          {article.article_logic === 'compare' ? '对比分析' :
-           article.article_logic === 'cause_effect' ? '因果推导' : '论证立场'}
-        </span>
-      </div>
-      <p className="text-xs text-gray-400 mb-4">双击任意段落可分析句子结构 · 点击单词获取上下文释义</p>
-      {paragraphs.map((para, i) =>
-        renderParagraph(para, article.highlight_indices.includes(i), onSentenceClick)
+    <div className="space-y-5 text-base leading-8 text-on-surface">
+      {/* Active explanation popover */}
+      {activeExplanation && (
+        <div className="sticky top-20 z-10 bg-on-surface text-surface rounded-lg px-4 py-3 text-sm shadow-xl flex items-start justify-between gap-3">
+          <div>
+            <span className="font-bold text-primary-fixed">{activeExplanation.word}</span>
+            <span className="ml-2 opacity-90">{activeExplanation.text}</span>
+          </div>
+          <button
+            onClick={() => setActiveExplanation(null)}
+            className="text-surface/60 hover:text-surface flex-shrink-0 mt-0.5"
+          >
+            ✕
+          </button>
+        </div>
       )}
+
+      {paragraphs.map((para, idx) => {
+        const isHighlighted = article.highlight_indices.includes(idx)
+        return (
+          <p key={idx} className={`relative ${isHighlighted ? 'ai-highlight pl-4' : ''}`}>
+            {isHighlighted && (
+              <span className="absolute left-0 top-1 bottom-1 w-1 bg-primary rounded-full opacity-70" />
+            )}
+            {para}
+          </p>
+        )
+      })}
     </div>
   )
 }
