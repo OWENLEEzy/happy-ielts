@@ -3,6 +3,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import date
+from typing import Protocol
 
 from backend.models import (
     Article,
@@ -66,6 +67,34 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     article_id INTEGER
 );
 """
+
+
+class DatabaseProtocol(Protocol):
+    """Public interface for Database. Enables future Supabase swap."""
+
+    def upsert_user_profile(self, profile: UserProfile) -> None: ...
+
+    def get_user_profile(self) -> UserProfile | None: ...
+
+    def upsert_article(self, article: ArticleCreate) -> int: ...
+
+    def get_today_article(self) -> Article | None: ...
+
+    def upsert_writing_task(self, task: WritingTaskCreate) -> int: ...
+
+    def get_today_writing_task(self) -> WritingTask | None: ...
+
+    def save_writing_submission(self, sub: WritingSubmissionCreate) -> int: ...
+
+    def upsert_vocab_item(self, item: VocabItemCreate) -> None: ...
+
+    def get_due_vocab_items(self, today: date) -> list[VocabItem]: ...
+
+    def get_all_vocab_items(self) -> list[VocabItem]: ...
+
+    def save_daily_lesson(
+        self, article: ArticleCreate, task: WritingTaskCreate
+    ) -> tuple[int, int]: ...
 
 
 class Database:
@@ -140,6 +169,7 @@ class Database:
                     highlight_indices=excluded.highlight_indices,
                     article_logic=excluded.article_logic,
                     topic_tags=excluded.topic_tags
+                RETURNING id
             """,
                 (
                     article.date,
@@ -151,12 +181,7 @@ class Database:
                     json.dumps(article.topic_tags),
                 ),
             )
-            return (
-                cursor.lastrowid
-                or conn.execute("SELECT id FROM articles WHERE date=?", (article.date,)).fetchone()[
-                    "id"
-                ]
-            )
+            return cursor.fetchone()[0]
 
     def get_today_article(self) -> Article | None:
         with self._conn() as conn:
@@ -305,7 +330,63 @@ class Database:
                 raise RuntimeError("INSERT into writing_submissions returned no lastrowid")
             return row_id
 
-    def upsert_reading_start(self, today: date) -> None:
+    def save_daily_lesson(self, article: ArticleCreate, task: WritingTaskCreate) -> tuple[int, int]:
+        """Insert/update article and writing task atomically in a single transaction."""
+        with self._conn() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO articles (date, source_url, original_title, full_text,
+                                      highlight_indices, article_logic, topic_tags)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date) DO UPDATE SET
+                    source_url=excluded.source_url,
+                    original_title=excluded.original_title,
+                    full_text=excluded.full_text,
+                    highlight_indices=excluded.highlight_indices,
+                    article_logic=excluded.article_logic,
+                    topic_tags=excluded.topic_tags
+                RETURNING id
+            """,
+                (
+                    article.date,
+                    article.source_url,
+                    article.original_title,
+                    article.full_text,
+                    json.dumps(article.highlight_indices),
+                    article.article_logic,
+                    json.dumps(article.topic_tags),
+                ),
+            )
+            article_id: int = cursor.fetchone()[0]
+
+            existing = conn.execute(
+                "SELECT id FROM writing_tasks WHERE article_id=?", (article_id,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE writing_tasks SET mode=?, instruction=?, min_words=?
+                    WHERE article_id=?
+                """,
+                    (task.mode, task.instruction, task.min_words, article_id),
+                )
+                task_id: int = existing["id"]
+            else:
+                task_cursor = conn.execute(
+                    """
+                    INSERT INTO writing_tasks (article_id, mode, instruction, min_words)
+                    VALUES (?, ?, ?, ?)
+                """,
+                    (article_id, task.mode, task.instruction, task.min_words),
+                )
+                row_id = task_cursor.lastrowid
+                if row_id is None:
+                    raise RuntimeError("INSERT into writing_tasks returned no lastrowid")
+                task_id = row_id
+
+            return (article_id, task_id)
+
+    def upsert_reading_start(self, _today: date) -> None:
         """Idempotent marker that reading session started today."""
         # No separate table needed — article existence is the marker
         pass

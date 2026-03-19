@@ -100,10 +100,7 @@ def scrape_article(url: str) -> str:
         return _playwright_scrape(url)
     except Exception as e:
         logger.error(f"Playwright fallback failed for {url}: {e}")
-        return (
-            f"Error: could not scrape article at {url}. "
-            f"Both Scrapling and Playwright failed: {e}"
-        )
+        raise RuntimeError(f"Could not scrape article: {url}")
 
 
 @tool
@@ -149,7 +146,7 @@ class ProfileContext(BaseModel):
 
     goal: str = Field(description="The user's learning goal")
     level: int = Field(ge=1, le=10, description="Proficiency level 1-10")
-    writing_mode: Literal["professional", "ielts", "both"] = Field(
+    writing_mode: Literal["professional", "ielts_task1", "ielts_task2"] = Field(
         default="professional",
         description="Preferred writing mode",
     )
@@ -158,11 +155,7 @@ class ProfileContext(BaseModel):
 @tool
 def generate_writing_task(article: ArticleContext, profile: ProfileContext) -> dict[str, object]:
     """Generate a writing task based on the article context and user profile."""
-    import random
-
     mode: str = profile.writing_mode
-    if mode == "both":
-        mode = random.choice(["professional", "ielts_task2"])
 
     prompt = f"""
 Create a writing task for a {profile.level}/10 English learner.

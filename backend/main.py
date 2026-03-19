@@ -5,8 +5,32 @@ from datetime import date
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+from backend.models import WritingMode
 
 load_dotenv()
+
+
+class OnboardingMessageRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    thread_id: str = "onboarding"
+
+
+class SavePreferencesRequest(BaseModel):
+    bandwidth_minutes: int = Field(ge=5, le=120, default=25)
+    writing_mode: WritingMode = "professional"
+
+
+class LessonActionRequest(BaseModel):
+    type: str = Field(min_length=1, max_length=50)
+    word: str | None = None
+    sentence: str | None = None
+    text: str | None = None
+
+
+class UpdateProfileRequest(BaseModel):
+    interests_update: str = Field(min_length=1, max_length=500)
 
 
 @asynccontextmanager
@@ -58,14 +82,14 @@ async def planner_status():
 
 
 @app.post("/api/onboarding/message")
-async def onboarding_message(body: dict):
+async def onboarding_message(body: OnboardingMessageRequest):
     from backend.onboarding.agent import ONBOARDING_CONFIG, create_onboarding_agent
 
     agent = create_onboarding_agent(app.state.checkpointer)
 
     async def generate():
         async for chunk in agent.astream(
-            {"messages": [{"role": "user", "content": body.get("message", "")}]},
+            {"messages": [{"role": "user", "content": body.message}]},
             config=ONBOARDING_CONFIG,
             stream_mode="messages",
         ):
@@ -88,7 +112,7 @@ async def onboarding_status():
 
 
 @app.post("/api/onboarding/preferences")
-async def save_preferences(body: dict):
+async def save_preferences(body: SavePreferencesRequest):
     from backend.database import Database
 
     db = Database()
@@ -97,8 +121,8 @@ async def save_preferences(body: dict):
         raise HTTPException(status_code=404, detail="Profile not found")
     updated = profile.model_copy(
         update={
-            "bandwidth_minutes": body.get("bandwidth_minutes", 25),
-            "writing_mode": body.get("writing_mode", "professional"),
+            "bandwidth_minutes": body.bandwidth_minutes,
+            "writing_mode": body.writing_mode,
         }
     )
     db.upsert_user_profile(updated)
@@ -121,7 +145,7 @@ async def get_today_lesson():
 
 
 @app.post("/api/lesson/action")
-async def lesson_action(action: dict):
+async def lesson_action(action: LessonActionRequest):
     from langgraph.types import Command
 
     from backend.tutor.graph import get_tutor_graph
@@ -131,7 +155,7 @@ async def lesson_action(action: dict):
 
     async def generate():
         async for chunk in graph.astream(
-            Command(resume=action),
+            Command(resume=action.model_dump(exclude_none=False)),
             config=config,
             stream_mode="custom",
         ):
@@ -185,14 +209,14 @@ async def get_profile():
 
 
 @app.patch("/api/profile")
-async def update_profile(body: dict):
+async def update_profile(body: UpdateProfileRequest):
     from backend.database import Database
 
     db = Database()
     profile = db.get_user_profile()
     if profile is None:
         raise HTTPException(status_code=404, detail="Profile not found")
-    new_interests_str = body.get("interests_update", "")
+    new_interests_str = body.interests_update
     if new_interests_str:
         from langchain_anthropic import ChatAnthropic
         from pydantic import BaseModel

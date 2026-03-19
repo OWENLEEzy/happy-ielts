@@ -1,9 +1,9 @@
-from __future__ import annotations
-
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+WritingMode = Literal["professional", "ielts_task1", "ielts_task2"]
 
 
 class UserProfile(BaseModel):
@@ -11,7 +11,7 @@ class UserProfile(BaseModel):
     interests: list[str]
     level: int = Field(ge=1, le=10)
     bandwidth_minutes: int
-    writing_mode: Literal["professional", "ielts", "both"]
+    writing_mode: WritingMode
 
 
 class ArticleCreate(BaseModel):
@@ -30,7 +30,7 @@ class Article(ArticleCreate):
 
 class WritingTaskCreate(BaseModel):
     article_id: int
-    mode: Literal["professional", "ielts_task1", "ielts_task2"]
+    mode: WritingMode
     instruction: str = Field(min_length=50)
     min_words: int = Field(ge=50, le=250)
 
@@ -74,7 +74,7 @@ class VocabItemCreate(BaseModel):
     context_sentence: str
     source: Literal["reading_click", "writing_error"]
     next_review: str  # ISO date string
-    fsrs_state: dict
+    fsrs_state: dict[str, Any]
     article_id: int | None
 
 

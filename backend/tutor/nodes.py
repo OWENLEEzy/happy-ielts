@@ -94,9 +94,13 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
         action_type = user_action.get("type")
 
         if action_type == "explain_word":
+            word = user_action.get("word", "")
+            if not word:
+                writer({"type": "error", "message": "explain_word requires a 'word' field"})
+                continue
             result = explain_word.invoke(
                 {
-                    "word": user_action["word"],
+                    "word": word,
                     "context": user_action.get("context", ""),
                     "level": state["user_profile"].level if state["user_profile"] else 5,
                 }
@@ -104,7 +108,7 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
             if state["today_article"]:
                 _db.upsert_vocab_item(
                     VocabItemCreate(
-                        word=user_action["word"],
+                        word=word,
                         context_sentence=user_action.get("context", ""),
                         source="reading_click",
                         next_review=date.today().isoformat(),
@@ -115,7 +119,11 @@ def reading_session(state: dict) -> Command[Literal["writing_task"]]:
             writer({"type": "word_explanation", "result": result})
 
         elif action_type == "analyze_sentence":
-            result = analyze_sentence.invoke({"sentence": user_action["sentence"]})
+            sentence = user_action.get("sentence", "")
+            if not sentence:
+                writer({"type": "error", "message": "analyze_sentence requires a 'sentence' field"})
+                continue
+            result = analyze_sentence.invoke({"sentence": sentence})
             writer({"type": "sentence_analysis", "result": result})
 
         elif action_type == "done_reading":
