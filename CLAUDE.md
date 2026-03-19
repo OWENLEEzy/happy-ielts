@@ -15,7 +15,8 @@ task dev:frontend         # Next.js on :3000
 
 # 测试
 task test                                          # 全部测试
-uv run pytest backend/tests/test_database.py -v   # 单文件
+uv run pytest backend/tests/ -v                    # 全部后端测试
+uv run pytest backend/tests/test_models.py -v      # 单文件示例
 
 # 检查 / 格式化
 task check                # ruff + mypy + eslint + tsc
@@ -59,7 +60,7 @@ DeepAgent Planner                      LangGraph Tutor Graph
 - Planner: `f"planner-{date.today().isoformat()}"`
 - Onboarding: `"onboarding"`（固定）
 
-**Checkpointer 单例：** `SqliteSaver` 在 `main.py` lifespan 中创建一次，通过 `app.state.checkpointer` 传给所有 agent 和图，**不在各模块内单独 `from_conn_string()`**。
+**Checkpointer 单例：** `AsyncSqliteSaver`（`langgraph.checkpoint.sqlite.aio`）在 `main.py` lifespan 中创建一次，通过 `app.state.checkpointer` 传给所有 agent 和图，**不在各模块内单独 `from_conn_string()`**。
 
 ## LangChain / LangGraph / DeepAgents 使用规则
 
@@ -94,6 +95,10 @@ DeepAgent Planner                      LangGraph Tutor Graph
 
 **`save_results` 是写作飞轮关键节点：** 必须从 `state["writing_feedback"]` 读取 `WritingFeedback`（由 `evaluate_writing` 写入），调用 `_db.save_writing_submission()` 并将 `chinglish_flags` 中的词写入 `vocab_items`（`source="writing_error"`）。
 
+**RetryPolicy：** `reading` 和 `evaluate_writing` 节点有 `retry_policy=RetryPolicy(max_attempts=3)`（网络抖动兜底），其他节点不需要。
+
+**pre-commit + uv.lock：** `uv run mypy` 会更新 `uv.lock`，导致 pre-commit stash restore 冲突。提交前必须 `git add uv.lock`。
+
 ### DeepAgents 关键约定
 
 **系统提示写目标，不写步骤：** Planner 系统提示用 prose 描述目标，不用编号步骤列表（与内置 `write_todos` 中间件冲突）。
@@ -103,6 +108,23 @@ DeepAgent Planner                      LangGraph Tutor Graph
 **structured output 一律用 `with_structured_output()`：** 禁止 `json.loads(response.content)`，Claude 输出经常带 markdown code fence 导致解析失败。
 
 **Planner 单例：** `get_planner(checkpointer)` 而非 `create_planner()`，避免每次 API 请求泄漏 SQLite 连接。
+
+## Frontend
+
+```bash
+cd frontend && npm run dev    # Next.js on :3000
+cd frontend && npm run build  # Production build
+cd frontend && npx tsc --noEmit  # Type check
+```
+
+| 文件 | 用途 |
+|------|------|
+| `app/api/[...proxy]/route.ts` | 透传代理 → FastAPI :8000（无需 CORS） |
+| `lib/sse.ts` | SSE 客户端：`startLesson`、`sendOnboardingMessage` |
+| `types/api.ts` | OpenAPI 自动生成——不要手动编辑 |
+| `components/WritingPanel.tsx` | 写作提交 + feedback SSE 流 |
+
+**SSE cleanup：** `useEffect` 必须返回 `AbortController.abort()`，否则切换路由时 stream 泄漏。
 
 ## 环境变量
 
@@ -116,7 +138,7 @@ LANGSMITH_PROJECT=dynamiclingo
 
 ## 模型
 
-全部使用 `claude-haiku-4-5-20251001`（在 `pyproject.toml` 的 `langchain-anthropic` 通过 `init_chat_model("anthropic:claude-haiku-4-5-20251001")` 初始化）。
+全部使用 `claude-haiku-4-5-20251001`，通过 `ChatAnthropic(model="claude-haiku-4-5-20251001")` 初始化。
 
 ## 设计文档
 
