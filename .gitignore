@@ -21,6 +21,7 @@ htmlcov/
 
 # IDE / local config
 pyrightconfig.json
+.observer.lock
 
 # Docs / plans (local design artifacts)
 docs/plans/
