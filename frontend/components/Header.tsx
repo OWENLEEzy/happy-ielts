@@ -10,8 +10,8 @@ export function Header({ streak = 0 }: { streak?: number }) {
   const [avatarUrl] = useState(getRandomDogUrl)
 
   return (
-    <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-outline-variant/20">
-      <div className="flex items-center justify-between max-w-5xl mx-auto px-6 py-3 gap-4">
+    <header className="sticky top-0 z-50 h-16 bg-background/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center">
+      <div className="flex items-center justify-between max-w-5xl mx-auto px-6 gap-4 w-full">
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
