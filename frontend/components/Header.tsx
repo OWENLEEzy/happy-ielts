@@ -1,10 +1,13 @@
 'use client'
+import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { DOG_GOLDEN, DOG_WHITE } from '@/lib/constants'
+import { getRandomDogUrl } from '@/lib/constants'
 
 export function Header({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname()
+  const [logoUrl] = useState(getRandomDogUrl)
+  const [avatarUrl] = useState(getRandomDogUrl)
 
   return (
     <header className="sticky top-0 z-50 bg-background/90 backdrop-blur-md border-b border-outline-variant/20">
@@ -13,7 +16,7 @@ export function Header({ streak = 0 }: { streak?: number }) {
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="logo" />
+            <img src={logoUrl} className="w-full h-full object-cover" alt="logo" />
           </div>
           <span className="text-lg font-black text-primary tracking-tighter font-headline hidden sm:block">
             DynamicLingo
@@ -55,7 +58,7 @@ export function Header({ streak = 0 }: { streak?: number }) {
           )}
           <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DOG_WHITE} className="w-full h-full object-cover" alt="我" />
+            <img src={avatarUrl} className="w-full h-full object-cover" alt="我" />
           </div>
         </div>
       </div>

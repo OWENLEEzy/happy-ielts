@@ -1,9 +1,9 @@
 import logging
 from datetime import date
+from functools import lru_cache
 from typing import Literal
 
 from langchain.tools import tool
-from langchain_community.chat_models import ChatTongyi
 from pydantic import BaseModel, Field
 
 try:
@@ -12,12 +12,18 @@ except (ImportError, AttributeError):
     Scraper = None  # type: ignore[assignment,misc]
 
 from backend.database import get_db
+from backend.llm import get_llm
 from backend.models import ArticleCreate, WritingTaskCreate
 from backend.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatTongyi(model="qwen-max")
+
+@lru_cache(maxsize=1)
+def _get_llm():
+    return get_llm()
+
+
 _db = get_db()
 
 
@@ -123,7 +129,7 @@ def highlight_key_paragraphs(
     )
     for attempt in range(3):
         try:
-            response = _llm.invoke(prompt)
+            response = _get_llm().invoke(prompt)
             content = str(response.content).strip()
             if not content:
                 raise ValueError("Empty response from model")
@@ -175,7 +181,7 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
 """
     for attempt in range(3):
         try:
-            response = _llm.invoke(prompt)
+            response = _get_llm().invoke(prompt)
             content = str(response.content).strip()
             if not content:
                 raise ValueError("Empty response from model")

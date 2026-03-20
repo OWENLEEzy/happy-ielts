@@ -17,37 +17,36 @@ export function WritingPanel({ task, onFeedback }: Props) {
   const handleSubmit = async () => {
     if (wordCount < MIN || streaming) return
     setStreaming(true)
-    await sendAction(
-      { type: 'submit_writing', text },
-      chunk => {
-        if (chunk.type === 'feedback') {
-          onFeedback(chunk.result)
-        }
-      },
-    )
+    await sendAction({ type: 'submit_writing', text }, (chunk) => {
+      if (chunk.type === 'feedback') {
+        onFeedback(chunk.result)
+      }
+    })
     setStreaming(false)
   }
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-5 pb-24">
       {/* Task prompt */}
-      <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+      <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_color-mix(in_srgb,var(--primary)_7%,transparent)]">
         <div className="flex items-center gap-2 mb-3">
           <span className="signature-gradient text-white text-xs font-black px-3 py-1 rounded-full font-label capitalize">
-            {task.mode.replace('_', ' ')}
+            {task.mode.replace(/_/g, ' ')}
           </span>
           <span className="text-xs text-on-surface-variant font-label">{MIN} 词最低</span>
         </div>
-        <p className="text-on-surface leading-relaxed font-medium">&ldquo;{task.instruction}&rdquo;</p>
+        <p className="text-on-surface leading-relaxed font-medium">
+          &ldquo;{task.instruction}&rdquo;
+        </p>
       </div>
 
       {/* Editor */}
-      <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+      <div className="bg-surface-container-lowest rounded-lg p-6 shadow-[0_4px_16px_color-mix(in_srgb,var(--primary)_7%,transparent)]">
         <textarea
           className="w-full rounded-lg border border-outline-variant/20 bg-surface-container-low p-5 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40 text-on-surface leading-8 font-body text-sm min-h-[240px]"
           placeholder={`在此输入你的文章... (至少 ${MIN} 词)`}
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value)}
           disabled={streaming}
         />
         <div className="mt-4 flex items-center justify-between">

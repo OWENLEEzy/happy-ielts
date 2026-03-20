@@ -1,4 +1,5 @@
 import logging
+from functools import lru_cache
 
 from langchain.tools import tool
 
@@ -8,7 +9,11 @@ from backend.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
-_llm = get_llm()
+
+@lru_cache(maxsize=1)
+def _get_llm():
+    return get_llm()
+
 
 FEEDBACK_PROMPT = """
 You are a native English editor reviewing writing from a Chinese professional.
@@ -61,7 +66,7 @@ The learner is level {level}/10. Adjust depth accordingly:
 
 Respond in Chinese (简体中文). Keep it under 100 words.
 """
-    response = _llm.invoke(prompt)
+    response = _get_llm().invoke(prompt)
     return str(response.content)
 
 
@@ -76,7 +81,7 @@ Identify: main clause, subordinate clauses, subject/verb/object, and any difficu
 Use color labels in your response like [主语], [谓语], [宾语], [从句].
 Explain in Chinese (简体中文). Keep it under 150 words.
 """
-    response = _llm.invoke(prompt)
+    response = _get_llm().invoke(prompt)
     return str(response.content)
 
 
@@ -90,7 +95,7 @@ def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) 
     )
     for attempt in range(3):
         try:
-            response = _llm.invoke(prompt)
+            response = _get_llm().invoke(prompt)
             return parse_json(str(response.content), WritingFeedback)  # type: ignore[return-value]
         except Exception as e:
             logger.warning(f"Feedback attempt {attempt + 1} failed: {e}")

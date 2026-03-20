@@ -132,12 +132,12 @@ def test_article_create_valid():
         source_url="https://example.com",
         original_title="Title",
         full_text=LONG_TEXT,
-        highlight_indices=[0, 1],
+        highlight_indices=[0, 1, 2],
         article_logic="compare",
         topic_tags=["tech"],
     )
     assert article.original_title == "Title"
-    assert len(article.highlight_indices) == 2
+    assert len(article.highlight_indices) == 3
 
 
 def test_article_create_full_text_too_short():
@@ -148,21 +148,21 @@ def test_article_create_full_text_too_short():
             source_url="https://example.com",
             original_title="Title",
             full_text="Short.",
-            highlight_indices=[0, 1],
+            highlight_indices=[0, 1, 2],
             article_logic="compare",
             topic_tags=["tech"],
         )
 
 
 def test_article_create_highlight_too_few():
-    """highlight_indices requires at least 2 entries."""
+    """highlight_indices requires at least 3 entries."""
     with pytest.raises(ValidationError):
         ArticleCreate(
             date="2026-03-19",
             source_url="https://example.com",
             original_title="Title",
             full_text=LONG_TEXT,
-            highlight_indices=[0],
+            highlight_indices=[0, 1],
             article_logic="compare",
             topic_tags=["tech"],
         )
@@ -190,7 +190,7 @@ def test_article_create_no_topic_tags():
             source_url="https://example.com",
             original_title="Title",
             full_text=LONG_TEXT,
-            highlight_indices=[0, 1],
+            highlight_indices=[0, 1, 2],
             article_logic="compare",
             topic_tags=[],
         )
@@ -203,7 +203,7 @@ def test_article_create_too_many_topic_tags():
             source_url="https://example.com",
             original_title="Title",
             full_text=LONG_TEXT,
-            highlight_indices=[0, 1],
+            highlight_indices=[0, 1, 2],
             article_logic="compare",
             topic_tags=["a", "b", "c", "d", "e", "f"],
         )

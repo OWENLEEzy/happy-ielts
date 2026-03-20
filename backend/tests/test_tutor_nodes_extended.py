@@ -1,7 +1,7 @@
 """Extended tests for backend/tutor/nodes.py — covers save_results, edge cases."""
 
 from datetime import date
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from backend.models import (
     Article,
@@ -51,7 +51,7 @@ def _sample_article() -> Article:
         source_url="https://example.com",
         original_title="Test Article",
         full_text=LONG_TEXT,
-        highlight_indices=[0, 1],
+        highlight_indices=[0, 1, 2],
         article_logic="compare",
         topic_tags=["tech"],
     )
@@ -349,7 +349,10 @@ def test_writing_task_returns_user_writing_from_action():
     task = _sample_task()
     state = _make_state(today_task=task)
 
-    with patch("backend.tutor.nodes.interrupt", return_value={"text": "My essay text here."}):
+    with (
+        patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
+        patch("backend.tutor.nodes.interrupt", return_value={"text": "My essay text here."}),
+    ):
         result = writing_task(state)
 
     assert result["user_writing"] == "My essay text here."
@@ -362,7 +365,10 @@ def test_writing_task_returns_empty_string_when_text_missing():
     task = _sample_task()
     state = _make_state(today_task=task)
 
-    with patch("backend.tutor.nodes.interrupt", return_value={}):
+    with (
+        patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
+        patch("backend.tutor.nodes.interrupt", return_value={}),
+    ):
         result = writing_task(state)
 
     assert result["user_writing"] == ""
@@ -381,7 +387,10 @@ def test_writing_task_uses_task_instruction():
         captured_interrupt_payload.append(payload)
         return {"text": "some response"}
 
-    with patch("backend.tutor.nodes.interrupt", side_effect=fake_interrupt):
+    with (
+        patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
+        patch("backend.tutor.nodes.interrupt", side_effect=fake_interrupt),
+    ):
         writing_task(state)
 
     assert len(captured_interrupt_payload) == 1
@@ -397,7 +406,10 @@ def test_writing_task_handles_none_task_gracefully():
 
     state = _make_state(today_task=None)
 
-    with patch("backend.tutor.nodes.interrupt", return_value={"text": ""}):
+    with (
+        patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
+        patch("backend.tutor.nodes.interrupt", return_value={"text": ""}),
+    ):
         result = writing_task(state)
 
     assert result["user_writing"] == ""

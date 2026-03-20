@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { sendAction } from '@/lib/sse'
-import { DOG_GOLDEN } from '@/lib/constants'
+import { getRandomDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 export function FillBlankCard({ question, word, onChunk }: Props) {
   const [answer, setAnswer] = useState('')
   const [startTime] = useState(() => Date.now())
+  const [dogUrl] = useState(getRandomDogUrl)
   const [hint, setHint] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
   const [revealed, setRevealed] = useState(false)
@@ -52,11 +53,11 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
       </div>
 
       {/* Card */}
-      <div className="w-full max-w-md bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_rgba(109,74,179,0.12)] p-8 space-y-5">
+      <div className="w-full max-w-md bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_color-mix(in_srgb,var(--primary)_12%,transparent)] p-8 space-y-5">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+            <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />
           </div>
           <p className="text-xs font-bold text-on-surface-variant font-label">
             填入正确的词汇，解锁今日课程

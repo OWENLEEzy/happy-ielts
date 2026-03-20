@@ -1,5 +1,5 @@
 'use client'
-import { useReducer, useEffect, Suspense } from 'react'
+import { useReducer, useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { lessonReducer, initialState } from './reducer'
 import { FillBlankCard } from '@/components/FillBlankCard'
@@ -10,7 +10,7 @@ import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { useTodayLesson, usePlannerStatus } from '@/hooks/useLesson'
 import { startLesson } from '@/lib/sse'
-import { DOG_GOLDEN } from '@/lib/constants'
+import { getRandomDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
 
 const LoadingDots = () => (
@@ -27,6 +27,7 @@ function LessonContent() {
   const { data: lesson, isLoading: lessonLoading } = useTodayLesson()
   const { data: plannerStatus } = usePlannerStatus()
   const [state, dispatch] = useReducer(lessonReducer, initialState)
+  const [loadingDogUrl] = useState(getRandomDogUrl)
 
   const handleChunk = (chunk: SSEChunk) => {
     switch (chunk.type) {
@@ -61,7 +62,7 @@ function LessonContent() {
           <div className="relative z-10">
             <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto mb-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="准备中" />
+              <img src={loadingDogUrl} className="w-full h-full object-cover" alt="准备中" />
             </div>
             <h1 className="text-2xl font-extrabold font-headline text-primary mb-3">
               今日课程准备中…

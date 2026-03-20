@@ -64,35 +64,35 @@
 
 @layer base {
   :root {
-    /* Material Design 3 purple system */
-    --primary:                  #6d4ab3;
-    --primary-dim:              #613da6;
-    --primary-fixed:            #b390fe;
-    --primary-container:        #b390fe;
-    --on-primary:               #fdf7ff;
-    --on-primary-container:     #310072;
-    --secondary:                #6c596e;
-    --secondary-container:      #f5daf4;
-    --on-secondary-container:   #5f4b60;
-    --tertiary:                 #5c5e6e;
-    --tertiary-container:       #e6e6fa;
-    --tertiary-dim:             #505262;
-    --on-tertiary-container:    #525464;
-    --background:               #fef7fe;
-    --surface:                  #fef7fe;
+    /* Warm kawaii palette — golden dog × cream × coral */
+    --primary:                  #9b6b1a;
+    --primary-dim:              #875d16;
+    --primary-fixed:            #f5c97a;
+    --primary-container:        #f5c97a;
+    --on-primary:               #fffaf0;
+    --on-primary-container:     #3d2200;
+    --secondary:                #b85042;
+    --secondary-container:      #ffe8dc;
+    --on-secondary-container:   #5a2010;
+    --tertiary:                 #7a6e52;
+    --tertiary-container:       #ede2c8;
+    --tertiary-dim:             #6a5e44;
+    --on-tertiary-container:    #3c3220;
+    --background:               #faf8ee;
+    --surface:                  #faf8ee;
     --surface-container-lowest: #ffffff;
-    --surface-container-low:    #f8f1fa;
-    --surface-container:        #f2ebf5;
-    --surface-container-high:   #ede6f0;
-    --surface-container-highest:#e7e0ec;
-    --surface-variant:          #e7e0ec;
-    --on-surface:               #34313a;
-    --on-surface-variant:       #625d67;
-    --outline:                  #7e7983;
-    --outline-variant:          #b6b0bb;
-    --error:                    #a8364b;
-    --error-container:          #f97386;
-    --on-error:                 #fff7f7;
+    --surface-container-low:    #f8f3e5;
+    --surface-container:        #f0e9d8;
+    --surface-container-high:   #e8e0cc;
+    --surface-container-highest:#ddd6be;
+    --surface-variant:          #e8e0d0;
+    --on-surface:               #2c2418;
+    --on-surface-variant:       #5e5140;
+    --outline:                  #8a7a65;
+    --outline-variant:          #c0b098;
+    --error:                    #b83044;
+    --error-container:          #ffd0d8;
+    --on-error:                 #fff8f8;
 
     /* Font family CSS variables */
     --dl-font-headline: 'Plus Jakarta Sans', sans-serif;
