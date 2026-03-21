@@ -25,6 +25,8 @@ class TutorState(TypedDict):
     user_writing: str | None
     writing_feedback: WritingFeedback | None
     messages: Annotated[list, operator.add]
+    phases_completed: list[str]
+    vocab_correct: int
 
 
 def build_tutor_graph(checkpointer):

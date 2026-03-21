@@ -294,34 +294,17 @@ async def _trigger_orchestrator(_config, state_snapshot) -> None:
         feedback = values.get("writing_feedback")
         handoff = TutorHandoff(
             date=date.today().isoformat(),
-            phases_completed=_infer_phases(values),
+            phases_completed=values.get("phases_completed", []),
             writing_score=feedback.overall_score if feedback else 0,
             observations=[],  # Already written to memory in save_results
             vocab_reviewed=len(values.get("review_queue", [])),
-            vocab_correct=0,  # Not tracked in current state; future enhancement
+            vocab_correct=values.get("vocab_correct", 0),
             article_topic=article.topic_tags[0] if article and article.topic_tags else "",
             article_logic=article.article_logic if article else "",
         )
         await orchestrate_after_tutor(handoff, db)
     except Exception:
         _logger.exception("Orchestrator trigger failed (non-fatal)")
-
-
-def _infer_phases(state_values: dict) -> list[str]:
-    """Infer which phases completed based on present state values."""
-    phases = []
-    if state_values.get("review_queue"):
-        phases.append("review")
-    if state_values.get("today_article") is not None:
-        phases.append("reading")
-    if (
-        state_values.get("user_writing") is not None
-        or state_values.get("writing_feedback") is not None
-    ):
-        phases.append("writing")
-    if state_values.get("writing_feedback") is not None:
-        phases.append("feedback")
-    return phases
 
 
 @app.post("/api/lesson/start")
@@ -358,6 +341,8 @@ async def start_lesson():
                 "user_writing": None,
                 "writing_feedback": None,
                 "messages": [],
+                "phases_completed": [],
+                "vocab_correct": 0,
             },
             config=config,
             stream_mode="custom",

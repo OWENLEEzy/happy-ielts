@@ -88,6 +88,8 @@ def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     user_answer = interrupt(event)
 
     is_correct = user_answer.get("answer", "").strip().lower() == item.word.lower()
+    correct_delta = 1 if is_correct else 0
+    current_correct = state.get("vocab_correct", 0)
     response_seconds = user_answer.get("response_seconds", 10.0)
 
     new_state = update_card(item.fsrs_state, is_correct, response_seconds)
@@ -105,8 +107,11 @@ def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
 
     next_index = index + 1
     if next_index < len(queue):
-        return Command(update={"review_index": next_index}, goto="spaced_review")
-    return Command(goto="reading")
+        return Command(
+            update={"review_index": next_index, "vocab_correct": current_correct + correct_delta},
+            goto="spaced_review",
+        )
+    return Command(update={"vocab_correct": current_correct + correct_delta}, goto="reading")
 
 
 def _handle_explain_word(user_action: dict, state: dict, writer: Any) -> None:
@@ -306,4 +311,14 @@ def save_results(state: dict) -> dict:
             }
         )
 
-    return {"user_writing": None, "writing_feedback": None}
+    # Compute completed phases authoritatively before clearing state
+    phases: list[str] = []
+    if state.get("review_queue"):
+        phases.append("review")
+    phases.append("reading")  # save_results only executes after reading completed
+    if state.get("user_writing") is not None or feedback is not None:
+        phases.append("writing")
+    if feedback is not None:
+        phases.append("feedback")
+
+    return {"user_writing": None, "writing_feedback": None, "phases_completed": phases}
