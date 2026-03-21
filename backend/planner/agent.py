@@ -4,6 +4,7 @@ from deepagents import create_deep_agent
 from langchain_tavily import TavilySearch
 
 from backend.llm import get_llm
+from backend.models import ReflectHandoff
 from backend.planner.tools import (
     generate_writing_task,
     highlight_key_paragraphs,
@@ -31,13 +32,41 @@ blog.openai.com、anthropic.com/research、simonwillison.net、eugeneyan.com。
 如果 3 篇文章都抓取失败，使用搜索结果的摘要作为文章内容继续后续步骤。
 """
 
-_planner: object | None = None  # Singleton to avoid leaking SQLite connections
+_REFLECT_CONTEXT_TEMPLATE = """
+
+## 教研反思结果（来自 Reflect Agent）
+本次备课请结合以下教学分析：
+
+**学生当前水平推荐：** Level {level}
+**主要弱点（优先出针对性题目）：** {weaknesses}
+**进步中的领域（可适当强化）：** {improving}
+**话题方向推荐：** {topic}
+**写作任务风格推荐：** {task_style}
+**教学洞察（参考，不必逐字体现）：** {insight}
+"""
+
+_planner: object | None = None
 
 
-def create_deep_agent_planner(checkpointer) -> object:
-    """Create a fresh planner agent (for thread-isolated runs)."""
+def create_deep_agent_planner(
+    checkpointer, reflect_handoff: ReflectHandoff | None = None
+) -> object:
+    """Create a fresh planner agent. Optionally inject ReflectHandoff context."""
+    system_prompt = PLANNER_SYSTEM_PROMPT
+
+    if reflect_handoff is not None:
+        context = _REFLECT_CONTEXT_TEMPLATE.format(
+            level=reflect_handoff.level_suggestion,
+            weaknesses=", ".join(reflect_handoff.top_weaknesses) or "暂无",
+            improving=", ".join(reflect_handoff.improving_areas) or "暂无",
+            topic=reflect_handoff.topic_recommendation,
+            task_style=reflect_handoff.task_recommendation,
+            insight=reflect_handoff.teaching_insight,
+        )
+        system_prompt = PLANNER_SYSTEM_PROMPT + context
+
     return create_deep_agent(
-        model=get_llm(),
+        model=get_llm("qwen-max"),  # Offline pre-generation: use best model
         tools=[
             load_user_profile,
             search_articles,
@@ -46,7 +75,7 @@ def create_deep_agent_planner(checkpointer) -> object:
             generate_writing_task,
             save_daily_lesson,
         ],
-        system_prompt=PLANNER_SYSTEM_PROMPT,
+        system_prompt=system_prompt,
         checkpointer=checkpointer,
     )
 

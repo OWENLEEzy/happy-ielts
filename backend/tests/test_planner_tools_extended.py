@@ -430,3 +430,70 @@ def test_trafilatura_scrape_raises_when_no_text_extracted():
     ):
         with pytest.raises(RuntimeError, match="no extractable text"):
             _trafilatura_scrape("https://example.com/empty")
+
+
+# ---------------------------------------------------------------------------
+# Planner context injection tests
+# ---------------------------------------------------------------------------
+
+
+def test_create_planner_with_reflect_handoff_injects_context():
+    """When ReflectHandoff provided, system prompt should contain the recommendations."""
+    import os
+    from unittest.mock import MagicMock, patch
+
+    from backend.models import ReflectHandoff
+
+    reflect = ReflectHandoff(
+        date="2026-03-21",
+        level_suggestion=6,
+        top_weaknesses=["run-on sentence", "weak thesis"],
+        improving_areas=["word choice"],
+        topic_recommendation="climate policy",
+        task_recommendation="argumentation structure practice",
+        teaching_insight="Weak thesis only in argumentation articles",
+    )
+
+    captured_prompt = []
+
+    def mock_create(model, tools, system_prompt, checkpointer):
+        captured_prompt.append(system_prompt)
+        return MagicMock()
+
+    with (
+        patch.dict(os.environ, {"TAVILY_API_KEY": "mock-key", "DASHSCOPE_API_KEY": "mock-key"}),
+        patch("backend.planner.agent.create_deep_agent", side_effect=mock_create),
+    ):
+        from backend.planner.agent import create_deep_agent_planner
+
+        mock_cp = MagicMock()
+        create_deep_agent_planner(mock_cp, reflect_handoff=reflect)
+
+    assert len(captured_prompt) == 1
+    prompt = captured_prompt[0]
+    assert "climate policy" in prompt
+    assert "argumentation structure practice" in prompt
+    assert "run-on sentence" in prompt
+
+
+def test_create_planner_without_reflect_uses_base_prompt():
+    """Without ReflectHandoff, system prompt is the base PLANNER_SYSTEM_PROMPT."""
+    import os
+    from unittest.mock import MagicMock, patch
+
+    with patch.dict(os.environ, {"TAVILY_API_KEY": "mock-key", "DASHSCOPE_API_KEY": "mock-key"}):
+        from backend.planner.agent import PLANNER_SYSTEM_PROMPT, create_deep_agent_planner
+
+    captured_prompt = []
+
+    def mock_create(model, tools, system_prompt, checkpointer):
+        captured_prompt.append(system_prompt)
+        return MagicMock()
+
+    with (
+        patch.dict(os.environ, {"TAVILY_API_KEY": "mock-key", "DASHSCOPE_API_KEY": "mock-key"}),
+        patch("backend.planner.agent.create_deep_agent", side_effect=mock_create),
+    ):
+        create_deep_agent_planner(MagicMock(), reflect_handoff=None)
+
+    assert captured_prompt[0] == PLANNER_SYSTEM_PROMPT
