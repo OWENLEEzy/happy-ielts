@@ -6,6 +6,7 @@ import backend.orchestrator as orch
 def test_planner_lock_prevents_double_start(monkeypatch):
     """_start_planner_thread with same date is idempotent under concurrent calls."""
     orch.planner_state.clear()
+    monkeypatch.setattr(orch, "planner_state", {})
 
     def fake_run_sync(_target_date, _reflect_handoff):
         pass  # Don't actually run anything
