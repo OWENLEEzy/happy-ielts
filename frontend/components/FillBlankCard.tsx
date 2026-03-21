@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { sendAction } from '@/lib/sse'
-import { getRandomDogUrl } from '@/lib/constants'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
 
 interface Props {
@@ -13,12 +13,14 @@ interface Props {
 export function FillBlankCard({ question, word, onChunk }: Props) {
   const [answer, setAnswer] = useState('')
   const startTimeRef = useRef<number>(0)
-  const [dogUrl, setDogUrl] = useState('')
+  const [dogUrl, setDogUrl] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     startTimeRef.current = Date.now()
-    setDogUrl(getRandomDogUrl())
+    setDogUrl(getRandomTeacherDogUrl())
   }, [])
+
   const [hint, setHint] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
   const [revealed, setRevealed] = useState(false)
@@ -51,75 +53,83 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
   }
 
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 py-8 space-y-6">
-      {/* Section label */}
-      <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
-        每日复习关卡
-      </div>
-
-      {/* Card */}
-      <div className="w-full max-w-md bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_color-mix(in_srgb,var(--primary)_12%,transparent)] p-8 space-y-5">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />
-          </div>
-          <p className="text-xs font-bold text-on-surface-variant font-label">
-            填入正确的词汇，解锁今日课程
-          </p>
+    <div className="flex flex-col h-full min-h-screen">
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-4 pt-8 pb-32">
+        {/* Section label */}
+        <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label text-center mb-6">
+          每日复习关卡
         </div>
 
-        <p className="text-lg text-on-surface leading-8 font-medium">{question}</p>
-
-        {hint && (
-          <div className="bg-primary/8 border border-primary/15 rounded-lg px-4 py-2 text-sm text-primary font-label">
-            💡 {hint}
+        {/* Card */}
+        <div className="w-full max-w-md mx-auto bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_color-mix(in_srgb,var(--primary)_12%,transparent)] p-8 space-y-5">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {dogUrl && <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />}
+            </div>
+            <p className="text-xs font-bold text-on-surface-variant font-label">
+              填入正确的词汇，解锁今日课程
+            </p>
           </div>
-        )}
 
-        {revealed && (
-          <div className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-bold font-label text-center">
-            答案：{word} ✓
-          </div>
-        )}
+          <p className="text-lg text-on-surface leading-8 font-medium">{question}</p>
 
-        {!revealed && (
-          <div className="flex gap-2">
+          {hint && (
+            <div className="bg-primary/8 border border-primary/15 rounded-lg px-4 py-2 text-sm text-primary font-label">
+              💡 {hint}
+            </div>
+          )}
+
+          {revealed && (
+            <div className="bg-primary text-white rounded-lg px-4 py-2 text-sm font-bold font-label text-center">
+              答案：{word} ✓
+            </div>
+          )}
+
+          {attempts >= 2 && !revealed && (
+            <button
+              onClick={handleReveal}
+              className="w-full text-on-surface-variant text-xs font-label hover:text-primary transition-colors py-1"
+            >
+              放弃并查看答案
+            </button>
+          )}
+        </div>
+
+        {/* Attempt dots */}
+        <div className="flex gap-2 justify-center mt-6">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full ${i < attempts ? 'bg-error' : 'bg-outline-variant'}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Sticky bottom input bar */}
+      {!revealed && (
+        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-outline-variant/15 px-4 py-3 md:pb-3 pb-safe">
+          <div className="max-w-md mx-auto flex gap-2">
             <input
+              ref={inputRef}
               className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-full px-5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40"
               value={answer}
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               placeholder="填写答案..."
+              autoFocus
             />
             <button
               onClick={handleSubmit}
-              className="signature-gradient text-white px-5 py-2.5 rounded-full font-bold text-sm font-label shadow-md hover:scale-105 transition-transform"
+              className="signature-gradient text-white px-5 py-2.5 rounded-full font-bold text-sm font-label shadow-md hover:scale-105 transition-transform flex-shrink-0"
             >
               确认
             </button>
           </div>
-        )}
-
-        {attempts >= 2 && !revealed && (
-          <button
-            onClick={handleReveal}
-            className="w-full text-on-surface-variant text-xs font-label hover:text-primary transition-colors py-1"
-          >
-            放弃并查看答案
-          </button>
-        )}
-      </div>
-
-      {/* Attempt dots */}
-      <div className="flex gap-2">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className={`w-2 h-2 rounded-full ${i < attempts ? 'bg-error' : 'bg-outline-variant'}`}
-          />
-        ))}
-      </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -100,6 +100,18 @@ class DatabaseProtocol(Protocol):
 
     def get_article_for_date(self, date_str: str) -> "Article | None": ...
 
+    def query_topic_performance(self) -> dict: ...
+
+    def query_writing_task_history(self) -> dict: ...
+
+    def count_sessions(self) -> int: ...
+
+    def query_session_dates(self) -> list[str]: ...
+
+    def count_articles(self) -> int: ...
+
+    def upsert_reading_start(self, today: date) -> None: ...
+
 
 _instance: "Database | None" = None
 
@@ -400,7 +412,7 @@ class Database:
 
             return (article_id, task_id)
 
-    def upsert_reading_start(self, _today: date) -> None:
+    def upsert_reading_start(self, today: date) -> None:  # noqa: ARG002
         """Idempotent marker that reading session started today."""
         # No separate table needed — article existence is the marker
         pass
@@ -451,3 +463,60 @@ class Database:
                 article_logic=row["article_logic"],
                 topic_tags=json.loads(row["topic_tags"]),
             )
+
+    def query_topic_performance(self) -> dict:
+        """Returns per-topic writing performance aggregated from all submissions."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT json_each.value as topic,
+                       COUNT(*) as sessions,
+                       ROUND(AVG(ws.overall_score), 1) as avg_score
+                FROM writing_submissions ws
+                JOIN writing_tasks wt ON ws.task_id = wt.id
+                JOIN articles a ON wt.article_id = a.id,
+                     json_each(a.topic_tags)
+                GROUP BY topic
+                ORDER BY sessions DESC
+                """
+            ).fetchall()
+            return {
+                r["topic"]: {"sessions": r["sessions"], "avg_score": r["avg_score"]} for r in rows
+            }
+
+    def query_writing_task_history(self) -> dict:
+        """Returns per-article-logic-type writing performance from all submissions."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT a.article_logic as logic_type,
+                       COUNT(*) as count,
+                       ROUND(AVG(ws.overall_score), 1) as avg_score
+                FROM writing_submissions ws
+                JOIN writing_tasks wt ON ws.task_id = wt.id
+                JOIN articles a ON wt.article_id = a.id
+                GROUP BY a.article_logic
+                """
+            ).fetchall()
+            return {
+                r["logic_type"]: {"count": r["count"], "avg_score": r["avg_score"]} for r in rows
+            }
+
+    def count_sessions(self) -> int:
+        """Total number of completed writing submissions."""
+        with self._conn() as conn:
+            return conn.execute("SELECT COUNT(*) FROM writing_submissions").fetchone()[0]
+
+    def query_session_dates(self) -> list[str]:
+        """Distinct ISO dates where writing was submitted, newest first."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT date(submitted_at) as d "
+                "FROM writing_submissions ORDER BY d DESC"
+            ).fetchall()
+            return [r["d"] for r in rows]
+
+    def count_articles(self) -> int:
+        """Total number of articles stored (includes days without a submission)."""
+        with self._conn() as conn:
+            return conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]

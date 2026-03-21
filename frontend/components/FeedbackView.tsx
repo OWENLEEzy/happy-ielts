@@ -1,6 +1,6 @@
 'use client'
-import { useState } from 'react'
-import { getRandomDogUrl } from '@/lib/constants'
+import { useState, useEffect } from 'react'
+import { getRandomTogetherDogUrl, getRandomTeacherDogUrl } from '@/lib/constants'
 import type { WritingFeedback } from '@/types'
 
 interface Props {
@@ -9,10 +9,15 @@ interface Props {
 }
 
 export function FeedbackView({ feedback, onRetry }: Props) {
-  const [scoreCardUrl] = useState(getRandomDogUrl)
-  const [professorUrl] = useState(getRandomDogUrl)
+  const [scoreCardUrl, setScoreCardUrl] = useState<string | null>(null)
+  const [professorUrl, setProfessorUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    setScoreCardUrl(getRandomTogetherDogUrl())
+    setProfessorUrl(getRandomTeacherDogUrl())
+  }, [])
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-5 pb-24">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] md:pb-8">
       {/* Score card */}
       <div className="signature-gradient rounded-lg p-7 text-white shadow-xl relative overflow-hidden">
         <div className="absolute -top-8 -right-8 opacity-10 pointer-events-none">
@@ -33,7 +38,9 @@ export function FeedbackView({ feedback, onRetry }: Props) {
           </div>
           <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={scoreCardUrl} className="w-full h-full object-cover" alt="完成" />
+            {scoreCardUrl && (
+              <img src={scoreCardUrl} className="w-full h-full object-cover" alt="完成" />
+            )}
           </div>
         </div>
         {feedback.rewrite_suggestions.length > 0 && (
@@ -62,7 +69,10 @@ export function FeedbackView({ feedback, onRetry }: Props) {
             </span>
           </div>
           {feedback.grammar_errors.map((e, i) => (
-            <div key={i} className="bg-surface-container-low rounded-lg p-4 mb-3 last:mb-0">
+            <div
+              key={`${e.original}-${i}`}
+              className="bg-surface-container-low rounded-lg p-4 mb-3 last:mb-0"
+            >
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className="line-through text-error text-sm font-bold font-label">
                   &ldquo;{e.original}&rdquo;
@@ -74,7 +84,7 @@ export function FeedbackView({ feedback, onRetry }: Props) {
                   &ldquo;{e.correction}&rdquo;
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant">{e.explanation_zh}</p>
+              <p className="text-xs text-on-surface-variant break-words">{e.explanation_zh}</p>
             </div>
           ))}
         </div>
@@ -96,7 +106,10 @@ export function FeedbackView({ feedback, onRetry }: Props) {
             </span>
           </div>
           {feedback.chinglish_flags.map((f, i) => (
-            <div key={i} className="bg-surface-container-lowest rounded-lg p-4 mb-3 last:mb-0">
+            <div
+              key={`${f.original}-${i}`}
+              className="bg-surface-container-lowest rounded-lg p-4 mb-3 last:mb-0"
+            >
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className="line-through text-error text-sm font-bold font-label">
                   &ldquo;{f.original}&rdquo;
@@ -108,7 +121,7 @@ export function FeedbackView({ feedback, onRetry }: Props) {
                   &ldquo;{f.native_alternative}&rdquo;
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant">{f.explanation_zh}</p>
+              <p className="text-xs text-on-surface-variant break-words">{f.explanation_zh}</p>
               <p className="text-[10px] text-on-surface-variant/60 mt-1">已加入生词库，稍后复习</p>
             </div>
           ))}
@@ -120,7 +133,9 @@ export function FeedbackView({ feedback, onRetry }: Props) {
         <div className="bg-tertiary-container/25 rounded-lg p-5 flex gap-3">
           <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={professorUrl} className="w-full h-full object-cover" alt="tutor" />
+            {professorUrl && (
+              <img src={professorUrl} className="w-full h-full object-cover" alt="tutor" />
+            )}
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

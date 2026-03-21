@@ -5,7 +5,7 @@ import { sendOnboardingMessage } from '@/lib/sse'
 import { useOnboardingStatus } from '@/hooks/useLesson'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
-import { getRandomDogUrl } from '@/lib/constants'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -28,14 +28,14 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { data: status, mutate } = useOnboardingStatus()
-  const [introDogUrl, setIntroDogUrl] = useState('')
-  const [messageDogUrl, setMessageDogUrl] = useState('')
-  const [streamingDogUrl, setStreamingDogUrl] = useState('')
+  const [introDogUrl, setIntroDogUrl] = useState<string | null>(null)
+  const [messageDogUrl, setMessageDogUrl] = useState<string | null>(null)
+  const [streamingDogUrl, setStreamingDogUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    setIntroDogUrl(getRandomDogUrl())
-    setMessageDogUrl(getRandomDogUrl())
-    setStreamingDogUrl(getRandomDogUrl())
+    setIntroDogUrl(getRandomTeacherDogUrl())
+    setMessageDogUrl(getRandomTeacherDogUrl())
+    setStreamingDogUrl(getRandomTeacherDogUrl())
   }, [])
 
   useEffect(() => {
@@ -92,17 +92,14 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Header />
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8 pb-24 md:pb-8 flex flex-col gap-4">
+      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8 pb-[calc(var(--mobile-nav-height)+8px)] md:pb-8 flex flex-col gap-4 min-h-0">
         {/* Tutor intro card */}
         <div className="flex items-center gap-3 bg-tertiary-container/25 rounded-lg p-4 border border-primary/10">
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={introDogUrl}
-              suppressHydrationWarning
-              className="w-full h-full object-cover"
-              alt="顾问"
-            />
+            {introDogUrl && (
+              <img src={introDogUrl} className="w-full h-full object-cover" alt="顾问" />
+            )}
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label">
@@ -113,18 +110,15 @@ export default function OnboardingPage() {
         </div>
 
         {/* Message list */}
-        <div className="flex-1 space-y-3 overflow-y-auto">
+        <div className="flex-1 min-h-0 space-y-3 overflow-y-auto">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {m.role === 'assistant' && (
                 <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={messageDogUrl}
-                    suppressHydrationWarning
-                    className="w-full h-full object-cover"
-                    alt=""
-                  />
+                  {messageDogUrl && (
+                    <img src={messageDogUrl} className="w-full h-full object-cover" alt="" />
+                  )}
                 </div>
               )}
               <div
@@ -142,12 +136,9 @@ export default function OnboardingPage() {
             <div className="flex justify-start">
               <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={streamingDogUrl}
-                  suppressHydrationWarning
-                  className="w-full h-full object-cover"
-                  alt=""
-                />
+                {streamingDogUrl && (
+                  <img src={streamingDogUrl} className="w-full h-full object-cover" alt="" />
+                )}
               </div>
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 flex gap-1.5 items-center">
                 <span className="dot1 w-2 h-2 bg-primary rounded-full inline-block" />
@@ -227,10 +218,9 @@ export default function OnboardingPage() {
             )}
           </div>
         )}
-
-        {/* Input bar */}
+        {/* Desktop input bar (inside scroll flow) */}
         {!showPreferenceCards && (
-          <div className="flex gap-2">
+          <div className="hidden md:flex gap-2">
             <input
               className="flex-1 bg-surface-container-lowest border border-outline-variant/20 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40"
               placeholder="输入你的回复..."
@@ -250,6 +240,28 @@ export default function OnboardingPage() {
         )}
       </main>
       <MobileNav />
+      {/* Mobile sticky input bar — above MobileNav */}
+      {!showPreferenceCards && (
+        <div className="fixed bottom-[var(--mobile-nav-height)] left-0 right-0 bg-background/95 backdrop-blur-md border-t border-outline-variant/15 px-4 py-3 z-40 md:hidden">
+          <div className="max-w-2xl mx-auto flex gap-2">
+            <input
+              className="flex-1 bg-surface-container-lowest border border-outline-variant/20 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40"
+              placeholder="输入你的回复..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !isStreaming && handleSend()}
+              disabled={isStreaming}
+            />
+            <button
+              onClick={handleSend}
+              disabled={isStreaming || !input.trim()}
+              className="signature-gradient text-white w-11 h-11 rounded-full flex items-center justify-center shadow-lg disabled:opacity-50 flex-shrink-0"
+            >
+              <span className="material-symbols-outlined text-[20px]">send</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

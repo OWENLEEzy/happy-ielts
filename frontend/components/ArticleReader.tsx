@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { FullArticle } from './FullArticle'
 import { sendAction } from '@/lib/sse'
-import { getRandomDogUrl } from '@/lib/constants'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { Article } from '@/types'
 
 interface Props {
@@ -13,10 +13,10 @@ interface Props {
 export function ArticleReader({ article, onDone }: Props) {
   const [showTip, setShowTip] = useState(true)
   const [doneLoading, setDoneLoading] = useState(false)
-  const [dogUrl, setDogUrl] = useState('')
+  const [dogUrl, setDogUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    setDogUrl(getRandomDogUrl())
+    setDogUrl(getRandomTeacherDogUrl())
   }, [])
 
   const handleDone = async () => {
@@ -26,7 +26,7 @@ export function ArticleReader({ article, onDone }: Props) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-24">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] md:pb-8">
       {/* Article meta */}
       <div>
         <div className="flex flex-wrap gap-2 mb-4">
@@ -61,7 +61,7 @@ export function ArticleReader({ article, onDone }: Props) {
         <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />
+            {dogUrl && <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />}
           </div>
           <div className="flex-1">
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

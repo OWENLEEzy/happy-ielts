@@ -37,7 +37,7 @@ export function WritingPanel({ task, onFeedback }: Props) {
               </span>
               <span className="text-xs text-on-surface-variant font-label">{MIN} 词最低</span>
             </div>
-            <p className="text-on-surface leading-relaxed font-medium text-sm sm:text-base">
+            <p className="text-on-surface leading-relaxed font-medium text-sm sm:text-base max-h-[120px] overflow-y-auto">
               &ldquo;{task.instruction}&rdquo;
             </p>
           </div>
@@ -59,7 +59,7 @@ export function WritingPanel({ task, onFeedback }: Props) {
           />
 
           {/* ── Bottom bar ─────────────────────────────────── */}
-          <div className="flex-shrink-0 flex items-center justify-between py-3 pb-16 md:pb-4">
+          <div className="flex-shrink-0 flex items-center justify-between py-3 pb-[calc(var(--mobile-nav-height)+8px)] md:pb-4">
             <div className="flex items-center gap-3">
               <span className="text-sm font-bold font-label">
                 <span className={wordCount >= MIN ? 'text-primary' : 'text-on-surface-variant'}>

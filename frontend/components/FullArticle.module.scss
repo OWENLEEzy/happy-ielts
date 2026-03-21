@@ -1,0 +1,8 @@
+@use '../styles/tokens' as *;
+
+.highlighted {
+  background: linear-gradient(105deg, $highlight-bg 0%, $highlight-bg-end 60%, #faf8ff 100%);
+  border-left: 3px solid $highlight-border;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+}

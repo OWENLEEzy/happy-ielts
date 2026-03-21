@@ -1,5 +1,5 @@
 'use client'
-import { useReducer, useEffect, useState, Suspense } from 'react'
+import { useReducer, useEffect, useState, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { lessonReducer, initialState } from './reducer'
 import { FillBlankCard } from '@/components/FillBlankCard'
@@ -11,7 +11,7 @@ import { LessonSidebar } from '@/components/LessonSidebar'
 import { MobileNav } from '@/components/MobileNav'
 import { useTodayLesson, usePlannerStatus } from '@/hooks/useLesson'
 import { startLesson } from '@/lib/sse'
-import { getRandomDogUrl } from '@/lib/constants'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
 
 const LoadingDots = () => (
@@ -28,13 +28,13 @@ function LessonContent() {
   const { data: lesson, isLoading: lessonLoading } = useTodayLesson()
   const { data: plannerStatus } = usePlannerStatus()
   const [state, dispatch] = useReducer(lessonReducer, initialState)
-  const [loadingDogUrl, setLoadingDogUrl] = useState('')
+  const [loadingDogUrl, setLoadingDogUrl] = useState<string | null>(null)
 
   useEffect(() => {
-    setLoadingDogUrl(getRandomDogUrl())
+    setLoadingDogUrl(getRandomTeacherDogUrl())
   }, [])
 
-  const handleChunk = (chunk: SSEChunk) => {
+  const handleChunk = useCallback((chunk: SSEChunk) => {
     switch (chunk.type) {
       case 'fill_blank':
         dispatch({ type: 'FILL_BLANK_RECEIVED', question: chunk.question, word: chunk.word })
@@ -46,7 +46,7 @@ function LessonContent() {
         dispatch({ type: 'WRITING_TASK_RECEIVED' })
         break
     }
-  }
+  }, [])
 
   useEffect(() => {
     if (!lesson) return
@@ -58,26 +58,23 @@ function LessonContent() {
     })
 
     return () => controller.abort()
-  }, [lesson])
+  }, [lesson, handleChunk])
 
   if (isLoading || !plannerStatus?.ready) {
     const isError = plannerStatus?.status === 'error'
     const isRunning = plannerStatus?.status === 'running'
 
     return (
-      <main className="max-w-3xl mx-auto px-6 py-12 text-center space-y-6 flex-1">
+      <main className="max-w-3xl mx-auto px-6 py-12 pb-[calc(var(--mobile-nav-height)+16px)] md:pb-12 text-center space-y-6 flex-1">
         <div
           className={`rounded-lg p-10 relative overflow-hidden ${isError ? 'bg-error-container/20' : 'bg-primary-container/20'}`}
         >
           <div className="relative z-10">
             <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto mb-6">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={loadingDogUrl}
-                suppressHydrationWarning
-                className="w-full h-full object-cover"
-                alt="准备中"
-              />
+              {loadingDogUrl && (
+                <img src={loadingDogUrl} className="w-full h-full object-cover" alt="准备中" />
+              )}
             </div>
 
             {isError ? (
@@ -136,7 +133,7 @@ function LessonContent() {
 
   if (lessonLoading || !lesson) {
     return (
-      <main className="flex items-center justify-center flex-1 py-20">
+      <main className="flex items-center justify-center flex-1 py-20 pb-[calc(var(--mobile-nav-height)+20px)] md:pb-20">
         <LoadingDots />
       </main>
     )

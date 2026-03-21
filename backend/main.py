@@ -26,11 +26,11 @@ class SavePreferencesRequest(BaseModel):
 
 class LessonActionRequest(BaseModel):
     type: str = Field(min_length=1, max_length=50)
-    word: str | None = None
-    context: str | None = None
-    sentence: str | None = None
-    text: str | None = None
-    answer: str | None = None
+    word: str | None = Field(default=None, max_length=100)
+    context: str | None = Field(default=None, max_length=2000)
+    sentence: str | None = Field(default=None, max_length=2000)
+    text: str | None = Field(default=None, max_length=10000)
+    answer: str | None = Field(default=None, max_length=200)
     response_seconds: float | None = None
 
 
@@ -347,7 +347,17 @@ async def start_lesson():
     checkpoint_tuple = await app.state.checkpointer.aget_tuple(config)
     if checkpoint_tuple is not None and checkpoint_tuple.metadata.get("next"):
         next_nodes: list[str] = list(checkpoint_tuple.metadata.get("next", []))
-        return JSONResponse({"status": "already_started", "next": next_nodes}, status_code=409)
+        # Attach interrupt data so the frontend can restore fill_blank state
+        interrupt_value: dict | None = None
+        state = await graph.aget_state(config)
+        for task in state.tasks:
+            if task.interrupts:
+                interrupt_value = task.interrupts[0].value
+                break
+        return JSONResponse(
+            {"status": "already_started", "next": next_nodes, "interrupt": interrupt_value},
+            status_code=409,
+        )
 
     async def generate():
         async for chunk in graph.astream(

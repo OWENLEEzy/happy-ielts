@@ -203,6 +203,13 @@ def test_spaced_review_slow_correct_answer_uses_hard_rating():
 # ---------------------------------------------------------------------------
 
 
+def _mock_llm():
+    """Return a MagicMock that satisfies get_llm().bind_tools(...) call chain."""
+    llm = MagicMock()
+    llm.bind_tools.return_value = llm
+    return llm
+
+
 def test_reading_session_done_reading_exits_loop():
     """done_reading action breaks the loop and returns Command(goto='writing_task')."""
     from backend.tutor.nodes import reading_session
@@ -212,6 +219,8 @@ def test_reading_session_done_reading_exits_loop():
     with (
         patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
         patch("backend.tutor.nodes.interrupt", return_value={"type": "done_reading"}),
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db"),
     ):
         result = reading_session(state)
@@ -233,6 +242,8 @@ def test_reading_session_explain_word_action():
         patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
         patch("backend.tutor.nodes.interrupt", side_effect=interrupt_responses),
         patch("backend.tutor.nodes.explain_word") as mock_explain,
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db"),
     ):
         mock_explain.invoke.return_value = "Word explanation."
@@ -256,6 +267,8 @@ def test_reading_session_explain_word_without_article_skips_vocab_upsert():
         patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
         patch("backend.tutor.nodes.interrupt", side_effect=interrupt_responses),
         patch("backend.tutor.nodes.explain_word") as mock_explain,
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db") as mock_db,
     ):
         mock_explain.invoke.return_value = "Word explanation."
@@ -278,6 +291,8 @@ def test_reading_session_explain_word_missing_word_sends_error_and_continues():
     with (
         patch("backend.tutor.nodes.get_stream_writer", return_value=writer_mock),
         patch("backend.tutor.nodes.interrupt", side_effect=interrupt_responses),
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db"),
     ):
         result = reading_session(state)
@@ -301,6 +316,8 @@ def test_reading_session_analyze_sentence_action():
         patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
         patch("backend.tutor.nodes.interrupt", side_effect=interrupt_responses),
         patch("backend.tutor.nodes.analyze_sentence") as mock_analyze,
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db"),
     ):
         mock_analyze.invoke.return_value = "Sentence analysis."
@@ -324,6 +341,8 @@ def test_reading_session_analyze_sentence_missing_field_sends_error():
     with (
         patch("backend.tutor.nodes.get_stream_writer", return_value=writer_mock),
         patch("backend.tutor.nodes.interrupt", side_effect=interrupt_responses),
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db"),
     ):
         result = reading_session(state)
@@ -342,6 +361,8 @@ def test_reading_session_none_article_and_profile():
     with (
         patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
         patch("backend.tutor.nodes.interrupt", return_value={"type": "done_reading"}),
+        patch("backend.tutor.nodes.get_llm", return_value=_mock_llm()),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
         patch("backend.tutor.nodes._db"),
     ):
         result = reading_session(state)
@@ -413,6 +434,7 @@ def test_evaluate_writing_happy_path_returns_feedback():
     with (
         patch("backend.tutor.nodes.get_stream_writer", return_value=MagicMock()),
         patch("backend.tutor.nodes.run_feedback", return_value=feedback),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
     ):
         result = evaluate_writing(state)
 
@@ -436,6 +458,7 @@ def test_evaluate_writing_sends_feedback_event_to_writer():
     with (
         patch("backend.tutor.nodes.get_stream_writer", return_value=writer_mock),
         patch("backend.tutor.nodes.run_feedback", return_value=feedback),
+        patch("backend.tutor.nodes.read_student_model", return_value={}),
     ):
         evaluate_writing(state)
 

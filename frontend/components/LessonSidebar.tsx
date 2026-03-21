@@ -2,9 +2,9 @@
 import type { LessonPhase } from '@/types'
 
 const PHASES: { id: LessonPhase; label: string; icon: string }[] = [
-  { id: 'review',   label: '词汇复习', icon: 'quiz' },
-  { id: 'reading',  label: '深读文章', icon: 'menu_book' },
-  { id: 'writing',  label: '写作任务', icon: 'edit_note' },
+  { id: 'review', label: '词汇复习', icon: 'quiz' },
+  { id: 'reading', label: '深读文章', icon: 'menu_book' },
+  { id: 'writing', label: '写作任务', icon: 'edit_note' },
   { id: 'feedback', label: '批改反馈', icon: 'grade' },
 ]
 
@@ -14,10 +14,10 @@ interface Props {
 }
 
 export function LessonSidebar({ phase, articleTitle }: Props) {
-  const currentIndex = PHASES.findIndex(p => p.id === phase)
+  const currentIndex = PHASES.findIndex((p) => p.id === phase)
 
   return (
-    <aside className="hidden lg:flex flex-col w-52 flex-shrink-0 sticky top-16 h-[calc(100dvh-4rem)] border-r border-outline-variant/20 bg-surface-container-low/40 py-6 px-4 gap-6">
+    <aside className="hidden lg:flex flex-col w-52 flex-shrink-0 sticky top-16 h-[calc(100dvh-4rem)] border-r border-outline-variant/20 bg-surface-container-low/40 py-6 px-4 gap-6 overflow-y-auto">
       {/* Article title */}
       <div className="px-2">
         <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 mb-1.5 font-label">
@@ -40,22 +40,22 @@ export function LessonSidebar({ phase, articleTitle }: Props) {
                 isCurrent
                   ? 'bg-primary/10 text-primary'
                   : isDone
-                  ? 'text-on-surface-variant'
-                  : 'text-on-surface-variant/35'
+                    ? 'text-on-surface-variant'
+                    : 'text-on-surface-variant/35'
               }`}
             >
               <div
                 className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
-                  isDone
-                    ? 'bg-primary/15'
-                    : isCurrent
-                    ? 'bg-primary'
-                    : 'bg-outline-variant/30'
+                  isDone ? 'bg-primary/15' : isCurrent ? 'bg-primary' : 'bg-outline-variant/30'
                 }`}
               >
                 <span
                   className={`material-symbols-outlined text-[12px] ${
-                    isDone ? 'text-primary' : isCurrent ? 'text-white' : 'text-on-surface-variant/35'
+                    isDone
+                      ? 'text-primary'
+                      : isCurrent
+                        ? 'text-white'
+                        : 'text-on-surface-variant/35'
                   }`}
                   style={{ fontVariationSettings: "'FILL' 1" }}
                 >

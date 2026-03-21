@@ -53,6 +53,11 @@ export async function startLesson(
     // Lesson already in progress — restore UI phase from checkpoint info
     try {
       const data = await res.json()
+      // If the backend returned an interrupt value, use it directly (e.g. fill_blank)
+      if (data.interrupt) {
+        onChunk(data.interrupt as SSEChunk)
+        return
+      }
       const firstNode: string | undefined = (data.next as string[] | undefined)?.[0]
       const synthetic = firstNode ? NODE_TO_CHUNK[firstNode] : undefined
       if (synthetic) onChunk(synthetic)

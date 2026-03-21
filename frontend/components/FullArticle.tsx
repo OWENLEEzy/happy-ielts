@@ -40,7 +40,7 @@ export function FullArticle({ article, onWordExplained }: Props) {
     <div className="space-y-5 text-base leading-8 text-on-surface">
       {/* Active explanation popover */}
       {activeExplanation && (
-        <div className="sticky top-20 z-10 bg-on-surface text-surface rounded-lg px-4 py-3 text-sm shadow-xl flex items-start justify-between gap-3">
+        <div className="sticky top-[calc(4rem+8px)] z-10 bg-on-surface text-surface rounded-lg px-4 py-3 text-sm shadow-xl flex items-start justify-between gap-3">
           <div>
             <span className="font-bold text-primary-fixed">{activeExplanation.word}</span>
             <span className="ml-2 opacity-90">{activeExplanation.text}</span>

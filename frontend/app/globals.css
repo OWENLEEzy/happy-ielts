@@ -60,36 +60,39 @@
   --radius-md: 1rem;
   --radius-lg: 2rem;
   --radius-xl: 3rem;
+
+  /* Layout constants */
+  --mobile-nav-height: 64px;
 }
 
 @layer base {
   :root {
-    /* Warm kawaii palette — golden dog × cream × coral */
-    --primary:                  #9b6b1a;
-    --primary-dim:              #875d16;
-    --primary-fixed:            #f5c97a;
-    --primary-container:        #f5c97a;
-    --on-primary:               #fffaf0;
-    --on-primary-container:     #3d2200;
+    /* Happy IELTS — indigo-violet × slate × coral */
+    --primary:                  #6d28d9;
+    --primary-dim:              #5b21b6;
+    --primary-fixed:            #ddd6fe;
+    --primary-container:        #ede9fe;
+    --on-primary:               #ffffff;
+    --on-primary-container:     #2e1065;
     --secondary:                #b85042;
     --secondary-container:      #ffe8dc;
     --on-secondary-container:   #5a2010;
-    --tertiary:                 #7a6e52;
-    --tertiary-container:       #ede2c8;
-    --tertiary-dim:             #6a5e44;
-    --on-tertiary-container:    #3c3220;
-    --background:               #faf8ee;
-    --surface:                  #faf8ee;
+    --tertiary:                 #5b6f88;
+    --tertiary-container:       #d9e8f8;
+    --tertiary-dim:             #4a5e76;
+    --on-tertiary-container:    #1a2d40;
+    --background:               #f9f8fc;
+    --surface:                  #f9f8fc;
     --surface-container-lowest: #ffffff;
-    --surface-container-low:    #f8f3e5;
-    --surface-container:        #f0e9d8;
-    --surface-container-high:   #e8e0cc;
-    --surface-container-highest:#ddd6be;
-    --surface-variant:          #e8e0d0;
-    --on-surface:               #2c2418;
-    --on-surface-variant:       #5e5140;
-    --outline:                  #8a7a65;
-    --outline-variant:          #c0b098;
+    --surface-container-low:    #f5f3fb;
+    --surface-container:        #ede9f8;
+    --surface-container-high:   #e3deef;
+    --surface-container-highest:#d8d2e8;
+    --surface-variant:          #e4dfee;
+    --on-surface:               #1e1730;
+    --on-surface-variant:       #4a4060;
+    --outline:                  #756b8a;
+    --outline-variant:          #c4bcd8;
     --error:                    #b83044;
     --error-container:          #ffd0d8;
     --on-error:                 #fff8f8;

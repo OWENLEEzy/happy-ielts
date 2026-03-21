@@ -297,6 +297,265 @@ def test_save_results_vocab_source_is_writing_error():
     assert vocab_item.source == "writing_error"
 
 
+# ---------------------------------------------------------------------------
+# _extract_sentence — unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_extract_sentence_finds_containing_sentence():
+    """`_extract_sentence` returns the sentence that contains the phrase."""
+    from backend.tutor.nodes import _extract_sentence
+
+    text = "Climate change is urgent. Scientists are alarmed by the data. Action is needed."
+    result = _extract_sentence(text, "alarmed")
+    assert result == "Scientists are alarmed by the data."
+
+
+def test_extract_sentence_case_insensitive():
+    """`_extract_sentence` matches regardless of case."""
+    from backend.tutor.nodes import _extract_sentence
+
+    text = "He made an inroads into the market. The results were positive."
+    result = _extract_sentence(text, "Inroads")
+    assert "inroads" in result.lower()
+
+
+def test_extract_sentence_multi_word_phrase():
+    """`_extract_sentence` handles multi-word chinglish phrases."""
+    from backend.tutor.nodes import _extract_sentence
+
+    text = "We should do a contribution to the project. Everyone agreed."
+    result = _extract_sentence(text, "do a contribution")
+    assert "do a contribution" in result
+
+
+def test_extract_sentence_fallback_when_not_found():
+    """`_extract_sentence` returns the phrase itself when no sentence matches."""
+    from backend.tutor.nodes import _extract_sentence
+
+    result = _extract_sentence("Completely unrelated text.", "missing_phrase")
+    assert result == "missing_phrase is used in this context."
+
+
+def test_extract_sentence_empty_text_returns_phrase():
+    """`_extract_sentence` handles empty text gracefully."""
+    from backend.tutor.nodes import _extract_sentence
+
+    result = _extract_sentence("", "word")
+    assert result == "word is used in this context."
+
+
+# ---------------------------------------------------------------------------
+# _find_valid_item — unit tests
+# ---------------------------------------------------------------------------
+
+
+def _make_vocab(word: str, context: str, idx: int = 1) -> VocabItem:
+    return VocabItem(
+        id=idx,
+        word=word,
+        context_sentence=context,
+        source="reading_click",
+        next_review=date.today().isoformat(),
+        fsrs_state={},
+        article_id=None,
+    )
+
+
+def test_find_valid_item_returns_first_valid():
+    from backend.tutor.nodes import _find_valid_item
+
+    items = [
+        _make_vocab("unprecedented", "AI tools are deployed at unprecedented pace.", i)
+        for i in range(3)
+    ]
+    idx, item = _find_valid_item(items, 0)
+    assert idx == 0
+    assert item is not None
+    assert item.word == "unprecedented"
+
+
+def test_find_valid_item_skips_empty_context():
+    from backend.tutor.nodes import _find_valid_item
+
+    bad = _make_vocab("inroads", "", 0)
+    good = _make_vocab("unprecedented", "The unprecedented scale shocked experts.", 1)
+    idx, item = _find_valid_item([bad, good], 0)
+    assert idx == 1
+    assert item is not None
+    assert item.word == "unprecedented"
+
+
+def test_find_valid_item_skips_context_equals_word():
+    """Items where context_sentence == word (writing_error bug) are skipped."""
+    from backend.tutor.nodes import _find_valid_item
+
+    bad = _make_vocab("do a contribution", "do a contribution", 0)
+    good = _make_vocab("make", "You should make a contribution to the project.", 1)
+    idx, item = _find_valid_item([bad, good], 0)
+    assert idx == 1
+    assert item is not None
+    assert item.word == "make"
+
+
+def test_find_valid_item_all_bad_returns_none():
+    from backend.tutor.nodes import _find_valid_item
+
+    items = [
+        _make_vocab("bad1", "", 0),
+        _make_vocab("bad2", "bad2", 1),  # context == word
+    ]
+    idx, item = _find_valid_item(items, 0)
+    assert idx == len(items)
+    assert item is None
+
+
+def test_find_valid_item_respects_start_index():
+    from backend.tutor.nodes import _find_valid_item
+
+    items = [
+        _make_vocab("first", "The first item is valid.", 0),
+        _make_vocab("second", "The second item is valid.", 1),
+    ]
+    idx, item = _find_valid_item(items, 1)  # skip first
+    assert idx == 1
+    assert item is not None
+    assert item.word == "second"
+
+
+# ---------------------------------------------------------------------------
+# spaced_review — skipping bad items
+# ---------------------------------------------------------------------------
+
+
+def test_spaced_review_skips_to_reading_when_all_items_bad():
+    """If all queue items have unusable context, go straight to reading."""
+    from unittest.mock import patch
+
+    from backend.tutor.nodes import spaced_review
+
+    bad_items = [
+        _make_vocab("word1", "", 0),
+        _make_vocab("word2", "word2", 1),
+    ]
+    state = _make_state(review_queue=bad_items, review_index=0)
+
+    with (
+        patch("backend.tutor.nodes.get_stream_writer"),
+        patch("backend.tutor.nodes.interrupt"),
+    ):
+        result = spaced_review(state)
+
+    assert result.goto == "reading"
+
+
+def test_spaced_review_skips_empty_context_presents_next():
+    """spaced_review skips item with empty context and presents the valid one."""
+    from unittest.mock import patch
+
+    from backend.tutor.nodes import spaced_review
+
+    bad = _make_vocab("inroads", "", 0)
+    good = _make_vocab("unprecedented", "AI deployed at unprecedented pace.", 1)
+    state = _make_state(review_queue=[bad, good], review_index=0)
+
+    writer_mock = MagicMock()
+    interrupt_mock = MagicMock(return_value={"answer": "unprecedented", "response_seconds": 5.0})
+
+    with (
+        patch("backend.tutor.nodes.get_stream_writer", return_value=writer_mock),
+        patch("backend.tutor.nodes.interrupt", interrupt_mock),
+        patch("backend.tutor.nodes._db"),
+        patch(
+            "backend.tutor.nodes.update_card", return_value={"due": "2026-03-22", "stability": 1.0}
+        ),
+    ):
+        spaced_review(state)
+
+    # The event sent to the writer must reference the good item
+    sent_event = writer_mock.call_args[0][0]
+    assert sent_event["word"] == "unprecedented"
+    assert "______" in sent_event["question"]
+
+
+# ---------------------------------------------------------------------------
+# save_results — context_sentence extracted from user_text
+# ---------------------------------------------------------------------------
+
+
+def test_save_results_context_sentence_extracted_from_user_text():
+    """context_sentence is the sentence from user_text containing the flag, not flag.original."""
+    from backend.tutor.nodes import save_results
+
+    user_text = (
+        "Climate change is a pressing issue. "
+        "We must do a contribution to solve it. "
+        "Everyone needs to act now."
+    )
+    feedback = WritingFeedback(
+        overall_score=6,
+        grammar_errors=[],
+        chinglish_flags=[
+            ChinglishFlag(
+                original="do a contribution",
+                issue="word_choice",
+                explanation_zh="应使用 make a contribution",
+                native_alternative="make a contribution",
+            )
+        ],
+        rewrite_suggestions=[],
+    )
+    state = _make_state(
+        today_article=_sample_article(),
+        today_task=_sample_task(),
+        user_writing=user_text,
+        writing_feedback=feedback,
+    )
+
+    with patch("backend.tutor.nodes._db") as mock_db:
+        save_results(state)
+
+    vocab_create = mock_db.upsert_vocab_item.call_args[0][0]
+    # Must NOT be the phrase itself
+    assert vocab_create.context_sentence != "do a contribution"
+    # Must be the full sentence containing the phrase
+    assert "do a contribution" in vocab_create.context_sentence
+    assert vocab_create.context_sentence.startswith("We must")
+
+
+def test_save_results_context_sentence_fallback_when_phrase_not_in_text():
+    """Falls back to flag.original when phrase can't be found in user_text."""
+    from backend.tutor.nodes import save_results
+
+    feedback = WritingFeedback(
+        overall_score=7,
+        grammar_errors=[],
+        chinglish_flags=[
+            ChinglishFlag(
+                original="not_in_text",
+                issue="word_choice",
+                explanation_zh="test",
+                native_alternative="better",
+            )
+        ],
+        rewrite_suggestions=[],
+    )
+    state = _make_state(
+        today_article=_sample_article(),
+        today_task=_sample_task(),
+        user_writing="This text does not contain that phrase.",
+        writing_feedback=feedback,
+    )
+
+    with patch("backend.tutor.nodes._db") as mock_db:
+        save_results(state)
+
+    vocab_create = mock_db.upsert_vocab_item.call_args[0][0]
+    assert (
+        vocab_create.context_sentence == "not_in_text is used in this context."
+    )  # graceful fallback
+
+
 def test_save_results_article_id_propagated_to_vocab():
     """Vocab items from chinglish flags inherit the article_id."""
     from backend.tutor.nodes import save_results

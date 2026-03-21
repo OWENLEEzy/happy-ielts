@@ -1,13 +1,18 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { getRandomDogUrl } from '@/lib/constants'
+import { getRandomTogetherDogUrl, getRandomUserDogUrl } from '@/lib/constants'
 
 export function Header({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname()
-  const [logoUrl] = useState(getRandomDogUrl)
-  const [avatarUrl] = useState(getRandomDogUrl)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLogoUrl(getRandomTogetherDogUrl())
+    setAvatarUrl(getRandomUserDogUrl())
+  }, [])
 
   return (
     <header className="sticky top-0 z-50 h-16 bg-background/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center">
@@ -16,10 +21,10 @@ export function Header({ streak = 0 }: { streak?: number }) {
         <div className="flex items-center gap-2.5 flex-shrink-0">
           <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={logoUrl} className="w-full h-full object-cover" alt="logo" />
+            {logoUrl && <img src={logoUrl} className="w-full h-full object-cover" alt="logo" />}
           </div>
           <span className="text-lg font-black text-primary tracking-tighter font-headline hidden sm:block">
-            DynamicLingo
+            Happy IELTS
           </span>
         </div>
 
@@ -58,7 +63,7 @@ export function Header({ streak = 0 }: { streak?: number }) {
           )}
           <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={avatarUrl} className="w-full h-full object-cover" alt="我" />
+            {avatarUrl && <img src={avatarUrl} className="w-full h-full object-cover" alt="我" />}
           </div>
         </div>
       </div>

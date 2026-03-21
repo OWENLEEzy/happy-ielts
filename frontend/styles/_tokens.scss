@@ -1,0 +1,33 @@
+// Design token references — mirror globals.css CSS custom properties.
+// Use these in .module.scss component files for type-safe token access.
+
+// Primary (violet)
+$primary: var(--primary);
+$primary-container: var(--primary-container);
+$on-primary: var(--on-primary);
+
+// Highlight (light purple — the "attention" color)
+$highlight-bg: #ede9fe;
+$highlight-bg-end: #f5f3ff;
+$highlight-text: #5b21b6;
+$highlight-border: #c4b5fd;
+
+// Surfaces
+$background: var(--background);
+$surface: var(--surface);
+$surface-container: var(--surface-container);
+$on-surface: var(--on-surface);
+$on-surface-variant: var(--on-surface-variant);
+
+// Error
+$error: var(--error);
+$error-container: var(--error-container);
+
+// Typography
+$font-headline: var(--dl-font-headline);
+$font-body: var(--dl-font-body);
+
+// Radii
+$radius-sm: 0.5rem;
+$radius-md: 1rem;
+$radius-lg: 2rem;

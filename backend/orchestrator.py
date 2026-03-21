@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from backend import memory
 from backend.models import ReflectHandoff, TutorHandoff
 from backend.reflect.agent import run_reflect
+from backend.student_model import update_student_model
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,12 @@ async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
             "action": reflect_handoff.task_recommendation,
         }
     )
+
+    # Update student model snapshot (merges Reflect output + DB aggregates)
+    try:
+        update_student_model(reflect_handoff, db)
+    except Exception:
+        logger.exception("Orchestrator: student_model update failed — continuing")
 
     # Level auto-adjustment (only if Reflect recommends a change)
     if profile and reflect_handoff.level_suggestion != profile.level:

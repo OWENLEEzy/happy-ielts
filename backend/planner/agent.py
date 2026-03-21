@@ -12,6 +12,7 @@ from backend.planner.tools import (
     save_daily_lesson,
     scrape_article,
 )
+from backend.student_model import read_student_model
 
 search_articles = TavilySearch(max_results=3)
 
@@ -45,11 +46,21 @@ _REFLECT_CONTEXT_TEMPLATE = """
 **教学洞察（参考，不必逐字体现）：** {insight}
 """
 
+_CURRICULUM_CONTEXT_TEMPLATE = """
+
+## 课程约束（硬性要求，必须遵守）
+**今日文章逻辑类型（必须）：** {next_logic_type}
+**今日写作任务类型（必须）：** {current_task_type}
+**学生阅读水平：** {reading_level}/10，写作水平：{writing_level}/10
+**重点薄弱项（写作任务必须包含针对性练习）：** {top_weaknesses}
+**建议避开话题（近期已练习）：** {avoid_topics}
+"""
+
 
 def create_deep_agent_planner(
     checkpointer, reflect_handoff: ReflectHandoff | None = None
 ) -> object:
-    """Create a fresh planner agent. Optionally inject ReflectHandoff context."""
+    """Create a fresh planner agent. Injects ReflectHandoff + student_model curriculum context."""
     system_prompt = PLANNER_SYSTEM_PROMPT
 
     if reflect_handoff is not None:
@@ -62,6 +73,29 @@ def create_deep_agent_planner(
             insight=reflect_handoff.teaching_insight,
         )
         system_prompt = PLANNER_SYSTEM_PROMPT + context
+
+    # Inject curriculum constraints from student_model (hard requirements for today's lesson)
+    student_model = read_student_model()
+    curriculum = student_model.get("curriculum", {})
+    levels = student_model.get("levels", {})
+    error_patterns = student_model.get("error_patterns", {})
+    topic_performance = student_model.get("topic_performance", {})
+
+    # Identify over-practiced topics (3+ recent sessions) to encourage variety
+    avoid_topics = [t for t, stats in topic_performance.items() if stats.get("sessions", 0) >= 3]
+    top_weaknesses = [
+        k for k, v in error_patterns.items() if v.get("trend") in ("stable", "worsening")
+    ][:3]
+
+    curriculum_context = _CURRICULUM_CONTEXT_TEMPLATE.format(
+        next_logic_type=curriculum.get("next_logic_type", "argumentation"),
+        current_task_type=curriculum.get("current_task_type", "argumentation"),
+        reading_level=levels.get("reading", 5),
+        writing_level=levels.get("writing", 5),
+        top_weaknesses=", ".join(top_weaknesses) or "暂无",
+        avoid_topics=", ".join(avoid_topics) or "暂无",
+    )
+    system_prompt = system_prompt + curriculum_context
 
     return create_deep_agent(
         model=get_llm("qwen-max"),  # Offline pre-generation: use best model

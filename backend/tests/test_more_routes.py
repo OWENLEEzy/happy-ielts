@@ -195,7 +195,11 @@ def test_start_lesson_returns_409_when_checkpoint_has_pending_nodes(client: Test
     checkpoint_tuple = MagicMock()
     checkpoint_tuple.metadata = {"next": ["reading"]}
     app.state.checkpointer.aget_tuple = AsyncMock(return_value=checkpoint_tuple)
-    with patch("backend.tutor.graph.get_tutor_graph", return_value=MagicMock()):
+    mock_graph = MagicMock()
+    mock_state = MagicMock()
+    mock_state.tasks = []
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+    with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
         r = client.post("/api/lesson/start")
     assert r.status_code == 409
     data = r.json()
@@ -208,7 +212,11 @@ def test_start_lesson_409_includes_spaced_review_node(client: TestClient):
     checkpoint_tuple = MagicMock()
     checkpoint_tuple.metadata = {"next": ["spaced_review"]}
     app.state.checkpointer.aget_tuple = AsyncMock(return_value=checkpoint_tuple)
-    with patch("backend.tutor.graph.get_tutor_graph", return_value=MagicMock()):
+    mock_graph = MagicMock()
+    mock_state = MagicMock()
+    mock_state.tasks = []
+    mock_graph.aget_state = AsyncMock(return_value=mock_state)
+    with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
         r = client.post("/api/lesson/start")
     assert r.status_code == 409
     assert r.json()["next"] == ["spaced_review"]

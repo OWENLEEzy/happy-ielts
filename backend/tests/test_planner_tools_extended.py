@@ -477,7 +477,7 @@ def test_create_planner_with_reflect_handoff_injects_context():
 
 
 def test_create_planner_without_reflect_uses_base_prompt():
-    """Without ReflectHandoff, system prompt is the base PLANNER_SYSTEM_PROMPT."""
+    """Without ReflectHandoff, prompt includes PLANNER_SYSTEM_PROMPT + curriculum context."""
     import os
     from unittest.mock import MagicMock, patch
 
@@ -496,4 +496,6 @@ def test_create_planner_without_reflect_uses_base_prompt():
     ):
         create_deep_agent_planner(MagicMock(), reflect_handoff=None)
 
-    assert captured_prompt[0] == PLANNER_SYSTEM_PROMPT
+    # Base prompt is always included; curriculum context is now always appended
+    assert captured_prompt[0].startswith(PLANNER_SYSTEM_PROMPT)
+    assert "课程约束" in captured_prompt[0]

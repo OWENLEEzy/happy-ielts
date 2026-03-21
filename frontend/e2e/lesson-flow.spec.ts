@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-test.describe('DynamicLingo lesson flow', () => {
+test.describe('Happy IELTS lesson flow', () => {
   test('loading state shows when planner not ready', async ({ page }) => {
     await page.goto('http://localhost:3000/lesson')
     const body = await page.locator('body').textContent()
@@ -9,16 +9,21 @@ test.describe('DynamicLingo lesson flow', () => {
 
   test('onboarding page renders Professor 金毛 chat UI', async ({ page }) => {
     await page.goto('http://localhost:3000/onboarding')
-    await expect(page.locator('text=Professor 金毛').or(page.locator('text=PROFESSOR 金毛'))).toBeVisible()
+    await expect(
+      page.locator('text=Professor 金毛').or(page.locator('text=PROFESSOR 金毛')),
+    ).toBeVisible()
     // Onboarding can show text input OR preference buttons depending on conversation state
-    const hasInput = await page.locator('input[placeholder*="输入"]').isVisible().catch(() => false)
+    const hasInput = await page
+      .locator('input[placeholder*="输入"]')
+      .isVisible()
+      .catch(() => false)
     const hasButtons = await page.locator('button').count()
     expect(hasInput || hasButtons > 0).toBeTruthy()
   })
 
-  test('DynamicLingo brand appears in header', async ({ page }) => {
+  test('Happy IELTS brand appears in header', async ({ page }) => {
     await page.goto('http://localhost:3000/onboarding')
-    await expect(page.locator('text=DynamicLingo')).toBeVisible()
+    await expect(page.locator('text=Happy IELTS')).toBeVisible()
   })
 })
 

@@ -15,6 +15,23 @@ def _get_llm():
     return get_llm()
 
 
+_FEEDBACK_DEPTH_INSTRUCTIONS = {
+    "basic": (
+        "IMPORTANT: Student is a beginner (level 1-4). "
+        "Only flag the single most severe issue. Be very encouraging. "
+        "Focus on motivation, not perfection."
+    ),
+    "intermediate": (
+        "IMPORTANT: Only flag the 1-2 most severe issues. Do not overwhelm the learner. "
+        "Include rewrite suggestions that show improvement."
+    ),
+    "advanced": (
+        "IMPORTANT: Student is advanced (level 8-10). "
+        "Provide deep rhetorical analysis. Flag 3+ issues including subtle style points. "
+        "Discuss argumentation logic and essay structure."
+    ),
+}
+
 FEEDBACK_PROMPT = """
 You are a native English editor reviewing writing from a Chinese professional.
 
@@ -29,7 +46,7 @@ PASS 2 — Native fluency: Find phrases where Chinese L1 is showing through.
             sentence rhythm.
   Do NOT flag correct-but-non-native as grammar errors.
 
-IMPORTANT: Only flag the 1-2 most severe issues. Do not overwhelm the learner.
+{depth_instruction}
 Include exactly 2 rewrite_suggestions (complete rewrites of the full text).
 Be encouraging — acknowledge what's good before critiquing.
 
@@ -50,6 +67,12 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
 User's writing:
 {user_text}
 """
+
+
+@tool
+def signal_done_reading() -> str:
+    """Signal that the student has finished reading and is ready for the writing task."""
+    return "done_reading"
 
 
 @tool
@@ -85,12 +108,25 @@ Explain in Chinese (简体中文). Keep it under 150 words.
     return str(response.content)
 
 
-def run_feedback(user_text: str, task: WritingTask, user_goal: str, level: int) -> WritingFeedback:
-    """Run structured writing feedback. Retries up to 3 times on parse failure."""
+def run_feedback(
+    user_text: str,
+    task: WritingTask,
+    user_goal: str,
+    level: int,
+    depth: str = "intermediate",
+) -> WritingFeedback:
+    """Run structured writing feedback. Retries up to 3 times on parse failure.
+
+    depth: "basic" (level 1-4), "intermediate" (level 5-7), "advanced" (level 8-10)
+    """
+    depth_instruction = _FEEDBACK_DEPTH_INSTRUCTIONS.get(
+        depth, _FEEDBACK_DEPTH_INSTRUCTIONS["intermediate"]
+    )
     prompt = FEEDBACK_PROMPT.format(
         article_topic=task.instruction[:100],
         user_goal=user_goal,
         level=level,
+        depth_instruction=depth_instruction,
         user_text=user_text,
     )
     for attempt in range(3):

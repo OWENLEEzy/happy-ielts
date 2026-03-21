@@ -20,7 +20,9 @@ class ArticleCreate(BaseModel):
     original_title: str
     full_text: str = Field(min_length=100)
     highlight_indices: list[int] = Field(min_length=3, max_length=5)
-    article_logic: Literal["compare", "cause_effect", "argumentation"]
+    article_logic: Literal[
+        "compare", "cause_effect", "argumentation", "narrative", "problem_solution"
+    ]
     topic_tags: list[str] = Field(min_length=1, max_length=5)
 
 
@@ -70,8 +72,8 @@ class WritingSubmissionCreate(BaseModel):
 
 
 class VocabItemCreate(BaseModel):
-    word: str
-    context_sentence: str
+    word: str = Field(max_length=100)
+    context_sentence: str = Field(max_length=400)
     source: Literal["reading_click", "writing_error"]
     next_review: str  # ISO date string
     fsrs_state: dict[str, Any]
@@ -102,6 +104,6 @@ class ReflectHandoff(BaseModel):
     level_suggestion: int = Field(ge=1, le=10)
     top_weaknesses: list[str]  # e.g. ["run-on sentence", "weak thesis"]
     improving_areas: list[str]  # areas showing improvement
-    topic_recommendation: str  # topic direction for next article
-    task_recommendation: str  # writing task style recommendation
-    teaching_insight: str  # LLM qualitative insight (SQL can't derive this)
+    topic_recommendation: str = Field(max_length=300)
+    task_recommendation: str = Field(max_length=300)
+    teaching_insight: str = Field(max_length=1000)  # embedded in Planner system prompt
