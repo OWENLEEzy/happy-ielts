@@ -83,6 +83,7 @@ async def _cron_prepare_next() -> None:
 app = FastAPI(title="DynamicLingo API", lifespan=lifespan)
 
 # Shared planner state from orchestrator so both /run and orchestrator paths use same dict.
+from backend.orchestrator import _planner_lock  # noqa: E402
 from backend.orchestrator import planner_state as _planner_state  # noqa: E402
 
 # Hold strong references to fire-and-forget asyncio tasks to prevent GC before completion.
@@ -112,16 +113,12 @@ async def run_planner():
 
     import time as _time
 
-    prev_status = _planner_state.get(today, {}).get("status")
-
-    if prev_status == "running":
-        return {"status": "running", "date": today}
-
-    # Always use a fresh thread_id — hot reload loses _planner_state,
-    # causing stale checkpoint resumption if we only suffix on error
-    thread_suffix = f"-{int(_time.time())}"
-
-    _planner_state[today] = {"status": "running", "error": None}
+    with _planner_lock:
+        prev_status = _planner_state.get(today, {}).get("status")
+        if prev_status == "running":
+            return {"status": "running", "date": today}
+        thread_suffix = f"-{int(_time.time())}"
+        _planner_state[today] = {"status": "running", "error": None}
 
     async def _run_planner() -> None:
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver

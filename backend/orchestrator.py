@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # Shared in-memory planner run state per date: date_str -> {"status": str, "error": str | None}
 # Imported by main.py so both paths (manual /run and orchestrator) share the same dict.
 planner_state: dict[str, dict] = {}
+_planner_lock: threading.Lock = threading.Lock()
 
 
 async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
@@ -78,7 +79,11 @@ async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
 def _start_planner_thread(reflect_handoff: ReflectHandoff | None = None) -> None:
     """Start Planner in a background thread (same pattern as /api/planner/run)."""
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
-    planner_state[tomorrow] = {"status": "running", "error": None}
+    with _planner_lock:
+        if planner_state.get(tomorrow, {}).get("status") == "running":
+            logger.info("Orchestrator: Planner already running for %s, skipping", tomorrow)
+            return
+        planner_state[tomorrow] = {"status": "running", "error": None}
     thread = threading.Thread(
         target=_run_planner_sync,
         args=(tomorrow, reflect_handoff),
