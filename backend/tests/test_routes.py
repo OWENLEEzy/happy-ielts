@@ -240,7 +240,7 @@ def test_planner_status_not_ready(client: TestClient):
     with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/planner/status")
     assert r.status_code == 200
-    assert r.json() == {"ready": False}
+    assert r.json()["ready"] is False
 
 
 def test_planner_status_ready(client: TestClient):
@@ -248,7 +248,7 @@ def test_planner_status_ready(client: TestClient):
     with patch("backend.database.get_db", return_value=mock_db):
         r = client.get("/api/planner/status")
     assert r.status_code == 200
-    assert r.json() == {"ready": True}
+    assert r.json()["ready"] is True
 
 
 # ---------------------------------------------------------------------------

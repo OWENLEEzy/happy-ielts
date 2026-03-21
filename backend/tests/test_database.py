@@ -28,7 +28,7 @@ def test_upsert_article_and_get_today(db):
             "\n\nPara two contains more content for the article body text."
             "\n\nPara three concludes the article."
         ),
-        highlight_indices=[0, 2],
+        highlight_indices=[0, 1, 2],
         article_logic="compare",
         topic_tags=["TypeScript"],
     )
@@ -36,7 +36,7 @@ def test_upsert_article_and_get_today(db):
     result = db.get_today_article()
     assert result is not None
     assert result.original_title == "Test Article"
-    assert result.highlight_indices == [0, 2]
+    assert result.highlight_indices == [0, 1, 2]
 
 
 def test_vocab_due_query(db):

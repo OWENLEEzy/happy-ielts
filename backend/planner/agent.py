@@ -25,8 +25,10 @@ PLANNER_SYSTEM_PROMPT = """
 生成写作任务 → 调用 save_daily_lesson 存库（必须最后调用）。
 
 搜索时优先选择以下可抓取的来源：arxiv.org、hacker news（news.ycombinator.com）、dev.to、
-medium.com、substack.com、blog.openai.com、anthropic.com/research。
-避免需要登录、付费墙或纯 JavaScript 渲染的网站（如 technologyreview.com、wsj.com）。
+blog.openai.com、anthropic.com/research、simonwillison.net、eugeneyan.com。
+严格避免：medium.com（反爬）、substack.com（JS渲染）、technologyreview.com、wsj.com（付费墙）。
+如果 scrape_article 返回错误，换一篇不同来源的文章重试，最多重试 2 次。
+如果 3 篇文章都抓取失败，使用搜索结果的摘要作为文章内容继续后续步骤。
 """
 
 _planner: object | None = None  # Singleton to avoid leaking SQLite connections
@@ -56,5 +58,8 @@ def get_planner(checkpointer):
     return _planner
 
 
-def get_planner_config():
-    return {"configurable": {"thread_id": f"planner-{date.today().isoformat()}"}}
+def get_planner_config(suffix: str = "") -> dict:
+    return {
+        "configurable": {"thread_id": f"planner-{date.today().isoformat()}{suffix}"},
+        "recursion_limit": 40,
+    }

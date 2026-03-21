@@ -50,6 +50,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DynamicLingo API", lifespan=lifespan)
 
+# In-memory planner run state per date: date_str -> {"status": str, "error": str|None}
+_planner_state: dict[str, dict] = {}
+
 
 @app.get("/health")
 async def health():
@@ -61,13 +64,29 @@ async def health():
 
 @app.post("/api/planner/run")
 async def run_planner():
+    import logging
     import threading
 
     from backend.database import get_db
 
+    today = date.today().isoformat()
     db = get_db()
     if db.get_today_article() is not None:
-        return {"status": "already_ready", "date": date.today().isoformat()}
+        _planner_state[today] = {"status": "done", "error": None}
+        return {"status": "already_ready", "date": today}
+
+    import time as _time
+
+    prev_status = _planner_state.get(today, {}).get("status")
+
+    if prev_status == "running":
+        return {"status": "running", "date": today}
+
+    # Always use a fresh thread_id — hot reload loses _planner_state,
+    # causing stale checkpoint resumption if we only suffix on error
+    thread_suffix = f"-{int(_time.time())}"
+
+    _planner_state[today] = {"status": "running", "error": None}
 
     async def _run_planner() -> None:
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -77,28 +96,36 @@ async def run_planner():
         async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
             await cp.setup()
             planner = create_deep_agent_planner(cp)
-            config = get_planner_config()
+            config = get_planner_config(thread_suffix)
             await planner.ainvoke(  # type: ignore[attr-defined]
                 {"messages": [{"role": "user", "content": "为今天准备一节课"}]},
                 config,
             )
 
     def run_in_thread() -> None:
-        asyncio.run(_run_planner())
+        try:
+            asyncio.run(_run_planner())
+            _planner_state[today] = {"status": "done", "error": None}
+        except Exception as exc:
+            logging.exception("Planner failed for %s", today)
+            _planner_state[today] = {"status": "error", "error": str(exc)}
 
     thread = threading.Thread(target=run_in_thread, daemon=True)
     thread.start()
-    return {"status": "started", "date": date.today().isoformat()}
+    return {"status": "started", "date": today}
 
 
 @app.get("/api/planner/status")
 async def planner_status():
     from backend.database import get_db
 
+    today = date.today().isoformat()
     db = get_db()
     article = db.get_today_article()
     task = db.get_today_writing_task()
-    return {"ready": article is not None and task is not None}
+    ready = article is not None and task is not None
+    state = _planner_state.get(today, {"status": "idle", "error": None})
+    return {"ready": ready, "status": state["status"], "error": state["error"]}
 
 
 # ─── Onboarding ───────────────────────────────────────────────────────────────
@@ -198,7 +225,8 @@ async def start_lesson():
 
     checkpoint_tuple = await app.state.checkpointer.aget_tuple(config)
     if checkpoint_tuple is not None and checkpoint_tuple.metadata.get("next"):
-        return JSONResponse({"status": "already_started"}, status_code=409)
+        next_nodes: list[str] = list(checkpoint_tuple.metadata.get("next", []))
+        return JSONResponse({"status": "already_started", "next": next_nodes}, status_code=409)
 
     async def generate():
         async for chunk in graph.astream(
