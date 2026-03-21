@@ -1,22 +1,13 @@
 """Tests for planner_state thread safety."""
 
-import threading
-
 import backend.orchestrator as orch
 
 
 def test_planner_lock_prevents_double_start(monkeypatch):
     """_start_planner_thread with same date is idempotent under concurrent calls."""
     orch.planner_state.clear()
-    start_count = []
 
-    original_thread_init = threading.Thread.__init__
-
-    def counting_thread_init(self, *args, **kwargs):
-        original_thread_init(self, *args, **kwargs)
-        start_count.append(1)
-
-    def fake_run_sync(target_date, reflect_handoff):
+    def fake_run_sync(_target_date, _reflect_handoff):
         pass  # Don't actually run anything
 
     monkeypatch.setattr(orch, "_run_planner_sync", fake_run_sync)
@@ -33,4 +24,3 @@ def test_planner_lock_prevents_double_start(monkeypatch):
 
     # State should still be "running", no new thread started for tomorrow
     assert orch.planner_state[tomorrow]["status"] == "running"
-    assert len(start_count) == 0  # No new thread created
