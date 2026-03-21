@@ -31,7 +31,6 @@ _DEFAULT_MODEL: dict = {
         "session_index": 0,
         "next_logic_type": "argumentation",
         "current_task_type": "argumentation",
-        "article_logic_sequence": [],
     },
     "behavior": {
         "sessions_total": 0,
@@ -88,7 +87,7 @@ def _update_error_patterns(
 
     for weakness in top_weaknesses:
         if weakness not in updated:
-            updated[weakness] = {"total": 0, "last_30d": 0, "trend": "stable"}
+            updated[weakness] = {"total": 0, "trend": "stable"}
         entry = updated[weakness]
         entry["total"] = entry.get("total", 0) + 1
         entry["trend"] = "improving" if weakness in improving_set else "stable"

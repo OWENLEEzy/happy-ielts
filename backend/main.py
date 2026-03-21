@@ -1,7 +1,10 @@
 import asyncio
 import json
+import logging
+import threading
+import time
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -12,6 +15,8 @@ from pydantic import BaseModel, Field
 from backend.models import WritingMode
 
 load_dotenv()
+
+_logger = logging.getLogger(__name__)
 
 
 class OnboardingMessageRequest(BaseModel):
@@ -51,7 +56,7 @@ async def lifespan(app: FastAPI):
         scheduler = AsyncIOScheduler()
         scheduler.add_job(
             _cron_prepare_next,
-            CronTrigger(hour=2, minute=0),
+            CronTrigger(hour=2, minute=0, timezone="Asia/Shanghai"),
             id="daily-planner",
             replace_existing=True,
         )
@@ -64,13 +69,9 @@ async def lifespan(app: FastAPI):
 
 async def _cron_prepare_next() -> None:
     """Cron job: check if tomorrow's lesson is ready; if not, run Planner (cold path)."""
-    import logging
-    from datetime import timedelta
-
     from backend.database import get_db
     from backend.orchestrator import _start_planner_thread
 
-    _logger = logging.getLogger(__name__)
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     db = get_db()
     if db.get_article_for_date(tomorrow) is not None:
@@ -100,9 +101,6 @@ async def health():
 
 @app.post("/api/planner/run")
 async def run_planner():
-    import logging
-    import threading
-
     from backend.database import get_db
 
     today = date.today().isoformat()
@@ -111,13 +109,11 @@ async def run_planner():
         _planner_state[today] = {"status": "done", "error": None}
         return {"status": "already_ready", "date": today}
 
-    import time as _time
-
     with _planner_lock:
         prev_status = _planner_state.get(today, {}).get("status")
         if prev_status == "running":
             return {"status": "running", "date": today}
-        thread_suffix = f"-{int(_time.time())}"
+        thread_suffix = f"-{int(time.time())}"
         _planner_state[today] = {"status": "running", "error": None}
 
     async def _run_planner() -> None:
@@ -149,8 +145,6 @@ async def run_planner():
 
 @app.get("/api/planner/status")
 async def planner_status():
-    from datetime import timedelta
-
     from backend.database import get_db
 
     today = date.today().isoformat()
@@ -160,20 +154,21 @@ async def planner_status():
     task = db.get_today_writing_task()
     ready = article is not None and task is not None
     tomorrow_ready = db.get_article_for_date(tomorrow) is not None
-    state = _planner_state.get(today, {"status": "idle", "error": None})
+    today_state = _planner_state.get(today, {"status": "idle", "error": None})
+    tomorrow_state = _planner_state.get(tomorrow, {"status": "idle", "error": None})
     return {
         "ready": ready,
         "ready_for_tomorrow": tomorrow_ready,
-        "status": state["status"],
-        "error": state["error"],
+        "status": today_state["status"],
+        "error": today_state["error"],
+        "status_tomorrow": tomorrow_state["status"],
+        "error_tomorrow": tomorrow_state["error"],
     }
 
 
 @app.post("/api/planner/prepare-next")
 async def prepare_next_lesson():
     """Prepare tomorrow's lesson. Called by Orchestrator (hot) or cron (cold)."""
-    from datetime import timedelta
-
     from backend.database import get_db
     from backend.orchestrator import _start_planner_thread
 
@@ -287,13 +282,10 @@ async def lesson_action(action: LessonActionRequest):
 
 async def _trigger_orchestrator(config, graph) -> None:
     """Build TutorHandoff from DB and fire Orchestrator."""
-    import logging
-
     from backend.database import get_db
     from backend.models import TutorHandoff
     from backend.orchestrator import orchestrate_after_tutor
 
-    _logger = logging.getLogger(__name__)
     try:
         db = get_db()
         article = db.get_today_article()
