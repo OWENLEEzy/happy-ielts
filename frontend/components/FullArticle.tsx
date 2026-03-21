@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { WordChip } from './WordChip'
+import styles from './FullArticle.module.scss'
 import type { Article } from '@/types'
 
 interface Props {
@@ -8,10 +9,7 @@ interface Props {
   onWordExplained?: (word: string, explanation: string) => void
 }
 
-function renderTokens(
-  text: string,
-  onExplained: (word: string, explanation: string) => void,
-) {
+function renderTokens(text: string, onExplained: (word: string, explanation: string) => void) {
   return text.split(/(\s+)/).map((token, i) => {
     if (/\s+/.test(token)) return <span key={i}>{token}</span>
     const word = token.replace(/[.,!?;:'"()\[\]]/g, '')
@@ -21,14 +19,16 @@ function renderTokens(
         key={i}
         word={word}
         context={text}
-        onExplained={explanation => onExplained(word, explanation)}
+        onExplained={(explanation) => onExplained(word, explanation)}
       />
     )
   })
 }
 
 export function FullArticle({ article, onWordExplained }: Props) {
-  const [activeExplanation, setActiveExplanation] = useState<{ word: string; text: string } | null>(null)
+  const [activeExplanation, setActiveExplanation] = useState<{ word: string; text: string } | null>(
+    null,
+  )
   const paragraphs = article.full_text.split('\n\n').filter(Boolean)
 
   const handleExplained = (word: string, explanation: string) => {
@@ -57,10 +57,7 @@ export function FullArticle({ article, onWordExplained }: Props) {
       {paragraphs.map((para, idx) => {
         const isHighlighted = article.highlight_indices.includes(idx)
         return (
-          <p key={idx} className={`relative ${isHighlighted ? 'ai-highlight pl-4' : ''}`}>
-            {isHighlighted && (
-              <span className="absolute left-0 top-1 bottom-1 w-1 bg-primary rounded-full opacity-70" />
-            )}
+          <p key={idx} className={`relative ${isHighlighted ? styles.highlighted : ''}`}>
             {renderTokens(para, handleExplained)}
           </p>
         )

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FullArticle } from './FullArticle'
 import { sendAction } from '@/lib/sse'
 import { getRandomDogUrl } from '@/lib/constants'
@@ -13,7 +13,11 @@ interface Props {
 export function ArticleReader({ article, onDone }: Props) {
   const [showTip, setShowTip] = useState(true)
   const [doneLoading, setDoneLoading] = useState(false)
-  const [dogUrl] = useState(getRandomDogUrl)
+  const [dogUrl, setDogUrl] = useState('')
+
+  useEffect(() => {
+    setDogUrl(getRandomDogUrl())
+  }, [])
 
   const handleDone = async () => {
     setDoneLoading(true)

@@ -137,9 +137,9 @@
     backdrop-filter: blur(12px);
   }
   .ai-highlight {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--primary-fixed) 18%, transparent) 0%, color-mix(in srgb, var(--primary) 8%, transparent) 100%);
-    border-radius: 6px;
-    padding: 2px 4px;
+    background: linear-gradient(105deg, #ede9fe 0%, #f5f3ff 60%, #faf8ff 100%);
+    border-radius: 8px;
+    border-left: 3px solid #a78bfa;
   }
   .vocab-word {
     border-bottom: 2px dotted var(--primary);

@@ -28,9 +28,15 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { data: status, mutate } = useOnboardingStatus()
-  const [introDogUrl] = useState(getRandomDogUrl)
-  const [messageDogUrl] = useState(getRandomDogUrl)
-  const [streamingDogUrl] = useState(getRandomDogUrl)
+  const [introDogUrl, setIntroDogUrl] = useState('')
+  const [messageDogUrl, setMessageDogUrl] = useState('')
+  const [streamingDogUrl, setStreamingDogUrl] = useState('')
+
+  useEffect(() => {
+    setIntroDogUrl(getRandomDogUrl())
+    setMessageDogUrl(getRandomDogUrl())
+    setStreamingDogUrl(getRandomDogUrl())
+  }, [])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -91,7 +97,12 @@ export default function OnboardingPage() {
         <div className="flex items-center gap-3 bg-tertiary-container/25 rounded-lg p-4 border border-primary/10">
           <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={introDogUrl} className="w-full h-full object-cover" alt="顾问" />
+            <img
+              src={introDogUrl}
+              suppressHydrationWarning
+              className="w-full h-full object-cover"
+              alt="顾问"
+            />
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label">
@@ -108,7 +119,12 @@ export default function OnboardingPage() {
               {m.role === 'assistant' && (
                 <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={messageDogUrl} className="w-full h-full object-cover" alt="" />
+                  <img
+                    src={messageDogUrl}
+                    suppressHydrationWarning
+                    className="w-full h-full object-cover"
+                    alt=""
+                  />
                 </div>
               )}
               <div
@@ -126,7 +142,12 @@ export default function OnboardingPage() {
             <div className="flex justify-start">
               <div className="w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={streamingDogUrl} className="w-full h-full object-cover" alt="" />
+                <img
+                  src={streamingDogUrl}
+                  suppressHydrationWarning
+                  className="w-full h-full object-cover"
+                  alt=""
+                />
               </div>
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 flex gap-1.5 items-center">
                 <span className="dot1 w-2 h-2 bg-primary rounded-full inline-block" />
@@ -170,8 +191,8 @@ export default function OnboardingPage() {
               <div className="grid grid-cols-3 gap-2">
                 {[
                   { val: 'professional', label: '职场英语' },
-                  { val: 'ielts', label: '雅思备考' },
-                  { val: 'both', label: '两者都要' },
+                  { val: 'ielts_task1', label: '雅思 Task 1' },
+                  { val: 'ielts_task2', label: '雅思 Task 2' },
                 ].map((o) => (
                   <button
                     key={o.val}

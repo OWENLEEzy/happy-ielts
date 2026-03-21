@@ -96,6 +96,10 @@ class DatabaseProtocol(Protocol):
         self, article: ArticleCreate, task: WritingTaskCreate
     ) -> tuple[int, int]: ...
 
+    def query_weekly_stats(self) -> dict: ...
+
+    def get_article_for_date(self, date_str: str) -> "Article | None": ...
+
 
 _instance: "Database | None" = None
 
@@ -400,3 +404,50 @@ class Database:
         """Idempotent marker that reading session started today."""
         # No separate table needed — article existence is the marker
         pass
+
+    def query_weekly_stats(self) -> dict:
+        """Returns structured facts for Orchestrator → Reflect/Planner context."""
+        with self._conn() as conn:
+            writing_scores = conn.execute(
+                "SELECT date(submitted_at) as d, overall_score "
+                "FROM writing_submissions ORDER BY submitted_at DESC LIMIT 7"
+            ).fetchall()
+
+            chinglish_counts = conn.execute(
+                "SELECT json_extract(value, '$.issue') as issue, COUNT(*) as cnt "
+                "FROM writing_submissions, json_each(chinglish_flags) "
+                "WHERE submitted_at > datetime('now', '-7 days') "
+                "GROUP BY issue ORDER BY cnt DESC"
+            ).fetchall()
+
+            vocab_total = conn.execute("SELECT COUNT(*) FROM vocab_items").fetchone()[0]
+
+            topic_distribution = conn.execute(
+                "SELECT json_each.value as topic, COUNT(*) as cnt "
+                "FROM articles, json_each(articles.topic_tags) "
+                "WHERE articles.date > date('now', '-14 days') "
+                "GROUP BY topic ORDER BY cnt DESC"
+            ).fetchall()
+
+            return {
+                "writing_scores": [{"date": r[0], "score": r[1]} for r in writing_scores],
+                "chinglish_counts": [{"issue": r[0], "count": r[1]} for r in chinglish_counts],
+                "vocab_mastered": vocab_total,
+                "topic_distribution": [{"topic": r[0], "count": r[1]} for r in topic_distribution],
+            }
+
+    def get_article_for_date(self, date_str: str) -> "Article | None":
+        with self._conn() as conn:
+            row = conn.execute("SELECT * FROM articles WHERE date=?", (date_str,)).fetchone()
+            if row is None:
+                return None
+            return Article(
+                id=row["id"],
+                date=row["date"],
+                source_url=row["source_url"],
+                original_title=row["original_title"],
+                full_text=row["full_text"],
+                highlight_indices=json.loads(row["highlight_indices"]),
+                article_logic=row["article_logic"],
+                topic_tags=json.loads(row["topic_tags"]),
+            )

@@ -28,7 +28,11 @@ function LessonContent() {
   const { data: lesson, isLoading: lessonLoading } = useTodayLesson()
   const { data: plannerStatus } = usePlannerStatus()
   const [state, dispatch] = useReducer(lessonReducer, initialState)
-  const [loadingDogUrl] = useState(getRandomDogUrl)
+  const [loadingDogUrl, setLoadingDogUrl] = useState('')
+
+  useEffect(() => {
+    setLoadingDogUrl(getRandomDogUrl())
+  }, [])
 
   const handleChunk = (chunk: SSEChunk) => {
     switch (chunk.type) {

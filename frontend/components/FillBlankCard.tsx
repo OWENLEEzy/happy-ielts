@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { sendAction } from '@/lib/sse'
 import { getRandomDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
@@ -12,14 +12,19 @@ interface Props {
 
 export function FillBlankCard({ question, word, onChunk }: Props) {
   const [answer, setAnswer] = useState('')
-  const [startTime] = useState(() => Date.now())
-  const [dogUrl] = useState(getRandomDogUrl)
+  const startTimeRef = useRef<number>(0)
+  const [dogUrl, setDogUrl] = useState('')
+
+  useEffect(() => {
+    startTimeRef.current = Date.now()
+    setDogUrl(getRandomDogUrl())
+  }, [])
   const [hint, setHint] = useState<string | null>(null)
   const [attempts, setAttempts] = useState(0)
   const [revealed, setRevealed] = useState(false)
 
   const handleSubmit = async () => {
-    const response_seconds = (Date.now() - startTime) / 1000
+    const response_seconds = (Date.now() - startTimeRef.current) / 1000
     const isCorrect = answer.trim().toLowerCase() === word.toLowerCase()
 
     if (isCorrect || attempts >= 2) {
@@ -40,7 +45,7 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
   }
 
   const handleReveal = async () => {
-    const response_seconds = (Date.now() - startTime) / 1000
+    const response_seconds = (Date.now() - startTimeRef.current) / 1000
     setRevealed(true)
     await sendAction({ type: 'fill_blank_answer', answer: word, response_seconds }, onChunk)
   }

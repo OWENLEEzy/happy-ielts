@@ -31,11 +31,42 @@ export async function sendAction(
   }
 }
 
+/** Map LangGraph node names to synthetic SSE chunks so the UI can restore phase on refresh. */
+const NODE_TO_CHUNK: Record<string, SSEChunk> = {
+  spaced_review: {
+    type: 'awaiting_action',
+    article_full_text: '',
+    highlight_indices: [],
+    user_level: 5,
+  },
+  reading: { type: 'awaiting_action', article_full_text: '', highlight_indices: [], user_level: 5 },
+  writing_task: { type: 'writing_task', instruction: '', min_words: 50 },
+  evaluate_writing: { type: 'writing_task', instruction: '', min_words: 50 },
+}
+
 export async function startLesson(
   onChunk: (chunk: SSEChunk) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const res = await fetch('/api/lesson/start', { method: 'POST', signal })
+  if (res.status === 409) {
+    // Lesson already in progress — restore UI phase from checkpoint info
+    try {
+      const data = await res.json()
+      const firstNode: string | undefined = (data.next as string[] | undefined)?.[0]
+      const synthetic = firstNode ? NODE_TO_CHUNK[firstNode] : undefined
+      if (synthetic) onChunk(synthetic)
+    } catch {
+      // If parsing fails, default to reading phase
+      onChunk({
+        type: 'awaiting_action',
+        article_full_text: '',
+        highlight_indices: [],
+        user_level: 5,
+      })
+    }
+    return
+  }
   if (!res.ok) throw new Error(`API error: ${res.status}`)
 
   const reader = res.body!.getReader()

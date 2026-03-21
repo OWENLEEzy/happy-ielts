@@ -1,16 +1,18 @@
 import useSWR from 'swr'
 import type { Article, WritingTask, VocabItem, UserProfile } from '@/types'
 
-const fetcher = (url: string) => fetch(url).then(r => r.json())
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export function useTodayLesson() {
   return useSWR<{ article: Article; task: WritingTask }>('/api/lesson/today', fetcher)
 }
 
 export function usePlannerStatus() {
-  return useSWR<{ ready: boolean }>('/api/planner/status', fetcher, {
-    refreshInterval: (data) => (data?.ready ? 0 : 3000),
-  })
+  return useSWR<{ ready: boolean; status: string; error: string | null }>(
+    '/api/planner/status',
+    fetcher,
+    { refreshInterval: (data) => (data?.ready || data?.status === 'error' ? 0 : 3000) },
+  )
 }
 
 export function useOnboardingStatus() {
