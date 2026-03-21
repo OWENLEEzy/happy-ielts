@@ -7,6 +7,7 @@ from typing import Any, Literal
 from langgraph.config import get_stream_writer
 from langgraph.types import Command, interrupt
 
+from backend import memory
 from backend.database import get_db
 from backend.fsrs_engine import new_card_state, update_card
 from backend.models import VocabItem, VocabItemCreate
@@ -167,12 +168,14 @@ def evaluate_writing(state: dict) -> dict:
 
 
 def save_results(state: dict) -> dict:
-    """Persist submission and update vocab from writing errors."""
+    """Persist submission, update vocab, write Tutor observations to memory."""
     from backend.models import WritingSubmissionCreate
 
     feedback = state.get("writing_feedback")
     task = state.get("today_task")
     user_text = state.get("user_writing", "")
+    article = state.get("today_article")
+
     if feedback and task and user_text:
         sub = WritingSubmissionCreate(
             task_id=task.id,
@@ -184,7 +187,7 @@ def save_results(state: dict) -> dict:
             submitted_at=datetime.now(),
         )
         _db.save_writing_submission(sub)
-        article_id = state["today_article"].id if state["today_article"] else None
+        article_id = article.id if article else None
         for flag in feedback.chinglish_flags:
             _db.upsert_vocab_item(
                 VocabItemCreate(
@@ -196,4 +199,20 @@ def save_results(state: dict) -> dict:
                     article_id=article_id,
                 )
             )
+
+        # Write Tutor observation to memory (sync file I/O, safe in sync node)
+        chinglish_issues = [f.issue for f in feedback.chinglish_flags]
+        obs_text = (
+            f"写作分数: {feedback.overall_score}/10, "
+            f"chinglish 问题: {chinglish_issues}, "
+            f"文章逻辑: {article.article_logic if article else 'unknown'}, "
+            f"话题: {article.topic_tags[0] if article and article.topic_tags else 'unknown'}"
+        )
+        memory.append_observation(
+            {
+                "date": date.today().isoformat(),
+                "observation": obs_text,
+            }
+        )
+
     return {"user_writing": None, "writing_feedback": None}

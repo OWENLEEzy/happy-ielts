@@ -271,7 +271,63 @@ async def lesson_action(action: LessonActionRequest):
             yield f"data: {json.dumps(chunk)}\n\n"
         yield "data: [DONE]\n\n"
 
+        # After stream: check if graph is done and trigger orchestrator
+        try:
+            state_snapshot = await graph.aget_state(config)
+            if not state_snapshot.next:  # No pending nodes = graph reached END
+                asyncio.create_task(_trigger_orchestrator(config, graph))
+        except Exception:
+            pass  # Never block the SSE response for orchestrator errors
+
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+async def _trigger_orchestrator(config, graph) -> None:
+    """Build TutorHandoff from DB and fire Orchestrator."""
+    import logging
+
+    from backend.database import get_db
+    from backend.models import TutorHandoff
+    from backend.orchestrator import orchestrate_after_tutor
+
+    _logger = logging.getLogger(__name__)
+    try:
+        db = get_db()
+        article = db.get_today_article()
+        state = await graph.aget_state(config)
+        values = state.values
+
+        feedback = values.get("writing_feedback")
+        handoff = TutorHandoff(
+            date=date.today().isoformat(),
+            phases_completed=_infer_phases(values),
+            writing_score=feedback.overall_score if feedback else 0,
+            observations=[],  # Already written to memory in save_results
+            vocab_reviewed=len(values.get("review_queue", [])),
+            vocab_correct=0,  # Not tracked in current state; future enhancement
+            article_topic=article.topic_tags[0] if article and article.topic_tags else "",
+            article_logic=article.article_logic if article else "",
+        )
+        await orchestrate_after_tutor(handoff, db)
+    except Exception:
+        _logger.exception("Orchestrator trigger failed (non-fatal)")
+
+
+def _infer_phases(state_values: dict) -> list[str]:
+    """Infer which phases completed based on present state values."""
+    phases = []
+    if state_values.get("review_queue") is not None:
+        phases.append("review")
+    if state_values.get("today_article") is not None:
+        phases.append("reading")
+    if (
+        state_values.get("user_writing") is not None
+        or state_values.get("writing_feedback") is not None
+    ):
+        phases.append("writing")
+    if state_values.get("writing_feedback") is not None:
+        phases.append("feedback")
+    return phases
 
 
 @app.post("/api/lesson/start")
