@@ -280,7 +280,7 @@ async def lesson_action(action: LessonActionRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-async def _trigger_orchestrator(config, state_snapshot) -> None:
+async def _trigger_orchestrator(_config, state_snapshot) -> None:
     """Build TutorHandoff from DB and fire Orchestrator."""
     from backend.database import get_db
     from backend.models import TutorHandoff
