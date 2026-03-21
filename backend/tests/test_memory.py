@@ -38,3 +38,18 @@ def test_insights_skips_blank_lines(tmp_path):
     f = tmp_path / "teaching-insights.jsonl"
     f.write_text('\n{"date": "2026-03-21", "insight": "x", "action": "y"}\n\n')
     assert len(mem_mod.read_insights(days=30)) == 1
+
+
+def test_read_skips_malformed_jsonl_line(tmp_path):
+    """A corrupt line is silently skipped; valid lines are still returned."""
+    mem_mod.MEMORY_DIR = tmp_path
+    f = tmp_path / "teaching-insights.jsonl"
+    f.write_text(
+        '{"date": "2026-03-21", "insight": "good", "action": "ok"}\n'
+        "NOT VALID JSON\n"
+        '{"date": "2026-03-21", "insight": "also good", "action": "ok"}\n'
+    )
+    results = mem_mod.read_insights(days=30)
+    assert len(results) == 2
+    assert results[0]["insight"] == "good"
+    assert results[1]["insight"] == "also good"

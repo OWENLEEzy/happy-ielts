@@ -78,6 +78,46 @@ async def test_orchestrate_persists_insight():
 
 
 @pytest.mark.anyio
+async def test_orchestrate_retries_when_first_reflect_returns_empty_insight():
+    """When first Reflect returns empty insight, orchestrator calls run_reflect a second time."""
+    mock_db = MagicMock()
+    mock_db.query_weekly_stats.return_value = {
+        "writing_scores": [],
+        "chinglish_counts": [],
+        "vocab_mastered": 0,
+        "topic_distribution": [],
+    }
+    mock_db.get_user_profile.return_value = UserProfile(
+        goal="test",
+        interests=[],
+        level=5,
+        bandwidth_minutes=25,
+        writing_mode="professional",
+    )
+
+    empty_result = make_reflect_handoff(insight="")  # empty → triggers retry
+    retry_result = make_reflect_handoff(insight="retry insight")
+
+    mock_reflect = AsyncMock(side_effect=[empty_result, retry_result])
+
+    with (
+        patch("backend.orchestrator.run_reflect", mock_reflect),
+        patch("backend.orchestrator.memory") as mock_mem,
+        patch("backend.orchestrator._start_planner_thread"),
+    ):
+        mock_mem.read_observations.return_value = []
+        mock_mem.read_insights.return_value = []
+
+        from backend.orchestrator import orchestrate_after_tutor
+
+        await orchestrate_after_tutor(make_handoff(), mock_db)
+
+        assert mock_reflect.call_count == 2
+        saved = mock_mem.append_insight.call_args[0][0]
+        assert saved["insight"] == "retry insight"
+
+
+@pytest.mark.anyio
 async def test_orchestrate_updates_level_when_suggestion_differs():
     mock_db = MagicMock()
     mock_db.query_weekly_stats.return_value = {

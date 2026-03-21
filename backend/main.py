@@ -82,8 +82,11 @@ async def _cron_prepare_next() -> None:
 
 app = FastAPI(title="DynamicLingo API", lifespan=lifespan)
 
-# In-memory planner run state per date: date_str -> {"status": str, "error": str|None}
-_planner_state: dict[str, dict] = {}
+# Shared planner state from orchestrator so both /run and orchestrator paths use same dict.
+from backend.orchestrator import planner_state as _planner_state  # noqa: E402
+
+# Hold strong references to fire-and-forget asyncio tasks to prevent GC before completion.
+_background_tasks: set[asyncio.Task] = set()
 
 
 @app.get("/health")
@@ -271,11 +274,14 @@ async def lesson_action(action: LessonActionRequest):
             yield f"data: {json.dumps(chunk)}\n\n"
         yield "data: [DONE]\n\n"
 
-        # After stream: check if graph is done and trigger orchestrator
+        # After stream: check if graph is done and trigger orchestrator.
+        # Hold a strong reference to prevent the task from being GC'd mid-execution.
         try:
             state_snapshot = await graph.aget_state(config)
             if not state_snapshot.next:  # No pending nodes = graph reached END
-                asyncio.create_task(_trigger_orchestrator(config, graph))
+                task = asyncio.create_task(_trigger_orchestrator(config, graph))
+                _background_tasks.add(task)
+                task.add_done_callback(_background_tasks.discard)
         except Exception:
             pass  # Never block the SSE response for orchestrator errors
 
@@ -316,7 +322,7 @@ async def _trigger_orchestrator(config, graph) -> None:
 def _infer_phases(state_values: dict) -> list[str]:
     """Infer which phases completed based on present state values."""
     phases = []
-    if state_values.get("review_queue") is not None:
+    if state_values.get("review_queue"):
         phases.append("review")
     if state_values.get("today_article") is not None:
         phases.append("reading")

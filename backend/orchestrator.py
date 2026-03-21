@@ -9,6 +9,10 @@ from backend.reflect.agent import run_reflect
 
 logger = logging.getLogger(__name__)
 
+# Shared in-memory planner run state per date: date_str -> {"status": str, "error": str | None}
+# Imported by main.py so both paths (manual /run and orchestrator) share the same dict.
+planner_state: dict[str, dict] = {}
+
 
 async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
     """
@@ -23,15 +27,23 @@ async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
     observations = memory.read_observations(days=7)
     insights_history = memory.read_insights(days=14)
 
-    reflect_handoff = await run_reflect(handoff, weekly_stats, observations, insights_history)
+    # Fetch profile early to pass current level as hint to Reflect
+    profile = db.get_user_profile()
+    current_level = profile.level if profile else 5
+
+    reflect_handoff = await run_reflect(
+        handoff, weekly_stats, observations, insights_history, current_level=current_level
+    )
 
     # Quality gate: if insight is empty, retry with extended observations
     if not reflect_handoff.teaching_insight.strip():
         logger.warning("Orchestrator: Reflect returned empty insight, retrying with 14-day window")
         observations_ext = memory.read_observations(days=14)
         reflect_handoff = await run_reflect(
-            handoff, weekly_stats, observations_ext, insights_history
+            handoff, weekly_stats, observations_ext, insights_history, current_level=current_level
         )
+        if not reflect_handoff.teaching_insight.strip():
+            logger.warning("Orchestrator: Reflect still empty after retry — storing as-is")
 
     # Persist LLM-generated insight (only non-structured, SQL can't derive this)
     memory.append_insight(
@@ -43,7 +55,6 @@ async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
     )
 
     # Level auto-adjustment (only if Reflect recommends a change)
-    profile = db.get_user_profile()
     if profile and reflect_handoff.level_suggestion != profile.level:
         updated = profile.model_copy(update={"level": reflect_handoff.level_suggestion})
         db.upsert_user_profile(updated)
@@ -60,6 +71,7 @@ async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
 def _start_planner_thread(reflect_handoff: ReflectHandoff | None = None) -> None:
     """Start Planner in a background thread (same pattern as /api/planner/run)."""
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    planner_state[tomorrow] = {"status": "running", "error": None}
     thread = threading.Thread(
         target=_run_planner_sync,
         args=(tomorrow, reflect_handoff),
@@ -74,8 +86,10 @@ def _run_planner_sync(target_date: str, reflect_handoff: ReflectHandoff | None) 
     """Blocking planner run — must be called in a background thread."""
     try:
         asyncio.run(_run_planner_async(target_date, reflect_handoff))
+        planner_state[target_date] = {"status": "done", "error": None}
         logger.info("Orchestrator: Planner completed for %s", target_date)
-    except Exception:
+    except Exception as exc:
+        planner_state[target_date] = {"status": "error", "error": str(exc)}
         logger.exception("Orchestrator: Planner failed for %s", target_date)
 
 
@@ -88,7 +102,7 @@ async def _run_planner_async(target_date: str, reflect_handoff: ReflectHandoff |
 
     async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
         await cp.setup()
-        planner = create_deep_agent_planner(cp, reflect_handoff=reflect_handoff)  # type: ignore[call-arg]
+        planner = create_deep_agent_planner(cp, reflect_handoff=reflect_handoff)
         config = get_planner_config(f"-{int(_time.time())}")
         target_msg = f"为 {target_date} 准备一节课"
         await planner.ainvoke(  # type: ignore[attr-defined]

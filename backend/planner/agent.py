@@ -45,8 +45,6 @@ _REFLECT_CONTEXT_TEMPLATE = """
 **教学洞察（参考，不必逐字体现）：** {insight}
 """
 
-_planner: object | None = None
-
 
 def create_deep_agent_planner(
     checkpointer, reflect_handoff: ReflectHandoff | None = None
@@ -78,13 +76,6 @@ def create_deep_agent_planner(
         system_prompt=system_prompt,
         checkpointer=checkpointer,
     )
-
-
-def get_planner(checkpointer):
-    global _planner
-    if _planner is None:
-        _planner = create_deep_agent_planner(checkpointer)
-    return _planner
 
 
 def get_planner_config(suffix: str = "") -> dict:

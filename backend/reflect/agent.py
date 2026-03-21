@@ -18,6 +18,7 @@ async def run_reflect(
     weekly_stats: dict,
     observations: list[dict],
     insights_history: list[dict],
+    current_level: int = 5,
 ) -> ReflectHandoff:
     """Single LangChain call → ReflectHandoff. Uses qwen-plus (offline, no urgency)."""
     llm = get_llm("qwen-plus")
@@ -39,8 +40,7 @@ Chinglish 问题分布: {weekly_stats['chinglish_counts']}
 {insights_history if insights_history else "（暂无历史洞察）"}
 
 请生成 ReflectHandoff。date 字段填 {handoff.date}。
-level_suggestion 参考现有 level={handoff.writing_score // 10 + 1}，
-写作分 {handoff.writing_score}/10。"""
+level_suggestion 参考现有 level={current_level}，写作分 {handoff.writing_score}/10。"""
 
     messages = [
         SystemMessage(content=_SYSTEM_PROMPT),
