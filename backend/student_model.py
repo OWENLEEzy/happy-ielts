@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import threading
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from backend.models import ReflectHandoff
 logger = logging.getLogger(__name__)
 
 STUDENT_MODEL_PATH = Path("./student_model.json")
+_model_lock: threading.Lock = threading.Lock()
 
 _DEFAULT_MODEL: dict = {
     "updated": "",
@@ -52,8 +54,11 @@ def read_student_model() -> dict:
 
 
 def write_student_model(model: dict) -> None:
-    """Overwrite student_model.json with the given model dict."""
-    STUDENT_MODEL_PATH.write_text(json.dumps(model, ensure_ascii=False, indent=2), encoding="utf-8")
+    """Overwrite student_model.json with the given model dict (thread-safe)."""
+    with _model_lock:
+        STUDENT_MODEL_PATH.write_text(
+            json.dumps(model, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
 
 def _compute_streak(session_dates: list[str]) -> int:

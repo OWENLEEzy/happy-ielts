@@ -271,7 +271,7 @@ async def lesson_action(action: LessonActionRequest):
         try:
             state_snapshot = await graph.aget_state(config)
             if not state_snapshot.next:  # No pending nodes = graph reached END
-                task = asyncio.create_task(_trigger_orchestrator(config, graph))
+                task = asyncio.create_task(_trigger_orchestrator(config, state_snapshot))
                 _background_tasks.add(task)
                 task.add_done_callback(_background_tasks.discard)
         except Exception:
@@ -280,7 +280,7 @@ async def lesson_action(action: LessonActionRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-async def _trigger_orchestrator(config, graph) -> None:
+async def _trigger_orchestrator(config, state_snapshot) -> None:
     """Build TutorHandoff from DB and fire Orchestrator."""
     from backend.database import get_db
     from backend.models import TutorHandoff
@@ -289,8 +289,7 @@ async def _trigger_orchestrator(config, graph) -> None:
     try:
         db = get_db()
         article = db.get_today_article()
-        state = await graph.aget_state(config)
-        values = state.values
+        values = state_snapshot.values
 
         feedback = values.get("writing_feedback")
         handoff = TutorHandoff(

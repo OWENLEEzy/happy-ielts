@@ -372,3 +372,31 @@ def test_evaluate_writing_uses_advanced_depth_for_high_level():
         evaluate_writing(_make_evaluate_state(9))
 
     assert captured_depth[0] == "advanced"
+
+
+def test_write_student_model_concurrent():
+    """Concurrent writes must not corrupt the file."""
+    import threading
+
+    import backend.student_model as sm
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "student_model.json"
+        with patch.object(sm, "STUDENT_MODEL_PATH", path):
+            errors: list[Exception] = []
+
+            def write_model(val: int) -> None:
+                try:
+                    sm.write_student_model({"levels": {"writing": val}})
+                except Exception as e:
+                    errors.append(e)
+
+            threads = [threading.Thread(target=write_model, args=(i,)) for i in range(20)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            assert not errors
+            result = sm.read_student_model()
+            assert "levels" in result  # File readable, not corrupted
