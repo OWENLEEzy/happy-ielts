@@ -25,3 +25,13 @@ pyrightconfig.json
 
 # Docs / plans (local design artifacts)
 docs/plans/
+
+# Runtime state
+student_model.json
+memories/
+
+# OS
+.DS_Store
+
+# Test artifacts
+frontend/test-results/
