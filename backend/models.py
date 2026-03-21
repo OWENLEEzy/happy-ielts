@@ -80,3 +80,28 @@ class VocabItemCreate(BaseModel):
 
 class VocabItem(VocabItemCreate):
     id: int
+
+
+class TutorHandoff(BaseModel):
+    """Structured summary from Tutor → Orchestrator after a lesson session."""
+
+    date: str  # "2026-03-21"
+    phases_completed: list[str]  # ["review", "reading", "writing", "feedback"]
+    writing_score: int  # 0 if no writing submitted
+    observations: list[str]  # notable things Tutor noticed
+    vocab_reviewed: int  # number of vocab cards shown
+    vocab_correct: int  # number answered correctly
+    article_topic: str  # first topic_tag of today's article
+    article_logic: str  # article_logic field
+
+
+class ReflectHandoff(BaseModel):
+    """Structured output from Reflect → Orchestrator → Planner."""
+
+    date: str
+    level_suggestion: int = Field(ge=1, le=10)
+    top_weaknesses: list[str]  # e.g. ["run-on sentence", "weak thesis"]
+    improving_areas: list[str]  # areas showing improvement
+    topic_recommendation: str  # topic direction for next article
+    task_recommendation: str  # writing task style recommendation
+    teaching_insight: str  # LLM qualitative insight (SQL can't derive this)
