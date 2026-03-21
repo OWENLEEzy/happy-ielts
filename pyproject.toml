@@ -20,6 +20,7 @@ dependencies = [
     "langgraph-checkpoint-sqlite>=3.0.3",
     "trafilatura>=2.0.0",
     "langchain-openai>=0.3.0",
+    "apscheduler>=3.11.2",
 ]
 
 [project.optional-dependencies]

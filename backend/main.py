@@ -40,12 +40,44 @@ class UpdateProfileRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from apscheduler.triggers.cron import CronTrigger
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
     async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
         await cp.setup()
         app.state.checkpointer = cp
-        yield
+
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(
+            _cron_prepare_next,
+            CronTrigger(hour=2, minute=0),
+            id="daily-planner",
+            replace_existing=True,
+        )
+        scheduler.start()
+        try:
+            yield
+        finally:
+            scheduler.shutdown(wait=False)
+
+
+async def _cron_prepare_next() -> None:
+    """Cron job: check if tomorrow's lesson is ready; if not, run Planner (cold path)."""
+    import logging
+    from datetime import timedelta
+
+    from backend.database import get_db
+    from backend.orchestrator import _start_planner_thread
+
+    _logger = logging.getLogger(__name__)
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    db = get_db()
+    if db.get_article_for_date(tomorrow) is not None:
+        _logger.info("Cron: tomorrow's lesson already ready, skipping")
+        return
+    _logger.info("Cron: triggering Planner for %s", tomorrow)
+    _start_planner_thread(reflect_handoff=None)
 
 
 app = FastAPI(title="DynamicLingo API", lifespan=lifespan)
@@ -117,15 +149,42 @@ async def run_planner():
 
 @app.get("/api/planner/status")
 async def planner_status():
+    from datetime import timedelta
+
     from backend.database import get_db
 
     today = date.today().isoformat()
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
     db = get_db()
     article = db.get_today_article()
     task = db.get_today_writing_task()
     ready = article is not None and task is not None
+    tomorrow_ready = db.get_article_for_date(tomorrow) is not None
     state = _planner_state.get(today, {"status": "idle", "error": None})
-    return {"ready": ready, "status": state["status"], "error": state["error"]}
+    return {
+        "ready": ready,
+        "ready_for_tomorrow": tomorrow_ready,
+        "status": state["status"],
+        "error": state["error"],
+    }
+
+
+@app.post("/api/planner/prepare-next")
+async def prepare_next_lesson():
+    """Prepare tomorrow's lesson. Called by Orchestrator (hot) or cron (cold)."""
+    from datetime import timedelta
+
+    from backend.database import get_db
+    from backend.orchestrator import _start_planner_thread
+
+    tomorrow = (date.today() + timedelta(days=1)).isoformat()
+    db = get_db()
+
+    if db.get_article_for_date(tomorrow) is not None:
+        return {"status": "already_ready", "date": tomorrow}
+
+    _start_planner_thread(reflect_handoff=None)
+    return {"status": "started", "date": tomorrow}
 
 
 # ─── Onboarding ───────────────────────────────────────────────────────────────
