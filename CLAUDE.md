@@ -14,12 +14,13 @@ task dev:backend          # FastAPI on :8000 (--reload)
 task dev:frontend         # Next.js on :3000
 
 # 测试
-task test                                          # 全部测试
-uv run pytest backend/tests/ -v                    # 全部后端测试
+task test                                          # 全部后端测试
+uv run pytest backend/tests/ -v                    # 全部后端测试（详细）
 uv run pytest backend/tests/test_models.py -v      # 单文件示例
+cd frontend && npx playwright test                 # E2E 测试
 
 # 检查 / 格式化
-task check                # ruff + mypy + eslint + tsc
+task check                # ruff + mypy + eslint + tsc（并行）
 task fix                  # 自动修复所有格式问题
 
 # 类型同步（改 models.py 后必跑）
@@ -34,22 +35,33 @@ cp .env.example .env
 
 ## Architecture
 
-两个完全解耦的 loop，共享同一个 `./db.sqlite3`：
+三个完全解耦的 loop，共享同一个 `./db.sqlite3`：
 
 ```
-Slow loop (background, daily)          Fast loop (foreground, SSE)
-─────────────────────────────          ──────────────────────────────
-DeepAgent Planner                      LangGraph Tutor Graph
-  load_user_profile                      route_start  (Command routing)
-  → TavilySearchResults                         → spaced_review  (interrupt loop)
-  → scrape_article                       → reading  (while True: interrupt)
-  → highlight_key_paragraphs             → writing_task  (interrupt)
-  → generate_writing_task                → evaluate_writing
-  → save_daily_lesson                    → save_results
-        ↓                                       ↓
-   articles / writing_tasks            writing_submissions / vocab_items
-        └──────────────── SQLite ──────────────────┘
+Slow loop (background, daily 2am cron)       Fast loop (foreground, SSE)
+──────────────────────────────────────       ──────────────────────────────
+DeepAgent Planner                            LangGraph Tutor Graph
+  load_user_profile                            route_start  (Command routing)
+  → TavilySearchResults                               → spaced_review  (interrupt loop)
+  → scrape_article                             → reading  (while True: interrupt)
+  → highlight_key_paragraphs                   → writing_task  (interrupt)
+  → generate_writing_task                      → evaluate_writing
+  → save_daily_lesson                          → save_results
+        ↓                                             ↓
+   articles / writing_tasks                writing_submissions / vocab_items
+        └──────────────── db.sqlite3 ────────────────┘
+
+Post-lesson loop (triggered by save_results)
+────────────────────────────────────────────
+DeepAgent Reflect
+  analyze writing_submissions + vocab_items
+  → generate ReflectHandoff (strength/weakness summary)
+  → trigger Planner with handoff for next lesson
 ```
+
+**两个 SQLite 文件：**
+- `db.sqlite3` — 应用数据（articles、writing_tasks、submissions、vocab_items）
+- `checkpoints.sqlite3` — LangGraph checkpoint（tutor graph 和 onboarding 的 thread 状态）
 
 **前端路由：** Next.js `app/api/[...proxy]/route.ts` 透传到 FastAPI，无需 CORS 配置。
 
@@ -62,6 +74,28 @@ DeepAgent Planner                      LangGraph Tutor Graph
 
 **Checkpointer 单例：** `AsyncSqliteSaver`（`langgraph.checkpoint.sqlite.aio`）在 `main.py` lifespan 中创建一次，通过 `app.state.checkpointer` 传给所有 agent 和图，**不在各模块内单独 `from_conn_string()`**。
 
+**Cron 调度：** `APScheduler` 在 lifespan 中启动，每日 02:00 执行 `_cron_prepare_next()`，若次日课程未就绪则触发 Planner。
+
+## 后端关键模块
+
+| 文件 | 用途 |
+|------|------|
+| `main.py` | FastAPI app + lifespan（checkpointer 单例 + cron scheduler） |
+| `models.py` | 所有 Pydantic 模型——改后必跑 `task generate-types` |
+| `database.py` | SQLite CRUD 封装（articles、tasks、submissions、vocab） |
+| `orchestrator.py` | 冷路径/暖路径路由，`_start_planner_thread()` 启动后台规划 |
+| `student_model.py` | 学生画像（水平、兴趣、进度），持久化到 `student_model.json` |
+| `curriculum.py` | 课程路径生成逻辑，基于 student model 选择难度和主题 |
+| `memory.py` | 嵌入 + 向量检索，为 LLM 提供个性化上下文 |
+| `fsrs_engine.py` | FSRS 间隔复习算法，计算生词复习时机 |
+| `llm.py` | `ChatTongyi(model="qwen-max")` 单例初始化 |
+| `planner/agent.py` | DeepAgent Planner（每日文章生成） |
+| `planner/tools.py` | Tavily 搜索、网页抓取、段落高亮提取 |
+| `tutor/graph.py` | LangGraph Tutor Graph 定义 |
+| `tutor/nodes.py` | 节点实现（route_start、reading、writing_task、evaluate_writing、save_results） |
+| `onboarding/agent.py` | DeepAgent Onboarding（用户初始化） |
+| `reflect/agent.py` | DeepAgent Reflect（写作复盘 → 生成 ReflectHandoff） |
+
 ## LangChain / LangGraph / DeepAgents 使用规则
 
 ### 用哪个框架
@@ -69,7 +103,7 @@ DeepAgent Planner                      LangGraph Tutor Graph
 | 场景 | 框架 |
 |------|------|
 | 需要精确控制 interrupt 位置、SSE streaming | **LangGraph** (Tutor Graph) |
-| 开放式多步任务、可以让模型自主规划 | **DeepAgents** (Planner / Onboarding) |
+| 开放式多步任务、可以让模型自主规划 | **DeepAgents** (Planner / Onboarding / Reflect) |
 | 单次 LLM 调用、structured output | **LangChain** (`@tool` + `with_structured_output`) |
 
 ### 必须调用的 langchain-skills（写代码前先 invoke）
@@ -120,9 +154,15 @@ cd frontend && npx tsc --noEmit  # Type check
 | 文件 | 用途 |
 |------|------|
 | `app/api/[...proxy]/route.ts` | 透传代理 → FastAPI :8000（无需 CORS） |
+| `app/page.tsx` | 主课程 UI 入口 |
+| `hooks/useLesson.ts` | 课程状态管理 hook（SSE 驱动） |
 | `lib/sse.ts` | SSE 客户端：`startLesson`、`sendOnboardingMessage` |
-| `types/api.ts` | OpenAPI 自动生成——不要手动编辑 |
+| `types/api.ts` | OpenAPI 自动生成——**不要手动编辑** |
+| `components/ArticleReader.tsx` | 文章显示 + 关键段落高亮 |
 | `components/WritingPanel.tsx` | 写作提交 + feedback SSE 流 |
+| `components/FillBlankCard.tsx` | 填空练习交互 |
+| `components/FeedbackView.tsx` | 写作反馈展示 |
+| `components/WordChip.tsx` | 生词展示（含释义） |
 
 **SSE cleanup：** `useEffect` 必须返回 `AbortController.abort()`，否则切换路由时 stream 泄漏。
 
@@ -146,3 +186,4 @@ DashScope API key 从 `DASHSCOPE_API_KEY` 环境变量读取。
 - `docs/plans/2026-03-19-dynamiclingo-impl.md` — 权威实现计划（15 个 Task，含完整代码）
 - `docs/plans/2026-03-19-dynamiclingo-design.md` — 系统设计（数据模型、API、组件树）
 - `docs/plans/2026-03-19-dynamiclingo-prd.md` — 产品需求
+- `docs/deployment.md` — 部署记录（Render + Vercel + GAS 保活）
