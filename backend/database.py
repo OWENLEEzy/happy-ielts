@@ -8,6 +8,11 @@ from typing import Protocol
 from backend.models import (
     Article,
     ArticleCreate,
+    GeneralLesson,
+    GeneralProject,
+    GeneralStudentModel,
+    LearningMap,
+    UserGoalProfile,
     UserProfile,
     VocabItem,
     VocabItemCreate,
@@ -66,6 +71,50 @@ CREATE TABLE IF NOT EXISTS vocab_items (
     fsrs_state TEXT NOT NULL,
     article_id INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS learning_projects (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_topic   TEXT NOT NULL,
+    status       TEXT NOT NULL DEFAULT 'onboarding',
+    goal_profile TEXT,
+    learning_map TEXT,
+    notebook_id  TEXT,
+    tier         TEXT NOT NULL DEFAULT 'free',
+    budget_used  INTEGER NOT NULL DEFAULT 0,
+    created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS project_lessons (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id   INTEGER NOT NULL REFERENCES learning_projects(id),
+    chapter      INTEGER NOT NULL,
+    lesson       INTEGER NOT NULL,
+    title        TEXT NOT NULL,
+    study_guide  TEXT,
+    quiz_json    TEXT,
+    flashcards   TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending',
+    UNIQUE(project_id, chapter, lesson)
+);
+
+CREATE TABLE IF NOT EXISTS project_sessions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id   INTEGER NOT NULL REFERENCES learning_projects(id),
+    lesson_id    INTEGER NOT NULL REFERENCES project_lessons(id),
+    quiz_answers TEXT,
+    quiz_score   INTEGER,
+    qa_history   TEXT,
+    created_at   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS general_student_models (
+    project_id   INTEGER PRIMARY KEY REFERENCES learning_projects(id),
+    goal_outcome TEXT NOT NULL,
+    goal_progress REAL NOT NULL DEFAULT 0.0,
+    dimensions   TEXT NOT NULL DEFAULT '{}',
+    fsrs_due     TEXT NOT NULL DEFAULT '[]',
+    updated      TEXT NOT NULL
+);
 """
 
 
@@ -111,6 +160,49 @@ class DatabaseProtocol(Protocol):
     def count_articles(self) -> int: ...
 
     def upsert_reading_start(self, today: date) -> None: ...
+
+    def create_general_project(
+        self, topic: str, profile: UserGoalProfile | None, tier: str
+    ) -> int: ...
+
+    def get_general_project(self, project_id: int) -> GeneralProject | None: ...
+
+    def update_general_project_status(self, project_id: int, status: str) -> None: ...
+
+    def update_general_project_notebook(self, project_id: int, notebook_id: str) -> None: ...
+
+    def update_general_project_goal_profile(
+        self, project_id: int, profile: UserGoalProfile
+    ) -> None: ...
+
+    def update_general_project_map(
+        self, project_id: int, learning_map: LearningMap, budget_used: int
+    ) -> None: ...
+
+    def upsert_general_lesson(
+        self,
+        project_id: int,
+        chapter: int,
+        lesson: int,
+        title: str,
+        study_guide: str,
+        quiz_json: list,
+        flashcards: list,
+    ) -> None: ...
+
+    def get_project_lessons(self, project_id: int) -> list[GeneralLesson]: ...
+
+    def get_general_lesson(self, lesson_id: int) -> GeneralLesson | None: ...
+
+    def save_general_session(
+        self, project_id: int, lesson_id: int, quiz_answers: list, quiz_score: int, qa_history: list
+    ) -> int: ...
+
+    def get_project_sessions_recent(self, project_id: int, n: int) -> list[dict]: ...
+
+    def save_general_student_model(self, project_id: int, model: GeneralStudentModel) -> None: ...
+
+    def get_general_project_dashboard(self, project_id: int) -> dict: ...
 
 
 _instance: "Database | None" = None
@@ -520,3 +612,215 @@ class Database:
         """Total number of articles stored (includes days without a submission)."""
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+
+    # ── General Learning ──────────────────────────────────────
+
+    def create_general_project(
+        self, topic: str, profile: UserGoalProfile | None, tier: str = "free"
+    ) -> int:
+        from datetime import datetime
+
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO learning_projects"
+                " (user_topic, goal_profile, tier, created_at) VALUES (?, ?, ?, ?)",
+                (
+                    topic,
+                    json.dumps(profile.model_dump()) if profile else None,
+                    tier,
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+            return cur.lastrowid  # type: ignore
+
+    def get_general_project(self, project_id: int) -> GeneralProject | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM learning_projects WHERE id = ?", (project_id,)
+            ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["goal_profile"] = (
+            UserGoalProfile(**json.loads(d["goal_profile"])) if d["goal_profile"] else None
+        )
+        d["learning_map"] = (
+            LearningMap(**json.loads(d["learning_map"])) if d["learning_map"] else None
+        )
+        return GeneralProject(**d)
+
+    def update_general_project_status(self, project_id: int, status: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE learning_projects SET status = ? WHERE id = ?", (status, project_id)
+            )
+
+    def update_general_project_notebook(self, project_id: int, notebook_id: str) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE learning_projects SET notebook_id = ? WHERE id = ?",
+                (notebook_id, project_id),
+            )
+
+    def update_general_project_goal_profile(
+        self, project_id: int, profile: UserGoalProfile
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE learning_projects SET goal_profile = ? WHERE id = ?",
+                (profile.model_dump_json(), project_id),
+            )
+
+    def update_general_project_map(
+        self, project_id: int, learning_map: LearningMap, budget_used: int
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE learning_projects SET learning_map = ?, budget_used = ? WHERE id = ?",
+                (learning_map.model_dump_json(), budget_used, project_id),
+            )
+
+    def upsert_general_lesson(
+        self,
+        project_id: int,
+        chapter: int,
+        lesson: int,
+        title: str,
+        study_guide: str,
+        quiz_json: list,
+        flashcards: list,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO project_lessons
+                    (project_id, chapter, lesson, title, study_guide, quiz_json, flashcards, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'ready')
+                ON CONFLICT(project_id, chapter, lesson) DO UPDATE SET
+                    study_guide = excluded.study_guide,
+                    quiz_json   = excluded.quiz_json,
+                    flashcards  = excluded.flashcards,
+                    status      = 'ready'
+                """,
+                (
+                    project_id,
+                    chapter,
+                    lesson,
+                    title,
+                    study_guide,
+                    json.dumps(quiz_json),
+                    json.dumps(flashcards),
+                ),
+            )
+
+    def get_project_lessons(self, project_id: int) -> list[GeneralLesson]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM project_lessons WHERE project_id = ? ORDER BY chapter, lesson",
+                (project_id,),
+            ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["quiz_json"] = json.loads(d["quiz_json"]) if d["quiz_json"] else None
+            d["flashcards"] = json.loads(d["flashcards"]) if d["flashcards"] else None
+            result.append(GeneralLesson(**d))
+        return result
+
+    def get_general_lesson(self, lesson_id: int) -> GeneralLesson | None:
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM project_lessons WHERE id = ?", (lesson_id,)
+            ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["quiz_json"] = json.loads(d["quiz_json"]) if d["quiz_json"] else None
+        d["flashcards"] = json.loads(d["flashcards"]) if d["flashcards"] else None
+        return GeneralLesson(**d)
+
+    def save_general_session(
+        self, project_id: int, lesson_id: int, quiz_answers: list, quiz_score: int, qa_history: list
+    ) -> int:
+        from datetime import datetime
+
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO project_sessions"
+                " (project_id, lesson_id, quiz_answers, quiz_score, qa_history, created_at)"
+                " VALUES (?,?,?,?,?,?)",
+                (
+                    project_id,
+                    lesson_id,
+                    json.dumps(quiz_answers),
+                    quiz_score,
+                    json.dumps(qa_history),
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+            return cur.lastrowid  # type: ignore
+
+    def get_project_sessions_recent(self, project_id: int, n: int) -> list[dict]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM project_sessions"
+                " WHERE project_id = ? ORDER BY created_at DESC LIMIT ?",
+                (project_id, n),
+            ).fetchall()
+        result = []
+        for row in rows:
+            d = dict(row)
+            d["quiz_answers"] = json.loads(d["quiz_answers"]) if d["quiz_answers"] else []
+            d["qa_history"] = json.loads(d["qa_history"]) if d["qa_history"] else []
+            result.append(d)
+        return result
+
+    def save_general_student_model(self, project_id: int, model: GeneralStudentModel) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO general_student_models
+                    (project_id, goal_outcome, goal_progress, dimensions, fsrs_due, updated)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(project_id) DO UPDATE SET
+                    goal_outcome  = excluded.goal_outcome,
+                    goal_progress = excluded.goal_progress,
+                    dimensions    = excluded.dimensions,
+                    fsrs_due      = excluded.fsrs_due,
+                    updated       = excluded.updated
+                """,
+                (
+                    project_id,
+                    model.goal_outcome,
+                    model.goal_progress,
+                    json.dumps({k: v.model_dump() for k, v in model.dimensions.items()}),
+                    json.dumps(model.fsrs_due),
+                    model.updated,
+                ),
+            )
+
+    def get_general_project_dashboard(self, project_id: int) -> dict:
+        project = self.get_general_project(project_id)
+        if not project:
+            return {}
+        lessons = self.get_project_lessons(project_id)
+        chapters: dict[int, dict] = {}
+        for lesson in lessons:
+            if lesson.chapter not in chapters:
+                title = (
+                    project.learning_map.chapters[lesson.chapter].title
+                    if project.learning_map
+                    else f"Chapter {lesson.chapter}"
+                )
+                chapters[lesson.chapter] = {"title": title, "lessons": []}
+            chapters[lesson.chapter]["lessons"].append(lesson.model_dump())
+        return {
+            "id": project.id,
+            "user_topic": project.user_topic,
+            "goal_outcome": project.goal_profile.goal_outcome if project.goal_profile else "",
+            "goal_progress": 0.0,
+            "dimensions": {},
+            "chapters": list(chapters.values()),
+            "tier": project.tier,
+            "budget_used": project.budget_used,
+        }
