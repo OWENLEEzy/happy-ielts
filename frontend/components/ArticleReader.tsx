@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { FullArticle } from './FullArticle'
 import { sendAction } from '@/lib/sse'
 import { getRandomTeacherDogUrl } from '@/lib/constants'
@@ -59,9 +60,8 @@ export function ArticleReader({ article, onDone }: Props) {
       {/* AI tutor tip */}
       {showTip && (
         <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {dogUrl && <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />}
+          <div className="relative w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
+            {dogUrl && <Image src={dogUrl} fill sizes="32px" className="object-cover" alt="tutor" />}
           </div>
           <div className="flex-1">
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

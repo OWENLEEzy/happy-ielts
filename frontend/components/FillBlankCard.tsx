@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import Image from 'next/image'
 import { sendAction } from '@/lib/sse'
 import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
@@ -19,6 +20,7 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
   useEffect(() => {
     startTimeRef.current = Date.now()
     setDogUrl(getRandomTeacherDogUrl())
+    inputRef.current?.focus()
   }, [])
 
   const [hint, setHint] = useState<string | null>(null)
@@ -64,9 +66,8 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
         {/* Card */}
         <div className="w-full max-w-md mx-auto bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_color-mix(in_srgb,var(--primary)_12%,transparent)] p-8 space-y-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {dogUrl && <img src={dogUrl} className="w-full h-full object-cover" alt="tutor" />}
+            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
+              {dogUrl && <Image src={dogUrl} fill sizes="32px" className="object-cover" alt="tutor" />}
             </div>
             <p className="text-xs font-bold text-on-surface-variant font-label">
               填入正确的词汇，解锁今日课程
@@ -99,10 +100,10 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
 
         {/* Attempt dots */}
         <div className="flex gap-2 justify-center mt-6">
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2].map((dot) => (
             <div
-              key={i}
-              className={`w-2 h-2 rounded-full ${i < attempts ? 'bg-error' : 'bg-outline-variant'}`}
+              key={`dot-${dot}`}
+              className={`w-2 h-2 rounded-full ${dot < attempts ? 'bg-error' : 'bg-outline-variant'}`}
             />
           ))}
         </div>
@@ -119,7 +120,6 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
               onChange={(e) => setAnswer(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               placeholder="填写答案..."
-              autoFocus
             />
             <button
               onClick={handleSubmit}

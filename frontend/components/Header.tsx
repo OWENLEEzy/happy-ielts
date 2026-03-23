@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { getRandomTogetherDogUrl, getRandomUserDogUrl } from '@/lib/constants'
@@ -19,9 +20,10 @@ export function Header({ streak = 0 }: { streak?: number }) {
       <div className="flex items-center justify-between max-w-5xl mx-auto px-6 gap-4 w-full">
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {logoUrl && <img src={logoUrl} className="w-full h-full object-cover" alt="logo" />}
+          <div className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
+            {logoUrl && (
+              <Image src={logoUrl} fill sizes="36px" className="object-cover" alt="logo" />
+            )}
           </div>
           <span className="text-lg font-black text-primary tracking-tighter font-headline hidden sm:block">
             Happy IELTS
@@ -61,9 +63,10 @@ export function Header({ streak = 0 }: { streak?: number }) {
               {streak}天
             </div>
           )}
-          <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {avatarUrl && <img src={avatarUrl} className="w-full h-full object-cover" alt="我" />}
+          <div className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30">
+            {avatarUrl && (
+              <Image src={avatarUrl} fill sizes="36px" className="object-cover" alt="我" />
+            )}
           </div>
         </div>
       </div>

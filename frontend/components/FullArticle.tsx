@@ -9,14 +9,20 @@ interface Props {
   onWordExplained?: (word: string, explanation: string) => void
 }
 
-function renderTokens(text: string, onExplained: (word: string, explanation: string) => void) {
+function TextTokens({
+  text,
+  onExplained,
+}: {
+  text: string
+  onExplained: (word: string, explanation: string) => void
+}) {
   return text.split(/(\s+)/).map((token, i) => {
-    if (/\s+/.test(token)) return <span key={i}>{token}</span>
-    const word = token.replace(/[.,!?;:'"()\[\]]/g, '')
-    if (!word) return <span key={i}>{token}</span>
+    if (/\s+/.test(token)) return <span key={`ws-${i}`}>{token}</span>
+    const word = token.replace(/[.,!?;:'"()[\]]/g, '')
+    if (!word) return <span key={`punct-${i}`}>{token}</span>
     return (
       <WordChip
-        key={i}
+        key={`word-${i}-${word}`}
         word={word}
         context={text}
         onExplained={(explanation) => onExplained(word, explanation)}
@@ -57,8 +63,8 @@ export function FullArticle({ article, onWordExplained }: Props) {
       {paragraphs.map((para, idx) => {
         const isHighlighted = article.highlight_indices.includes(idx)
         return (
-          <p key={idx} className={`relative ${isHighlighted ? styles.highlighted : ''}`}>
-            {renderTokens(para, handleExplained)}
+          <p key={`para-${idx}`} className={`relative ${isHighlighted ? styles.highlighted : ''}`}>
+            <TextTokens text={para} onExplained={handleExplained} />
           </p>
         )
       })}

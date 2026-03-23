@@ -1,5 +1,6 @@
 'use client'
 import { useReducer, useEffect, useState, useCallback, Suspense } from 'react'
+import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { lessonReducer, initialState } from './reducer'
 import { FillBlankCard } from '@/components/FillBlankCard'
@@ -70,10 +71,9 @@ function LessonContent() {
           className={`rounded-lg p-10 relative overflow-hidden ${isError ? 'bg-error-container/20' : 'bg-primary-container/20'}`}
         >
           <div className="relative z-10">
-            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto mb-6">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
+            <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto mb-6">
               {loadingDogUrl && (
-                <img src={loadingDogUrl} className="w-full h-full object-cover" alt="准备中" />
+                <Image src={loadingDogUrl} fill sizes="96px" className="object-cover" alt="准备中" />
               )}
             </div>
 

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Image from 'next/image'
 import { getRandomTogetherDogUrl, getRandomTeacherDogUrl } from '@/lib/constants'
 import type { WritingFeedback } from '@/types'
 
@@ -36,11 +37,8 @@ export function FeedbackView({ feedback, onRetry }: Props) {
             <div className="text-6xl font-black font-headline">{feedback.overall_score}</div>
             <div className="text-sm opacity-70 mt-1 font-label">/ 10</div>
           </div>
-          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {scoreCardUrl && (
-              <img src={scoreCardUrl} className="w-full h-full object-cover" alt="完成" />
-            )}
+          <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
+            {scoreCardUrl && <Image src={scoreCardUrl} fill sizes="64px" className="object-cover" alt="完成" />}
           </div>
         </div>
         {feedback.rewrite_suggestions.length > 0 && (
@@ -131,11 +129,8 @@ export function FeedbackView({ feedback, onRetry }: Props) {
       {/* AI suggestion */}
       {feedback.rewrite_suggestions.length > 1 && (
         <div className="bg-tertiary-container/25 rounded-lg p-5 flex gap-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {professorUrl && (
-              <img src={professorUrl} className="w-full h-full object-cover" alt="tutor" />
-            )}
+          <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
+            {professorUrl && <Image src={professorUrl} fill sizes="40px" className="object-cover" alt="tutor" />}
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">
