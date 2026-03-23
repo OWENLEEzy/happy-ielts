@@ -2,17 +2,23 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const TABS = [
-  { href: '/lesson', label: '课程', icon: 'menu_book' },
-  { href: '/onboarding', label: '设置', icon: 'settings' },
-]
-
 export function MobileNav() {
   const pathname = usePathname()
+  const isGeneral =
+    pathname.startsWith('/learn') ||
+    (typeof window !== 'undefined' && localStorage.getItem('appMode') === 'general')
+
+  const tabs = isGeneral
+    ? [{ href: '/learn', label: '课程地图', icon: 'map' }]
+    : [
+        { href: '/lesson', label: '课程', icon: 'menu_book' },
+        { href: '/vocab', label: '生词', icon: 'style' },
+      ]
+
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t border-outline-variant/20 z-50 flex justify-around py-2">
-      {TABS.map((t) => {
-        const active = pathname === t.href
+      {tabs.map((t) => {
+        const active = pathname === t.href || pathname.startsWith(t.href + '/')
         return (
           <Link
             key={t.href}

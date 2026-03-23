@@ -2,6 +2,8 @@
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import { Header } from '@/components/Header'
+import { MobileNav } from '@/components/MobileNav'
 
 const TOPICS = ['吉他', '投资入门', '摄影构图', '烹饪', '心理学', '编程', '历史', '写作']
 
@@ -9,27 +11,25 @@ export default function LearnLandingPage() {
   const router = useRouter()
 
   return (
-    <div className="min-h-screen flex flex-col" style={{
-      background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 50%, #0d1118 100%)',
-      color: '#f0ebe0',
-    }}>
-
-      {/* Top nav */}
-      <nav className="flex items-center justify-between px-6 py-5 max-w-5xl mx-auto w-full">
-        <Link href="/" className="text-xs font-mono-dm tracking-widest uppercase opacity-50 hover:opacity-100 transition-opacity" style={{ color: '#c9a84c' }}>
-          ← DynamicLingo
-        </Link>
-        <span className="text-xs font-mono-dm tracking-widest uppercase opacity-30">General Learning</span>
-      </nav>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{
+        background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 50%, #0d1118 100%)',
+        color: '#f0ebe0',
+      }}
+    >
+      <Header dark />
 
       {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-4xl mx-auto w-full">
-
         {/* Ambient orb */}
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none" style={{
-          background: 'radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%)',
-          filter: 'blur(40px)',
-        }} />
+        <div
+          className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, rgba(201,168,76,0.08) 0%, transparent 70%)',
+            filter: 'blur(40px)',
+          }}
+        />
 
         <motion.div
           initial={{ opacity: 0, y: 32 }}
@@ -38,23 +38,36 @@ export default function LearnLandingPage() {
           className="text-center space-y-6 relative z-10"
         >
           {/* Eyebrow */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-mono-dm tracking-widest uppercase" style={{
-            borderColor: 'rgba(201,168,76,0.3)',
-            color: '#c9a84c',
-            background: 'rgba(201,168,76,0.06)',
-          }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#c9a84c' }} />
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-mono-dm tracking-widest uppercase"
+            style={{
+              borderColor: 'rgba(201,168,76,0.3)',
+              color: '#c9a84c',
+              background: 'rgba(201,168,76,0.06)',
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full animate-pulse"
+              style={{ background: '#c9a84c' }}
+            />
             AI 备课系统
           </div>
 
           {/* Main headline */}
-          <h1 className="font-cormorant font-light leading-none tracking-tight" style={{ fontSize: 'clamp(3.5rem, 9vw, 7rem)', color: '#f0ebe0' }}>
-            掌握任何<br />
+          <h1
+            className="font-cormorant font-light leading-none tracking-tight"
+            style={{ fontSize: 'clamp(3.5rem, 9vw, 7rem)', color: '#f0ebe0' }}
+          >
+            掌握任何
+            <br />
             <em style={{ color: '#c9a84c', fontStyle: 'italic' }}>你想学的</em>
           </h1>
 
           {/* Subtext */}
-          <p className="max-w-md mx-auto text-base leading-relaxed opacity-60" style={{ fontFamily: 'Manrope, sans-serif' }}>
+          <p
+            className="max-w-md mx-auto text-base leading-relaxed opacity-60"
+            style={{ fontFamily: 'Manrope, sans-serif' }}
+          >
             告诉我你的目标，AI 老师为你深度备课，生成专属学习地图，一节一节带你抵达。
           </p>
 
@@ -78,7 +91,10 @@ export default function LearnLandingPage() {
 
           {/* Also have English mode */}
           <p className="text-xs opacity-30 font-mono-dm">
-            想练英语？<Link href="/lesson" className="underline hover:opacity-60 transition-opacity">切换到英语飞轮</Link>
+            想练英语？
+            <Link href="/lesson" className="underline hover:opacity-60 transition-opacity">
+              切换到英语飞轮
+            </Link>
           </p>
         </motion.div>
 
@@ -132,13 +148,27 @@ export default function LearnLandingPage() {
             { icon: '↑', title: '持续进化', desc: '记住你的弱点，下节课重点攻克' },
           ].map((p) => (
             <div key={p.title} className="text-center space-y-2">
-              <div className="text-2xl" style={{ color: '#c9a84c' }}>{p.icon}</div>
-              <div className="text-xs font-semibold tracking-wide uppercase font-mono-dm" style={{ color: 'rgba(201,168,76,0.8)' }}>{p.title}</div>
-              <div className="text-xs leading-relaxed opacity-40" style={{ fontFamily: 'Manrope, sans-serif' }}>{p.desc}</div>
+              <div className="text-2xl" style={{ color: '#c9a84c' }}>
+                {p.icon}
+              </div>
+              <div
+                className="text-xs font-semibold tracking-wide uppercase font-mono-dm"
+                style={{ color: 'rgba(201,168,76,0.8)' }}
+              >
+                {p.title}
+              </div>
+              <div
+                className="text-xs leading-relaxed opacity-40"
+                style={{ fontFamily: 'Manrope, sans-serif' }}
+              >
+                {p.desc}
+              </div>
             </div>
           ))}
         </motion.div>
       </main>
+
+      <MobileNav />
     </div>
   )
 }

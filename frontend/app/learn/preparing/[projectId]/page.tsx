@@ -2,6 +2,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Header } from '@/components/Header'
+import { MobileNav } from '@/components/MobileNav'
 
 type ProjectStatus = 'onboarding' | 'researching' | 'extracting' | 'active' | 'error'
 
@@ -89,10 +91,7 @@ export default function PreparingPage() {
         color: '#f0ebe0',
       }}
     >
-      <nav className="flex items-center justify-between px-6 py-5 max-w-4xl mx-auto w-full">
-        <span className="text-xs font-mono-dm tracking-widest uppercase opacity-30">备课中</span>
-        <span className="text-xs font-mono-dm opacity-20">{project?.user_topic ?? '...'}</span>
-      </nav>
+      <Header dark />
 
       <main className="flex-1 flex flex-col lg:flex-row items-center justify-center gap-12 px-6 py-8 max-w-5xl mx-auto w-full">
         {/* Left: constellation visualization */}
@@ -306,6 +305,7 @@ export default function PreparingPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      <MobileNav />
     </div>
   )
 }
