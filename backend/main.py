@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import date, timedelta
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
@@ -407,3 +407,121 @@ async def get_vocab():
     db = get_db()
     items = db.get_all_vocab_items()
     return [item.model_dump() for item in items]
+
+
+# ─── General Learning ─────────────────────────────────────────────────────────
+
+
+class GeneralOnboardingStartRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+    tier: str = "free"
+
+
+class GeneralOnboardingMessageRequest(BaseModel):
+    project_id: int
+    message: str = Field(min_length=1, max_length=2000)
+
+
+class GeneralOnboardingConfirmRequest(BaseModel):
+    project_id: int
+    goal_profile: dict
+    learning_map: dict
+
+
+@app.post("/api/learn/onboarding/start")
+async def general_onboarding_start(req: GeneralOnboardingStartRequest):
+    from backend.database import get_db
+
+    db = get_db()
+    pid = db.create_general_project(req.topic, profile=None, tier=req.tier)
+    return {"project_id": pid}
+
+
+@app.post("/api/learn/onboarding/message")
+async def general_onboarding_message(req: GeneralOnboardingMessageRequest):
+    from backend.database import get_db
+    from backend.general.onboarding import get_onboarding_agent
+
+    db = get_db()
+    project = db.get_general_project(req.project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    agent = get_onboarding_agent(
+        app.state.checkpointer,
+        project_id=req.project_id,
+        topic=project.user_topic,
+    )
+    config = {"configurable": {"thread_id": f"general-onboarding-{req.project_id}"}}
+
+    async def stream():
+        async for event in agent.astream_events(
+            {"messages": [{"role": "user", "content": req.message}]},
+            config=config,
+            version="v2",
+        ):
+            if event["event"] == "on_chat_model_stream":
+                chunk = event["data"]["chunk"].content
+                if chunk:
+                    yield f"data: {chunk}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@app.post("/api/learn/onboarding/confirm")
+async def general_onboarding_confirm(
+    req: GeneralOnboardingConfirmRequest, background_tasks: BackgroundTasks
+):
+    from backend.database import get_db
+    from backend.models import LearningMap, UserGoalProfile
+
+    db = get_db()
+    profile = UserGoalProfile(**req.goal_profile)
+    learning_map = LearningMap(**req.learning_map)
+    db.update_general_project_status(req.project_id, "researching")
+    with db._conn() as conn:
+        conn.execute(
+            "UPDATE learning_projects SET goal_profile=?, learning_map=? WHERE id=?",
+            (profile.model_dump_json(), learning_map.model_dump_json(), req.project_id),
+        )
+    background_tasks.add_task(_run_researcher, req.project_id, profile, learning_map)
+    return {"status": "researching", "project_id": req.project_id}
+
+
+@app.get("/api/learn/projects/{project_id}")
+async def get_general_project(project_id: int):
+    from backend.database import get_db
+
+    db = get_db()
+    project = db.get_general_project(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return {
+        "status": project.status,
+        "budget_used": project.budget_used,
+        "notebook_id": project.notebook_id,
+        "user_topic": project.user_topic,
+    }
+
+
+@app.get("/api/learn/projects/{project_id}/dashboard")
+async def get_general_dashboard(project_id: int):
+    from backend.database import get_db
+
+    db = get_db()
+    return db.get_general_project_dashboard(project_id)
+
+
+async def _run_researcher(project_id: int, profile, learning_map):
+    """Background task: researcher loop + extractor."""
+    from backend.general.extractor import run_extractor
+    from backend.general.researcher import run_researcher
+
+    try:
+        await run_researcher(project_id, profile, learning_map)
+        await run_extractor(project_id)
+    except Exception as e:
+        _logger.error("researcher/extractor failed for project %d: %s", project_id, e)
+        from backend.database import get_db
+
+        get_db().update_general_project_status(project_id, "error")
