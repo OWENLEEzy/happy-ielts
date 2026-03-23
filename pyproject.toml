@@ -34,6 +34,9 @@ dev = [
     "ruff",
 ]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
@@ -57,5 +60,6 @@ disallow_untyped_defs = true
 dev = [
     "bandit>=1.9.4",
     "pre-commit>=4.5.1",
+    "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
 ]
