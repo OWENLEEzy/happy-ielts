@@ -41,7 +41,7 @@ export function Header({ streak = 0, dark }: { streak?: number; dark?: boolean }
           <span
             className={`text-lg font-black tracking-tighter font-headline hidden sm:block ${dark ? 'text-amber-300/80' : 'text-primary'}`}
           >
-            DynamicLingo
+            Happy Learning
           </span>
         </div>
 

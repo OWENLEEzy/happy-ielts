@@ -34,15 +34,28 @@ export default function HomePage() {
 async function redirectForMode(mode: AppMode, router: ReturnType<typeof useRouter>) {
   if (mode === 'english') {
     const [onb, planner] = await Promise.all([
-      fetch('/api/onboarding/status').then(r => r.json()).catch(() => ({ ready: false })),
-      fetch('/api/planner/status').then(r => r.json()).catch(() => ({ ready: false })),
+      fetch('/api/onboarding/status')
+        .then((r) => r.json())
+        .catch(() => ({ ready: false })),
+      fetch('/api/planner/status')
+        .then((r) => r.json())
+        .catch(() => ({ ready: false })),
     ])
-    if (!onb.ready) { router.replace('/onboarding'); return }
-    if (!planner.ready) { router.replace('/lesson?loading=true'); return }
+    if (!onb.ready) {
+      router.replace('/onboarding')
+      return
+    }
+    if (!planner.ready) {
+      router.replace('/lesson?loading=true')
+      return
+    }
     router.replace('/lesson')
   } else {
     const projectId = localStorage.getItem('generalProjectId')
-    if (!projectId) { router.replace('/learn/onboarding'); return }
+    if (!projectId) {
+      router.replace('/learn/onboarding')
+      return
+    }
     router.replace(`/learn/${projectId}`)
   }
 }
@@ -54,11 +67,8 @@ function ModeSelectScreen({ onChoose }: { onChoose: (m: AppMode) => void }) {
       style={{ background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 50%, #0d1118 100%)' }}
     >
       <div className="text-center space-y-2">
-        <h1
-          className="font-cormorant font-light text-5xl"
-          style={{ color: '#f0ebe0' }}
-        >
-          DynamicLingo
+        <h1 className="font-cormorant font-light text-5xl" style={{ color: '#f0ebe0' }}>
+          Happy Learning
         </h1>
         <p
           className="text-sm opacity-40"
@@ -73,7 +83,9 @@ function ModeSelectScreen({ onChoose }: { onChoose: (m: AppMode) => void }) {
           className="w-full p-6 rounded-2xl border text-left transition-all hover:scale-[1.02]"
           style={{ background: 'rgba(109,40,217,0.08)', borderColor: 'rgba(109,40,217,0.3)' }}
         >
-          <div className="text-base font-semibold mb-1" style={{ color: '#a78bfa' }}>英语飞轮</div>
+          <div className="text-base font-semibold mb-1" style={{ color: '#a78bfa' }}>
+            英语飞轮
+          </div>
           <div
             className="text-xs opacity-50"
             style={{ color: '#f0ebe0', fontFamily: 'Manrope, sans-serif' }}
@@ -86,7 +98,9 @@ function ModeSelectScreen({ onChoose }: { onChoose: (m: AppMode) => void }) {
           className="w-full p-6 rounded-2xl border text-left transition-all hover:scale-[1.02]"
           style={{ background: 'rgba(201,168,76,0.08)', borderColor: 'rgba(201,168,76,0.3)' }}
         >
-          <div className="text-base font-semibold mb-1" style={{ color: '#c9a84c' }}>通用技能学习</div>
+          <div className="text-base font-semibold mb-1" style={{ color: '#c9a84c' }}>
+            通用技能学习
+          </div>
           <div
             className="text-xs opacity-50"
             style={{ color: '#f0ebe0', fontFamily: 'Manrope, sans-serif' }}

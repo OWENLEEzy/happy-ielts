@@ -21,9 +21,9 @@ test.describe('Happy IELTS lesson flow', () => {
     expect(hasInput || hasButtons > 0).toBeTruthy()
   })
 
-  test('DynamicLingo brand appears in header', async ({ page }) => {
+  test('Happy Learning brand appears in header', async ({ page }) => {
     await page.goto('http://localhost:3000/onboarding')
-    await expect(page.locator('text=DynamicLingo')).toBeVisible()
+    await expect(page.locator('text=Happy Learning')).toBeVisible()
   })
 })
 
