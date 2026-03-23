@@ -68,6 +68,7 @@ export function useGeneralLesson(projectId: number, lessonId: number) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ project_id: projectId, lesson_id: lessonId, ...payload }),
+        signal: abortRef.current?.signal,
       })
       if (!res.body) return
       const reader = res.body.getReader()

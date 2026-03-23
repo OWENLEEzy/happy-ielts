@@ -479,11 +479,7 @@ async def general_onboarding_confirm(
     profile = UserGoalProfile(**req.goal_profile)
     learning_map = LearningMap(**req.learning_map)
     db.update_general_project_status(req.project_id, "researching")
-    with db._conn() as conn:
-        conn.execute(
-            "UPDATE learning_projects SET goal_profile=?, learning_map=? WHERE id=?",
-            (profile.model_dump_json(), learning_map.model_dump_json(), req.project_id),
-        )
+    db.update_general_project_profile_and_map(req.project_id, profile, learning_map)
     background_tasks.add_task(_run_researcher, req.project_id, profile, learning_map)
     return {"status": "researching", "project_id": req.project_id}
 
@@ -589,10 +585,26 @@ async def general_lesson_action(req: GeneralLessonActionRequest):
             stream_mode="custom",
         ):
             if event["event"] == "on_custom_event":
-                yield f"data: {_json.dumps(event['data'])}\n\n"
+                data = event["data"]
+                if data.get("type") == "done":
+                    task = asyncio.create_task(
+                        _run_reflect_background(data.get("project_id", req.project_id))
+                    )
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_tasks.discard)
+                yield f"data: {_json.dumps(data)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+async def _run_reflect_background(project_id: int) -> None:
+    from backend.general.reflect import run_reflect
+
+    try:
+        await run_reflect(project_id)
+    except Exception as e:
+        _logger.error("Reflect failed for project %d: %s", project_id, e)
 
 
 async def _run_researcher(project_id: int, profile, learning_map):

@@ -69,20 +69,28 @@ def make_save_goal_profile_tool(project_id: int):
     return save_goal_profile
 
 
-_onboarding_agents: dict[int, object] = {}
+_onboarding_agents: dict[int, tuple[object, object]] = {}
 
 
 def get_onboarding_agent(checkpointer, project_id: int, topic: str, mode: str = "skill"):
-    """Singleton per project_id."""
-    if project_id not in _onboarding_agents:
-        prompt = SKILL_ONBOARDING_PROMPT if mode == "skill" else ENGLISH_ONBOARDING_PROMPT
-        _onboarding_agents[project_id] = create_deep_agent(
-            model=get_llm(),
-            tools=[make_save_goal_profile_tool(project_id)],
-            checkpointer=checkpointer,
-            system_prompt=prompt.format(topic=topic),
-        )
-    return _onboarding_agents[project_id]
+    """Singleton per project_id. Assumes checkpointer is the app-lifetime singleton."""
+    if project_id in _onboarding_agents:
+        agent, cached_cp = _onboarding_agents[project_id]
+        if cached_cp is not checkpointer:
+            raise RuntimeError(
+                f"Onboarding agent for project {project_id} was created with a different "
+                "checkpointer. Clear _onboarding_agents before switching checkpointers."
+            )
+        return agent
+    prompt = SKILL_ONBOARDING_PROMPT if mode == "skill" else ENGLISH_ONBOARDING_PROMPT
+    agent = create_deep_agent(
+        model=get_llm(),
+        tools=[make_save_goal_profile_tool(project_id)],
+        checkpointer=checkpointer,
+        system_prompt=prompt.format(topic=topic),
+    )
+    _onboarding_agents[project_id] = (agent, checkpointer)
+    return agent
 
 
 def generate_draft_learning_map(profile: UserGoalProfile) -> LearningMap:

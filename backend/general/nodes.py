@@ -1,4 +1,3 @@
-import asyncio
 import logging
 
 from langgraph.config import get_stream_writer
@@ -85,14 +84,6 @@ def save_results(state: dict) -> dict:
         quiz_score=state.get("quiz_score", 0),
         qa_history=state.get("qa_history", []),
     )
-    asyncio.create_task(_run_reflect_background(state["project"]["id"]))
+    writer = get_stream_writer()
+    writer({"type": "done", "project_id": state["project"]["id"]})
     return {"phase": "done"}
-
-
-async def _run_reflect_background(project_id: int) -> None:
-    from backend.general.reflect import run_reflect
-
-    try:
-        await run_reflect(project_id)
-    except Exception as e:
-        _logger.error("Reflect failed: %s", e)

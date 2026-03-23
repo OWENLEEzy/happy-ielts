@@ -30,9 +30,13 @@ async def run_reflect(project_id: int) -> None:
 
     dimensions = {}
     for ch_title, scores in chapter_scores.items():
-        trend: Literal["improving", "stable", "worsening"] = (
-            "improving" if len(scores) > 1 and scores[-1] > scores[0] else "stable"
-        )
+        # sessions are returned most-recent-first (DESC), so scores[0] is newest.
+        if len(scores) > 1 and scores[0] > scores[-1]:
+            trend: Literal["improving", "stable", "worsening"] = "improving"
+        elif len(scores) > 1 and scores[0] < scores[-1]:
+            trend = "worsening"
+        else:
+            trend = "stable"
         dimensions[ch_title] = DimensionState(
             mastery=mean(scores),
             sessions=len(scores),

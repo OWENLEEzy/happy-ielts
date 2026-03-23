@@ -179,6 +179,10 @@ class DatabaseProtocol(Protocol):
         self, project_id: int, learning_map: LearningMap, budget_used: int
     ) -> None: ...
 
+    def update_general_project_profile_and_map(
+        self, project_id: int, profile: UserGoalProfile, learning_map: LearningMap
+    ) -> None: ...
+
     def upsert_general_lesson(
         self,
         project_id: int,
@@ -680,6 +684,15 @@ class Database:
                 (learning_map.model_dump_json(), budget_used, project_id),
             )
 
+    def update_general_project_profile_and_map(
+        self, project_id: int, profile: UserGoalProfile, learning_map: LearningMap
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "UPDATE learning_projects SET goal_profile = ?, learning_map = ? WHERE id = ?",
+                (profile.model_dump_json(), learning_map.model_dump_json(), project_id),
+            )
+
     def upsert_general_lesson(
         self,
         project_id: int,
@@ -814,12 +827,24 @@ class Database:
                 )
                 chapters[lesson.chapter] = {"title": title, "lessons": []}
             chapters[lesson.chapter]["lessons"].append(lesson.model_dump())
+
+        goal_progress = 0.0
+        dimensions: dict = {}
+        with self._conn() as conn:
+            row = conn.execute(
+                "SELECT goal_progress, dimensions FROM general_student_models WHERE project_id = ?",
+                (project_id,),
+            ).fetchone()
+        if row:
+            goal_progress = row["goal_progress"]
+            dimensions = json.loads(row["dimensions"]) if row["dimensions"] else {}
+
         return {
             "id": project.id,
             "user_topic": project.user_topic,
             "goal_outcome": project.goal_profile.goal_outcome if project.goal_profile else "",
-            "goal_progress": 0.0,
-            "dimensions": {},
+            "goal_progress": goal_progress,
+            "dimensions": dimensions,
             "chapters": list(chapters.values()),
             "tier": project.tier,
             "budget_used": project.budget_used,
