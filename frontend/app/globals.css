@@ -98,8 +98,8 @@
     --on-error:                 #fff8f8;
 
     /* Font family CSS variables */
-    --dl-font-headline: 'Plus Jakarta Sans', sans-serif;
-    --dl-font-body:     'Manrope', sans-serif;
+    --dl-font-headline: var(--font-plus-jakarta-sans), sans-serif;
+    --dl-font-body:     var(--font-manrope), sans-serif;
 
     /* shadcn compatibility */
     --foreground:         var(--on-surface);
