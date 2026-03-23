@@ -512,6 +512,89 @@ async def get_general_dashboard(project_id: int):
     return db.get_general_project_dashboard(project_id)
 
 
+class GeneralLessonStartRequest(BaseModel):
+    project_id: int
+    lesson_id: int
+
+
+class GeneralLessonActionRequest(BaseModel):
+    project_id: int
+    lesson_id: int
+    type: str = Field(min_length=1, max_length=50)
+    answer: str | None = None
+    answers: list[str] | None = None
+    question: str | None = None
+
+
+@app.post("/api/learn/lesson/start")
+async def general_lesson_start(req: GeneralLessonStartRequest):
+    import json as _json
+
+    from backend.database import get_db
+    from backend.general.graph import get_general_lesson_graph
+
+    db = get_db()
+    project = db.get_general_project(req.project_id)
+    lessons = db.get_project_lessons(req.project_id)
+    lesson = next((ls for ls in lessons if ls.id == req.lesson_id), None)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+
+    graph = get_general_lesson_graph(app.state.checkpointer)
+    thread_id = f"general-{req.project_id}-{req.lesson_id}"
+    config = {"configurable": {"thread_id": thread_id}}
+
+    project_dict = project.model_dump() if project else {}
+
+    async def stream():
+        async for event in graph.astream_events(
+            {"project": project_dict, "lesson": lesson, "phase": "start", "messages": []},
+            config=config,
+            version="v2",
+            stream_mode="custom",
+        ):
+            if event["event"] == "on_custom_event":
+                yield f"data: {_json.dumps(event['data'])}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
+@app.post("/api/learn/lesson/action")
+async def general_lesson_action(req: GeneralLessonActionRequest):
+    import json as _json
+
+    from langchain_core.runnables import RunnableConfig
+    from langgraph.types import Command
+
+    from backend.general.graph import get_general_lesson_graph
+
+    graph = get_general_lesson_graph(app.state.checkpointer)
+    thread_id = f"general-{req.project_id}-{req.lesson_id}"
+    config = RunnableConfig(configurable={"thread_id": thread_id})
+
+    action_payload: dict = {"type": req.type}
+    if req.answer:
+        action_payload["answer"] = req.answer
+    if req.answers:
+        action_payload["answers"] = req.answers
+    if req.question:
+        action_payload["question"] = req.question
+
+    async def stream():
+        async for event in graph.astream_events(
+            Command(resume=action_payload),
+            config=config,
+            version="v2",
+            stream_mode="custom",
+        ):
+            if event["event"] == "on_custom_event":
+                yield f"data: {_json.dumps(event['data'])}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
+
+
 async def _run_researcher(project_id: int, profile, learning_map):
     """Background task: researcher loop + extractor."""
     from backend.general.extractor import run_extractor
