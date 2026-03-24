@@ -6,36 +6,10 @@ import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { GL } from '@/lib/learn-theme'
 import { client } from '@/lib/client'
+import type { components } from '@/types/api'
 
-interface Lesson {
-  id: number
-  chapter: number
-  lesson: number
-  title: string
-  status: 'pending' | 'ready'
-}
-
-interface Chapter {
-  title: string
-  lessons: Lesson[]
-}
-
-interface StudentDimension {
-  mastery: number
-  sessions: number
-  trend: 'improving' | 'stable' | 'worsening'
-}
-
-interface Project {
-  id: number
-  user_topic: string
-  goal_outcome: string
-  goal_progress: number
-  dimensions: Record<string, StudentDimension>
-  chapters: Chapter[]
-  tier: 'free' | 'paid'
-  budget_used: number
-}
+type Project = components['schemas']['ProjectDashboardResponse']
+type DimensionState = components['schemas']['DimensionState']
 
 function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
   const r = (size - 8) / 2
@@ -90,10 +64,9 @@ export default function ProjectDashboard() {
       })
       .then(({ data }) => {
         if (!data) return
-        const project = data as Project
-        setProject(project)
+        setProject(data)
         // Find first ready lesson to highlight
-        for (const ch of project.chapters) {
+        for (const ch of data.chapters) {
           const first = ch.lessons.find((l) => l.status === 'ready')
           if (first) {
             setNewlyUnlocked(first.id)

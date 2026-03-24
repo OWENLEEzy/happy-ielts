@@ -12,7 +12,16 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from backend.models import WritingMode
+from backend.models import (
+    GeneralOnboardingStartResponse,
+    GeneralProject,
+    LearningMap,
+    PlannerStatusResponse,
+    ProjectDashboardResponse,
+    ReadyStatusResponse,
+    UserGoalProfile,
+    WritingMode,
+)
 
 load_dotenv()
 
@@ -143,7 +152,7 @@ async def run_planner():
     return {"status": "started", "date": today}
 
 
-@app.get("/api/planner/status")
+@app.get("/api/planner/status", response_model=PlannerStatusResponse)
 async def planner_status():
     from backend.database import get_db
 
@@ -212,7 +221,7 @@ async def onboarding_message(body: OnboardingMessageRequest):
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-@app.get("/api/onboarding/status")
+@app.get("/api/onboarding/status", response_model=ReadyStatusResponse)
 async def onboarding_status():
     from backend.database import get_db
 
@@ -438,11 +447,11 @@ class GeneralOnboardingMessageRequest(BaseModel):
 
 class GeneralOnboardingConfirmRequest(BaseModel):
     project_id: int
-    goal_profile: dict
-    learning_map: dict
+    goal_profile: UserGoalProfile
+    learning_map: LearningMap
 
 
-@app.post("/api/learn/onboarding/start")
+@app.post("/api/learn/onboarding/start", response_model=GeneralOnboardingStartResponse)
 async def general_onboarding_start(req: GeneralOnboardingStartRequest):
     from backend.database import get_db
 
@@ -491,18 +500,17 @@ async def general_onboarding_confirm(
     req: GeneralOnboardingConfirmRequest, background_tasks: BackgroundTasks
 ):
     from backend.database import get_db
-    from backend.models import LearningMap, UserGoalProfile
 
     db = get_db()
-    profile = UserGoalProfile(**req.goal_profile)
-    learning_map = LearningMap(**req.learning_map)
+    profile = req.goal_profile
+    learning_map = req.learning_map
     db.update_general_project_status(req.project_id, "researching")
     db.update_general_project_profile_and_map(req.project_id, profile, learning_map)
     background_tasks.add_task(_run_researcher, req.project_id, profile, learning_map)
     return {"status": "researching", "project_id": req.project_id}
 
 
-@app.get("/api/learn/projects/{project_id}")
+@app.get("/api/learn/projects/{project_id}", response_model=GeneralProject)
 async def get_general_project(project_id: int):
     from backend.database import get_db
 
@@ -510,20 +518,18 @@ async def get_general_project(project_id: int):
     project = db.get_general_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return {
-        "status": project.status,
-        "budget_used": project.budget_used,
-        "notebook_id": project.notebook_id,
-        "user_topic": project.user_topic,
-    }
+    return project
 
 
-@app.get("/api/learn/projects/{project_id}/dashboard")
+@app.get("/api/learn/projects/{project_id}/dashboard", response_model=ProjectDashboardResponse)
 async def get_general_dashboard(project_id: int):
     from backend.database import get_db
 
     db = get_db()
-    return db.get_general_project_dashboard(project_id)
+    data = db.get_general_project_dashboard(project_id)
+    if not data:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return data
 
 
 class GeneralLessonStartRequest(BaseModel):

@@ -32,11 +32,11 @@ async function redirectForMode(mode: AppMode, router: ReturnType<typeof useRoute
     const [onb, planner] = await Promise.all([
       client
         .GET('/api/onboarding/status')
-        .then(({ data }) => (data as { ready: boolean } | undefined) ?? { ready: false })
+        .then(({ data }) => data ?? { ready: false })
         .catch(() => ({ ready: false })),
       client
         .GET('/api/planner/status')
-        .then(({ data }) => (data as { ready: boolean } | undefined) ?? { ready: false })
+        .then(({ data }) => data ?? { ready: false })
         .catch(() => ({ ready: false })),
     ])
     if (!onb.ready) {

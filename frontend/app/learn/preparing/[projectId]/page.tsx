@@ -6,18 +6,12 @@ import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { GL } from '@/lib/learn-theme'
 import { client } from '@/lib/client'
+import type { components } from '@/types/api'
 
-type ProjectStatus = 'onboarding' | 'researching' | 'extracting' | 'active' | 'error'
+type GeneralProject = components['schemas']['GeneralProject']
+type ProjectStatus = GeneralProject['status']
 
-interface Project {
-  id: number
-  user_topic: string
-  status: ProjectStatus
-  budget_used: number
-  tier: 'free' | 'paid'
-}
-
-const PHASES: { key: ProjectStatus; label: string; detail: (p: Project) => string }[] = [
+const PHASES: { key: ProjectStatus; label: string; detail: (p: GeneralProject) => string }[] = [
   { key: 'onboarding', label: '了解你的学习目标', detail: () => '访谈完成' },
   { key: 'researching', label: '深度研究中', detail: (p) => `已发现 ${p.budget_used} 个来源` },
   { key: 'extracting', label: '提取知识、生成课程', detail: () => '构建专属学习地图' },
@@ -41,7 +35,7 @@ const EDGES = NODES.slice(0, 24).map((n, i) => ({
 export default function PreparingPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const router = useRouter()
-  const [project, setProject] = useState<Project | null>(null)
+  const [project, setProject] = useState<GeneralProject | null>(null)
   const [litNodes, setLitNodes] = useState<Set<number>>(new Set())
   const [unlocked, setUnlocked] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -71,9 +65,9 @@ export default function PreparingPage() {
           params: { path: { project_id: Number(projectId) } },
         })
         if (!response.ok) return
-        const project = data as Project
-        setProject(project)
-        if (project.status === 'active' && !unlocked) {
+        if (!data) return
+        setProject(data)
+        if (data.status === 'active' && !unlocked) {
           setUnlocked(true)
           setTimeout(() => router.push(`/learn/${projectId}`), 2800)
         }

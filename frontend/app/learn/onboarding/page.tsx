@@ -8,6 +8,9 @@ import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { GL, glBtn, glBtnDisabled } from '@/lib/learn-theme'
 
+type StartReq = components['schemas']['GeneralOnboardingStartRequest']
+type ConfirmReq = components['schemas']['GeneralOnboardingConfirmRequest']
+
 interface Message {
   id: number
   role: 'user' | 'assistant'
@@ -15,8 +18,8 @@ interface Message {
 }
 
 interface LearningMapPreview {
-  goal_profile: Record<string, unknown>
-  learning_map: Record<string, unknown>
+  goal_profile: components['schemas']['UserGoalProfile']
+  learning_map: components['schemas']['LearningMap-Output']
 }
 
 export default function GeneralOnboardingPage() {
@@ -44,11 +47,10 @@ export default function GeneralOnboardingPage() {
 
   const startOnboarding = async () => {
     if (!topic.trim()) return
-    type StartReq = components['schemas']['GeneralOnboardingStartRequest']
     const body: StartReq = { topic: topic.trim(), tier: 'free' }
     const { data, response } = await client.POST('/api/learn/onboarding/start', { body })
     if (!response.ok) return
-    setProjectId((data as { project_id: number }).project_id)
+    setProjectId(data?.project_id ?? null)
     setStarted(true)
     setMessages([
       mkMsg(
@@ -87,12 +89,8 @@ export default function GeneralOnboardingPage() {
       const { data: proj } = await client.GET('/api/learn/projects/{project_id}', {
         params: { path: { project_id: projectId } },
       })
-      if (
-        proj &&
-        (proj as Record<string, unknown>).goal_profile &&
-        (proj as Record<string, unknown>).learning_map
-      ) {
-        setPreview(proj as LearningMapPreview)
+      if (proj?.goal_profile && proj.learning_map) {
+        setPreview({ goal_profile: proj.goal_profile, learning_map: proj.learning_map })
       }
     } catch {
       // aborted or error
@@ -111,7 +109,6 @@ export default function GeneralOnboardingPage() {
   const confirmPlan = async () => {
     if (!projectId || !preview) return
     setConfirming(true)
-    type ConfirmReq = components['schemas']['GeneralOnboardingConfirmRequest']
     const confirmBody: ConfirmReq = {
       project_id: projectId,
       goal_profile: preview.goal_profile,

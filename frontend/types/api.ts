@@ -338,6 +338,31 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ChapterItem */
+        ChapterItem: {
+            /** Title */
+            title: string;
+            /** Lessons */
+            lessons: components["schemas"]["LessonStatusItem"][];
+        };
+        /** DimensionState */
+        DimensionState: {
+            /** Mastery */
+            mastery: number;
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+            /** Last Reviewed */
+            last_reviewed: string;
+            /**
+             * Trend
+             * @default stable
+             * @enum {string}
+             */
+            trend: "improving" | "stable" | "worsening";
+        };
         /** GeneralLessonActionRequest */
         GeneralLessonActionRequest: {
             /** Project Id */
@@ -364,14 +389,8 @@ export interface components {
         GeneralOnboardingConfirmRequest: {
             /** Project Id */
             project_id: number;
-            /** Goal Profile */
-            goal_profile: {
-                [key: string]: unknown;
-            };
-            /** Learning Map */
-            learning_map: {
-                [key: string]: unknown;
-            };
+            goal_profile: components["schemas"]["UserGoalProfile"];
+            learning_map: components["schemas"]["LearningMap-Input"];
         };
         /** GeneralOnboardingMessageRequest */
         GeneralOnboardingMessageRequest: {
@@ -390,10 +409,79 @@ export interface components {
              */
             tier: string;
         };
+        /** GeneralOnboardingStartResponse */
+        GeneralOnboardingStartResponse: {
+            /** Project Id */
+            project_id: number;
+        };
+        /** GeneralProject */
+        GeneralProject: {
+            /** Id */
+            id: number;
+            /** User Topic */
+            user_topic: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "onboarding" | "researching" | "extracting" | "active" | "complete" | "error";
+            goal_profile?: components["schemas"]["UserGoalProfile"] | null;
+            learning_map?: components["schemas"]["LearningMap-Output"] | null;
+            /** Notebook Id */
+            notebook_id?: string | null;
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /**
+             * Budget Used
+             * @default 0
+             */
+            budget_used: number;
+            /** Created At */
+            created_at: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LearningChapter */
+        LearningChapter: {
+            /** Title */
+            title: string;
+            /** Lessons */
+            lessons: components["schemas"]["LearningLesson"][];
+        };
+        /** LearningLesson */
+        LearningLesson: {
+            /** Title */
+            title: string;
+            /**
+             * Objectives
+             * @default []
+             */
+            objectives: string[];
+        };
+        /** LearningMap */
+        "LearningMap-Input": {
+            /** Topic */
+            topic: string;
+            /** Total Weeks */
+            total_weeks: number;
+            /** Chapters */
+            chapters: components["schemas"]["LearningChapter"][];
+        };
+        /** LearningMap */
+        "LearningMap-Output": {
+            /** Topic */
+            topic: string;
+            /** Total Weeks */
+            total_weeks: number;
+            /** Chapters */
+            chapters: components["schemas"]["LearningChapter"][];
         };
         /** LessonActionRequest */
         LessonActionRequest: {
@@ -412,6 +500,23 @@ export interface components {
             /** Response Seconds */
             response_seconds?: number | null;
         };
+        /** LessonStatusItem */
+        LessonStatusItem: {
+            /** Id */
+            id: number;
+            /** Chapter */
+            chapter: number;
+            /** Lesson */
+            lesson: number;
+            /** Title */
+            title: string;
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "ready";
+        };
         /** OnboardingMessageRequest */
         OnboardingMessageRequest: {
             /** Message */
@@ -421,6 +526,51 @@ export interface components {
              * @default onboarding
              */
             thread_id: string;
+        };
+        /** PlannerStatusResponse */
+        PlannerStatusResponse: {
+            /** Ready */
+            ready: boolean;
+            /** Ready For Tomorrow */
+            ready_for_tomorrow: boolean;
+            /** Status */
+            status: string;
+            /** Error */
+            error?: string | null;
+            /** Status Tomorrow */
+            status_tomorrow: string;
+            /** Error Tomorrow */
+            error_tomorrow?: string | null;
+        };
+        /** ProjectDashboardResponse */
+        ProjectDashboardResponse: {
+            /** Id */
+            id: number;
+            /** User Topic */
+            user_topic: string;
+            /** Goal Outcome */
+            goal_outcome: string;
+            /** Goal Progress */
+            goal_progress: number;
+            /** Dimensions */
+            dimensions: {
+                [key: string]: components["schemas"]["DimensionState"];
+            };
+            /** Chapters */
+            chapters: components["schemas"]["ChapterItem"][];
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Budget Used */
+            budget_used: number;
+        };
+        /** ReadyStatusResponse */
+        ReadyStatusResponse: {
+            /** Ready */
+            ready: boolean;
         };
         /** SavePreferencesRequest */
         SavePreferencesRequest: {
@@ -440,6 +590,33 @@ export interface components {
         UpdateProfileRequest: {
             /** Interests Update */
             interests_update: string;
+        };
+        /** UserGoalProfile */
+        UserGoalProfile: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "english" | "skill";
+            /** Topic */
+            topic: string;
+            /** Motivation */
+            motivation: string;
+            /** Goal Outcome */
+            goal_outcome: string;
+            /** Context */
+            context: string;
+            /** Current Level */
+            current_level: string;
+            /** Time Per Week */
+            time_per_week: number;
+            /** Duration Weeks */
+            duration_weeks: number;
+            /**
+             * Constraints
+             * @default []
+             */
+            constraints: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -518,7 +695,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["PlannerStatusResponse"];
                 };
             };
         };
@@ -591,7 +768,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ReadyStatusResponse"];
                 };
             };
         };
@@ -794,7 +971,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["GeneralOnboardingStartResponse"];
                 };
             };
             /** @description Validation Error */
@@ -891,7 +1068,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["GeneralProject"];
                 };
             };
             /** @description Validation Error */
@@ -922,7 +1099,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ProjectDashboardResponse"];
                 };
             };
             /** @description Validation Error */

@@ -197,3 +197,47 @@ class GeneralStudentModel(BaseModel):
     dimensions: dict[str, DimensionState] = {}
     fsrs_due: list[str] = []
     updated: str
+
+
+# ── API response schemas ───────────────────────────────────
+
+
+class ReadyStatusResponse(BaseModel):
+    ready: bool
+
+
+class PlannerStatusResponse(BaseModel):
+    ready: bool
+    ready_for_tomorrow: bool
+    status: str
+    error: str | None = None
+    status_tomorrow: str
+    error_tomorrow: str | None = None
+
+
+class GeneralOnboardingStartResponse(BaseModel):
+    project_id: int
+
+
+class LessonStatusItem(BaseModel):
+    id: int
+    chapter: int
+    lesson: int
+    title: str
+    status: Literal["pending", "ready"] = "pending"
+
+
+class ChapterItem(BaseModel):
+    title: str
+    lessons: list[LessonStatusItem]
+
+
+class ProjectDashboardResponse(BaseModel):
+    id: int
+    user_topic: str
+    goal_outcome: str
+    goal_progress: float
+    dimensions: dict[str, DimensionState]
+    chapters: list[ChapterItem]
+    tier: Literal["free", "paid"] = "free"
+    budget_used: int
