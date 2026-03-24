@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
+import { GL } from '@/lib/learn-theme'
 
 interface Lesson {
   id: number
@@ -54,7 +55,7 @@ function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="#c9a84c"
+        stroke={GL.amber}
         strokeWidth={3}
         strokeDasharray={`${dash} ${circ}`}
         strokeLinecap="round"
@@ -67,7 +68,7 @@ function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
         textAnchor="middle"
         fontSize={size < 40 ? 9 : 11}
         fontFamily="DM Mono, monospace"
-        fill="#c9a84c"
+        fill={GL.amber}
       >
         {Math.round(value * 100)}%
       </text>
@@ -102,7 +103,7 @@ export default function ProjectDashboard() {
     return (
       <div
         className="min-h-screen flex items-center justify-center"
-        style={{ background: '#0f0d1a', color: '#f0ebe0' }}
+        style={{ background: GL.bg, color: GL.fg }}
       >
         <motion.div
           animate={{ opacity: [0.3, 1, 0.3] }}
@@ -120,8 +121,8 @@ export default function ProjectDashboard() {
     <div
       className="min-h-screen"
       style={{
-        background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 60%, #0d1118 100%)',
-        color: '#f0ebe0',
+        background: GL.bg,
+        color: GL.fg,
       }}
     >
       <Header dark />
@@ -271,7 +272,7 @@ export default function ProjectDashboard() {
                             className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-500"
                             style={{
                               background: isNew
-                                ? '#c9a84c'
+                                ? GL.amber
                                 : isReady
                                   ? 'rgba(201,168,76,0.5)'
                                   : 'rgba(240,235,224,0.12)',
@@ -285,7 +286,7 @@ export default function ProjectDashboard() {
                             style={{
                               fontFamily: 'Manrope, sans-serif',
                               fontWeight: isReady ? 500 : 400,
-                              color: isReady ? '#f0ebe0' : 'rgba(240,235,224,0.3)',
+                              color: isReady ? GL.fg : 'rgba(240,235,224,0.3)',
                             }}
                           >
                             {lesson.title}
@@ -298,7 +299,7 @@ export default function ProjectDashboard() {
                               animate={{ scale: 1 }}
                               transition={{ type: 'spring', stiffness: 300, delay: 0.3 }}
                               className="text-xs px-2.5 py-1 rounded-full font-mono-dm"
-                              style={{ background: 'rgba(201,168,76,0.2)', color: '#c9a84c' }}
+                              style={{ background: 'rgba(201,168,76,0.2)', color: GL.amber }}
                             >
                               新解锁
                             </motion.span>

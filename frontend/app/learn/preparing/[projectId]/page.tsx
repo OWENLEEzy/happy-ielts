@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
+import { GL } from '@/lib/learn-theme'
 
 type ProjectStatus = 'onboarding' | 'researching' | 'extracting' | 'active' | 'error'
 
@@ -87,8 +88,8 @@ export default function PreparingPage() {
     <div
       className="min-h-screen flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 60%, #0d1118 100%)',
-        color: '#f0ebe0',
+        background: GL.bg,
+        color: GL.fg,
       }}
     >
       <Header dark />
@@ -156,11 +157,11 @@ export default function PreparingPage() {
           <div>
             <h1
               className="font-cormorant font-light leading-tight"
-              style={{ fontSize: '2.6rem', color: '#f0ebe0' }}
+              style={{ fontSize: '2.6rem', color: GL.fg }}
             >
               老师正在
               <br />
-              <em style={{ color: '#c9a84c' }}>备课中</em>
+              <em style={{ color: GL.amber }}>备课中</em>
             </h1>
             <p className="mt-2 text-sm opacity-50" style={{ fontFamily: 'Manrope, sans-serif' }}>
               为你定制专属学习路径，通常需要 15–30 分钟
@@ -291,7 +292,7 @@ export default function PreparingPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4 }}
               >
-                <h2 className="font-cormorant font-light text-4xl" style={{ color: '#c9a84c' }}>
+                <h2 className="font-cormorant font-light text-4xl" style={{ color: GL.amber }}>
                   第一节课已解锁
                 </h2>
                 <p

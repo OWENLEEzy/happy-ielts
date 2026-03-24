@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
+import { GL, glBtn } from '@/lib/learn-theme'
 
 const TOPICS = ['吉他', '投资入门', '摄影构图', '烹饪', '心理学', '编程', '历史', '写作']
 
@@ -14,8 +15,8 @@ export default function LearnLandingPage() {
     <div
       className="min-h-screen flex flex-col"
       style={{
-        background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 50%, #0d1118 100%)',
-        color: '#f0ebe0',
+        background: GL.bg,
+        color: GL.fg,
       }}
     >
       <Header dark />
@@ -42,13 +43,13 @@ export default function LearnLandingPage() {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-xs font-mono-dm tracking-widest uppercase"
             style={{
               borderColor: 'rgba(201,168,76,0.3)',
-              color: '#c9a84c',
+              color: GL.amber,
               background: 'rgba(201,168,76,0.06)',
             }}
           >
             <span
               className="w-1.5 h-1.5 rounded-full animate-pulse"
-              style={{ background: '#c9a84c' }}
+              style={{ background: GL.amber }}
             />
             AI 备课系统
           </div>
@@ -56,11 +57,11 @@ export default function LearnLandingPage() {
           {/* Main headline */}
           <h1
             className="font-cormorant font-light leading-none tracking-tight"
-            style={{ fontSize: 'clamp(3.5rem, 9vw, 7rem)', color: '#f0ebe0' }}
+            style={{ fontSize: 'clamp(3.5rem, 9vw, 7rem)', color: GL.fg }}
           >
             掌握任何
             <br />
-            <em style={{ color: '#c9a84c', fontStyle: 'italic' }}>你想学的</em>
+            <em style={{ color: GL.amber, fontStyle: 'italic' }}>你想学的</em>
           </h1>
 
           {/* Subtext */}
@@ -78,11 +79,8 @@ export default function LearnLandingPage() {
             whileTap={{ scale: 0.98 }}
             className="inline-flex items-center gap-3 px-8 py-4 rounded-full font-medium text-sm tracking-wide transition-all"
             style={{
-              background: 'linear-gradient(135deg, #c9a84c 0%, #e8c96a 50%, #c9a84c 100%)',
-              color: '#0f0d1a',
+              ...glBtn,
               boxShadow: '0 0 40px rgba(201,168,76,0.3), 0 4px 20px rgba(0,0,0,0.4)',
-              fontFamily: 'Manrope, sans-serif',
-              fontWeight: 600,
             }}
           >
             开始学习
@@ -114,9 +112,9 @@ export default function LearnLandingPage() {
                 transition={{ delay: 0.6 + i * 0.06, duration: 0.4 }}
                 className="px-4 py-2 rounded-full text-sm border cursor-default select-none"
                 style={{
-                  borderColor: 'rgba(201,168,76,0.15)',
+                  borderColor: GL.cardBorder,
                   color: 'rgba(240,235,224,0.45)',
-                  background: 'rgba(201,168,76,0.04)',
+                  background: GL.amberFaint,
                   fontFamily: 'Manrope, sans-serif',
                 }}
               >
@@ -148,7 +146,7 @@ export default function LearnLandingPage() {
             { icon: '↑', title: '持续进化', desc: '记住你的弱点，下节课重点攻克' },
           ].map((p) => (
             <div key={p.title} className="text-center space-y-2">
-              <div className="text-2xl" style={{ color: '#c9a84c' }}>
+              <div className="text-2xl" style={{ color: GL.amber }}>
                 {p.icon}
               </div>
               <div

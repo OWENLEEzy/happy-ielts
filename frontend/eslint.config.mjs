@@ -12,8 +12,14 @@ const eslintConfig = defineConfig([
       "no-console": ["warn", { allow: ["warn", "error"] }],
       // Catch missing deps in hooks early
       "react-hooks/exhaustive-deps": "error",
-      // Discourage any-casting
-      "@typescript-eslint/no-explicit-any": "warn",
+      // Upgrade any-casting from warn → error
+      "@typescript-eslint/no-explicit-any": "error",
+
+      // Enforce import type for type-only imports
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
+
+      // Catch array index used as React key
+      "react/no-array-index-key": "warn",
       // No unused vars (underscore prefix exempted)
       "@typescript-eslint/no-unused-vars": [
         "error",
