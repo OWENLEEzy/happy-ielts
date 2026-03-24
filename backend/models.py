@@ -15,15 +15,25 @@ class UserProfile(BaseModel):
 
 
 class ArticleCreate(BaseModel):
-    date: str
-    source_url: str
-    original_title: str
-    full_text: str = Field(min_length=100)
-    highlight_indices: list[int] = Field(min_length=3, max_length=5)
+    date: str = Field(description="ISO date string (YYYY-MM-DD) for the lesson date")
+    source_url: str = Field(description="Full URL of the scraped article")
+    original_title: str = Field(description="Title of the article as it appears on the page")
+    full_text: str = Field(
+        min_length=100, description="Full article body text returned by scrape_article"
+    )
+    highlight_indices: list[int] = Field(
+        min_length=3,
+        max_length=5,
+        description="0-based paragraph indices returned by highlight_key_paragraphs",
+    )
     article_logic: Literal[
         "compare", "cause_effect", "argumentation", "narrative", "problem_solution"
-    ]
-    topic_tags: list[str] = Field(min_length=1, max_length=5)
+    ] = Field(description="Logical structure type returned by highlight_key_paragraphs")
+    topic_tags: list[str] = Field(
+        min_length=1,
+        max_length=5,
+        description="1-5 topic keywords extracted from the article relevant to user's interests",
+    )
 
 
 class Article(ArticleCreate):
@@ -31,10 +41,19 @@ class Article(ArticleCreate):
 
 
 class WritingTaskCreate(BaseModel):
-    article_id: int
-    mode: WritingMode
-    instruction: str = Field(min_length=50)
-    min_words: int = Field(ge=50, le=250)
+    article_id: int = Field(
+        description="Set to 0 as placeholder; save_daily_lesson assigns the real ID"
+    )
+    mode: WritingMode = Field(
+        description="Writing mode matching the user's profile: professional / ielts_task1 / ielts_task2"  # noqa: E501
+    )
+    instruction: str = Field(
+        min_length=50,
+        description="Full writing task description referencing article topics (min 50 chars)",
+    )
+    min_words: int = Field(
+        ge=50, le=250, description="Minimum word count: 50 for professional, 150 for IELTS modes"
+    )
 
 
 class WritingTask(WritingTaskCreate):

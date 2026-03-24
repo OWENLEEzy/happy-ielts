@@ -192,15 +192,21 @@ async def onboarding_message(body: OnboardingMessageRequest):
     agent = create_onboarding_agent(app.state.checkpointer)
 
     async def generate():
-        async for chunk in agent.astream(  # type: ignore[attr-defined]
-            {"messages": [{"role": "user", "content": body.message}]},
-            config=ONBOARDING_CONFIG,
-            stream_mode="messages",
-        ):
-            token, _ = chunk
-            if hasattr(token, "content") and token.content:
-                content = token.content if isinstance(token.content, str) else str(token.content)
-                yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+        try:
+            async for chunk in agent.astream(  # type: ignore[attr-defined]
+                {"messages": [{"role": "user", "content": body.message}]},
+                config=ONBOARDING_CONFIG,
+                stream_mode="messages",
+            ):
+                token, _ = chunk
+                if hasattr(token, "content") and token.content:
+                    content = (
+                        token.content if isinstance(token.content, str) else str(token.content)
+                    )
+                    yield f"data: {json.dumps({'type': 'token', 'content': content})}\n\n"
+        except Exception as exc:
+            _logger.error("onboarding stream error: %s", exc)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -258,12 +264,16 @@ async def lesson_action(action: LessonActionRequest):
     config: RunnableConfig = {"configurable": {"thread_id": date.today().isoformat()}}
 
     async def generate():
-        async for chunk in graph.astream(
-            Command(resume=action.model_dump(exclude_none=False)),
-            config=config,
-            stream_mode="custom",
-        ):
-            yield f"data: {json.dumps(chunk)}\n\n"
+        try:
+            async for chunk in graph.astream(
+                Command(resume=action.model_dump(exclude_none=False)),
+                config=config,
+                stream_mode="custom",
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+        except Exception as exc:
+            _logger.error("lesson action stream error: %s", exc)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
         yield "data: [DONE]\n\n"
 
         # After stream: check if graph is done and trigger orchestrator.
@@ -331,23 +341,27 @@ async def start_lesson():
         )
 
     async def generate():
-        async for chunk in graph.astream(
-            {
-                "user_profile": None,
-                "today_article": None,
-                "today_task": None,
-                "review_queue": [],
-                "review_index": 0,
-                "user_writing": None,
-                "writing_feedback": None,
-                "messages": [],
-                "phases_completed": [],
-                "vocab_correct": 0,
-            },
-            config=config,
-            stream_mode="custom",
-        ):
-            yield f"data: {json.dumps(chunk)}\n\n"
+        try:
+            async for chunk in graph.astream(
+                {
+                    "user_profile": None,
+                    "today_article": None,
+                    "today_task": None,
+                    "review_queue": [],
+                    "review_index": 0,
+                    "user_writing": None,
+                    "writing_feedback": None,
+                    "messages": [],
+                    "phases_completed": [],
+                    "vocab_correct": 0,
+                },
+                config=config,
+                stream_mode="custom",
+            ):
+                yield f"data: {json.dumps(chunk)}\n\n"
+        except Exception as exc:
+            _logger.error("lesson start stream error: %s", exc)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(generate(), media_type="text/event-stream")
@@ -454,15 +468,19 @@ async def general_onboarding_message(req: GeneralOnboardingMessageRequest):
     config = {"configurable": {"thread_id": f"general-onboarding-{req.project_id}"}}
 
     async def stream():
-        async for event in agent.astream_events(
-            {"messages": [{"role": "user", "content": req.message}]},
-            config=config,
-            version="v2",
-        ):
-            if event["event"] == "on_chat_model_stream":
-                chunk = event["data"]["chunk"].content
-                if chunk:
-                    yield f"data: {chunk}\n\n"
+        try:
+            async for event in agent.astream_events(
+                {"messages": [{"role": "user", "content": req.message}]},
+                config=config,
+                version="v2",
+            ):
+                if event["event"] == "on_chat_model_stream":
+                    chunk = event["data"]["chunk"].content
+                    if chunk:
+                        yield f"data: {chunk}\n\n"
+        except Exception as exc:
+            _logger.error("general onboarding stream error: %s", exc)
+            yield f"data: {json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
@@ -543,14 +561,18 @@ async def general_lesson_start(req: GeneralLessonStartRequest):
     project_dict = project.model_dump() if project else {}
 
     async def stream():
-        async for event in graph.astream_events(
-            {"project": project_dict, "lesson": lesson, "phase": "start", "messages": []},
-            config=config,
-            version="v2",
-            stream_mode="custom",
-        ):
-            if event["event"] == "on_custom_event":
-                yield f"data: {_json.dumps(event['data'])}\n\n"
+        try:
+            async for event in graph.astream_events(
+                {"project": project_dict, "lesson": lesson, "phase": "start", "messages": []},
+                config=config,
+                version="v2",
+                stream_mode="custom",
+            ):
+                if event["event"] == "on_custom_event":
+                    yield f"data: {_json.dumps(event['data'])}\n\n"
+        except Exception as exc:
+            _logger.error("general lesson start stream error: %s", exc)
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
@@ -578,21 +600,25 @@ async def general_lesson_action(req: GeneralLessonActionRequest):
         action_payload["question"] = req.question
 
     async def stream():
-        async for event in graph.astream_events(
-            Command(resume=action_payload),
-            config=config,
-            version="v2",
-            stream_mode="custom",
-        ):
-            if event["event"] == "on_custom_event":
-                data = event["data"]
-                if data.get("type") == "done":
-                    task = asyncio.create_task(
-                        _run_reflect_background(data.get("project_id", req.project_id))
-                    )
-                    _background_tasks.add(task)
-                    task.add_done_callback(_background_tasks.discard)
-                yield f"data: {_json.dumps(data)}\n\n"
+        try:
+            async for event in graph.astream_events(
+                Command(resume=action_payload),
+                config=config,
+                version="v2",
+                stream_mode="custom",
+            ):
+                if event["event"] == "on_custom_event":
+                    data = event["data"]
+                    if isinstance(data, dict) and data.get("type") == "done":
+                        task = asyncio.create_task(
+                            _run_reflect_background(data.get("project_id", req.project_id))
+                        )
+                        _background_tasks.add(task)
+                        task.add_done_callback(_background_tasks.discard)
+                    yield f"data: {_json.dumps(data)}\n\n"
+        except Exception as exc:
+            _logger.error("general lesson action stream error: %s", exc)
+            yield f"data: {_json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")

@@ -50,38 +50,43 @@ def make_save_goal_profile_tool(project_id: int):
         duration_weeks: int,
         constraints: list[str],
     ) -> str:
-        """Save the user's learning goal profile to the database after the interview."""
+        """Call ONCE, only after the full interview is complete and ALL fields have been
+        discussed: topic, motivation, goal_outcome, context, current_level, time_per_week,
+        duration_weeks, and constraints. Do not call mid-interview or with guessed values
+        — incomplete data produces a broken learning map."""
         db = get_db()
-        profile = UserGoalProfile(
-            mode="skill",
-            topic=topic,
-            motivation=motivation,
-            goal_outcome=goal_outcome,
-            context=context,
-            current_level=current_level,
-            time_per_week=time_per_week,
-            duration_weeks=duration_weeks,
-            constraints=constraints,
-        )
-        db.update_general_project_goal_profile(project_id, profile)
-        return f"Goal profile saved for project {project_id}: {goal_outcome}"
+        try:
+            profile = UserGoalProfile(
+                mode="skill",
+                topic=topic,
+                motivation=motivation,
+                goal_outcome=goal_outcome,
+                context=context,
+                current_level=current_level,
+                time_per_week=time_per_week,
+                duration_weeks=duration_weeks,
+                constraints=constraints,
+            )
+            db.update_general_project_goal_profile(project_id, profile)
+            return f"Goal profile saved for project {project_id}: {goal_outcome}"
+        except Exception as e:
+            return f"ERROR: Failed to save goal profile — {e}. Try again."
 
     return save_goal_profile
 
 
-_onboarding_agents: dict[int, tuple[object, object]] = {}
+_onboarding_agents: dict[tuple[int, str, str], tuple[object, object]] = {}
 
 
 def get_onboarding_agent(checkpointer, project_id: int, topic: str, mode: str = "skill"):
-    """Singleton per project_id. Assumes checkpointer is the app-lifetime singleton."""
-    if project_id in _onboarding_agents:
-        agent, cached_cp = _onboarding_agents[project_id]
-        if cached_cp is not checkpointer:
-            raise RuntimeError(
-                f"Onboarding agent for project {project_id} was created with a different "
-                "checkpointer. Clear _onboarding_agents before switching checkpointers."
-            )
-        return agent
+    """Singleton per (project_id, topic, mode). Recreates if checkpointer changes."""
+    cache_key = (project_id, topic, mode)
+    if cache_key in _onboarding_agents:
+        agent, cached_cp = _onboarding_agents[cache_key]
+        if cached_cp is checkpointer:
+            return agent
+        # Checkpointer was rebuilt (app restart) — discard stale entry and recreate below
+        del _onboarding_agents[cache_key]
     prompt = SKILL_ONBOARDING_PROMPT if mode == "skill" else ENGLISH_ONBOARDING_PROMPT
     agent = create_deep_agent(
         model=get_llm(),
@@ -89,7 +94,7 @@ def get_onboarding_agent(checkpointer, project_id: int, topic: str, mode: str = 
         checkpointer=checkpointer,
         system_prompt=prompt.format(topic=topic),
     )
-    _onboarding_agents[project_id] = (agent, checkpointer)
+    _onboarding_agents[cache_key] = (agent, checkpointer)
     return agent
 
 

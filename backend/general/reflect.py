@@ -24,6 +24,14 @@ async def run_reflect(project_id: int) -> None:
         lesson = db.get_general_lesson(session["lesson_id"])
         if not lesson:
             continue
+        if lesson.chapter >= len(project.learning_map.chapters):
+            _logger.warning(
+                "reflect: lesson %d chapter index %d out of range (map has %d chapters)",
+                lesson.id,
+                lesson.chapter,
+                len(project.learning_map.chapters),
+            )
+            continue
         chapter_title = project.learning_map.chapters[lesson.chapter].title
         score = session.get("quiz_score", 0) / 100
         chapter_scores.setdefault(chapter_title, []).append(score)

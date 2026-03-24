@@ -78,37 +78,50 @@ def _trafilatura_scrape(url: str) -> str:
 
 
 @tool
-def load_user_profile() -> dict[str, object]:
-    """Load the user's profile from the database."""
+def load_user_profile() -> dict[str, object] | str:
+    """ALWAYS call this FIRST before any other tool. Returns the user's goal, interests,
+    and proficiency level — required context for selecting a relevant article and calibrating
+    task difficulty. Never skip or defer this step."""
     profile = _db.get_user_profile()
     if profile is None:
-        return {"error": "No user profile found. Run onboarding first."}
+        return "ERROR: No user profile found. Ask the user to complete onboarding first."
     return profile.model_dump()
 
 
 @tool
 def scrape_article(url: str) -> str:
-    """Scrape the full text of an article. Falls back to trafilatura if Scrapling fails."""
+    """Call after selecting an article URL from search results. Retrieves the full article
+    text required by highlight_key_paragraphs. If scraping fails, try a different URL —
+    never proceed with empty or error content."""
+    text: str | None = None
     try:
         if Scraper is None:
             raise ImportError("Scraper not available in this scrapling version")
         scraper = Scraper(auto_match=True)
         page = scraper.get(url)
-        return page.get_best_text(auto_filter=True)
+        scraped = page.get_best_text(auto_filter=True)
+        text = scraped if scraped else None  # Treat empty string as failure
     except Exception as e:
         logger.warning(f"Scrapling failed for {url}: {e}. Trying trafilatura.")
-    try:
-        return _trafilatura_scrape(url)
-    except Exception as e:
-        logger.error(f"trafilatura fallback failed for {url}: {e}")
-        raise RuntimeError(f"Could not scrape article: {url}")
+
+    if text is None:
+        try:
+            text = _trafilatura_scrape(url)
+        except Exception as e:
+            logger.error(f"trafilatura fallback failed for {url}: {e}")
+            return f"ERROR: Could not scrape {url}. Try a different URL from search results."
+
+    return text[:8000]  # Truncate to avoid context overflow (~2000 words)
 
 
 @tool
 def highlight_key_paragraphs(
     full_text: str, user_goal: str, interests: list[str]
 ) -> dict[str, object]:
-    """Identify 3-5 core paragraphs and article logic type for a language learner."""
+    """ALWAYS call after scrape_article and before generate_writing_task. Identifies the
+    3-5 paragraphs most valuable for deep reading and determines the article's logical
+    structure (compare / cause_effect / argumentation). The article_logic value is a
+    required input for generate_writing_task — do not skip this step."""
 
     class HighlightResult(BaseModel):
         highlight_indices: list[int] = Field(
@@ -119,6 +132,11 @@ def highlight_key_paragraphs(
         article_logic: Literal["compare", "cause_effect", "argumentation"] = Field(
             description="Underlying logical structure of the article"
         )
+
+    if full_text.startswith("ERROR:"):
+        return {
+            "error": "Cannot highlight: scraping error — call scrape_article with a different URL."
+        }
 
     paragraphs = full_text.split("\n\n")
     numbered = "\n\n".join(f"[{i}] {p}" for i, p in enumerate(paragraphs))
@@ -138,7 +156,9 @@ def highlight_key_paragraphs(
             return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
         except Exception as e:
             logger.warning(f"highlight_key_paragraphs attempt {attempt + 1} failed: {e}")
-    raise ValueError("highlight_key_paragraphs failed after 3 attempts")
+    return {
+        "error": "highlight_key_paragraphs failed after 3 attempts. Try a different article URL."
+    }
 
 
 class ArticleContext(BaseModel):
@@ -163,7 +183,9 @@ class ProfileContext(BaseModel):
 
 @tool
 def generate_writing_task(article: ArticleContext, profile: ProfileContext) -> dict[str, object]:
-    """Generate a writing task based on the article context and user profile."""
+    """Call after highlight_key_paragraphs, using the article_logic it returned. Generates
+    a writing task calibrated to the user's level and goal. The result is required input
+    for save_daily_lesson."""
     mode: str = profile.writing_mode
 
     prompt = f"""
@@ -189,12 +211,26 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
             return result.model_dump()
         except Exception as e:
             logger.warning(f"generate_writing_task attempt {attempt + 1} failed: {e}")
-    raise ValueError("generate_writing_task failed after 3 attempts")
+    return {
+        "error": "generate_writing_task failed after 3 attempts. Check article and profile inputs."
+    }
 
 
 @tool
 def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> str:
-    """Save today's article and writing task to the database. Call as the final step."""
+    """ALWAYS call as the FINAL step after generate_writing_task. Persists the article
+    and writing task to the database. Never skip — without this call, tomorrow's lesson
+    will not be available to the student."""
     article = article.model_copy(update={"date": date.today().isoformat()})
-    _db.save_daily_lesson(article, task)
-    return f"Saved: '{article.original_title}'"
+    existing = _db.get_article_for_date(article.date)
+    if existing is not None:
+        return (
+            f"ERROR: Lesson for {article.date} already saved"
+            f" ('{existing.original_title}'). Do not call save_daily_lesson again."
+        )
+    try:
+        _db.save_daily_lesson(article, task)
+        return f"Saved: '{article.original_title}'"
+    except Exception as e:
+        logger.error(f"save_daily_lesson failed: {e}")
+        return f"ERROR: Failed to save lesson — {e}. Do not retry."

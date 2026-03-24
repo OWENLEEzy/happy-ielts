@@ -29,18 +29,20 @@ def read_insights(days: int = 14) -> list[dict]:
         return []
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     results = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning("memory: skipping malformed line in teaching-insights.jsonl")
-                continue
-            if entry.get("date", "") >= cutoff:
-                results.append(entry)
+    with _file_lock:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning("memory: skipping malformed line in teaching-insights.jsonl")
+                    continue
+                entry_date = entry.get("date")
+                if isinstance(entry_date, str) and entry_date >= cutoff:
+                    results.append(entry)
     return results
 
 
@@ -59,16 +61,18 @@ def read_observations(days: int = 7) -> list[dict]:
         return []
     cutoff = (date.today() - timedelta(days=days)).isoformat()
     results = []
-    with open(path, encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entry = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning("memory: skipping malformed line in tutor-observations.jsonl")
-                continue
-            if entry.get("date", "") >= cutoff:
-                results.append(entry)
+    with _file_lock:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    logger.warning("memory: skipping malformed line in tutor-observations.jsonl")
+                    continue
+                entry_date = entry.get("date")
+                if isinstance(entry_date, str) and entry_date >= cutoff:
+                    results.append(entry)
     return results

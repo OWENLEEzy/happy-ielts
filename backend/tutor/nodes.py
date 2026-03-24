@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -249,13 +249,18 @@ def evaluate_writing(state: dict) -> dict:
     else:
         depth = "advanced"
 
-    feedback = run_feedback(
-        user_text=user_text,
-        task=task,
-        user_goal=profile.goal,
-        level=writing_level,
-        depth=depth,
-    )
+    try:
+        feedback = run_feedback(
+            user_text=user_text,
+            task=task,
+            user_goal=profile.goal,
+            level=writing_level,
+            depth=depth,
+        )
+    except Exception as exc:
+        logger.error("evaluate_writing: feedback generation failed: %s", exc)
+        writer({"type": "error", "message": "写作批改暂时失败，请稍后重试。"})
+        return {}
     writer({"type": "feedback", "result": feedback.model_dump()})
     return {
         "writing_feedback": feedback,
@@ -280,7 +285,7 @@ def save_results(state: dict) -> dict:
             grammar_errors=feedback.grammar_errors,
             chinglish_flags=feedback.chinglish_flags,
             rewrite_suggestions=feedback.rewrite_suggestions,
-            submitted_at=datetime.now(),
+            submitted_at=datetime.now(UTC),
         )
         _db.save_writing_submission(sub)
         article_id = article.id if article else None

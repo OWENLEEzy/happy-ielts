@@ -67,7 +67,11 @@ async def free_qa_session(state: dict) -> dict:
         question = action.get("question", "")
         if question:
             # nlm.ask is placed AFTER interrupt() — executes only once per resume.
-            answer = await nlm.ask(project["notebook_id"], question)
+            try:
+                answer = await nlm.ask(project["notebook_id"], question)
+            except Exception as exc:
+                _logger.error("free_qa_session: nlm.ask failed: %s", exc)
+                answer = "抱歉，知识库暂时无法响应，请稍后再试。"
             qa_history = [*qa_history, {"q": question, "a": answer}]
             writer = get_stream_writer()
             writer({"type": "free_qa_answer", "answer": answer, "history": qa_history})
@@ -77,13 +81,16 @@ async def free_qa_session(state: dict) -> dict:
 
 def save_results(state: dict) -> dict:
     db = get_db()
-    db.save_general_session(
-        project_id=state["project"]["id"],
-        lesson_id=state["lesson"].id,
-        quiz_answers=state.get("quiz_answers", []),
-        quiz_score=state.get("quiz_score", 0),
-        qa_history=state.get("qa_history", []),
-    )
+    try:
+        db.save_general_session(
+            project_id=state["project"]["id"],
+            lesson_id=state["lesson"].id,
+            quiz_answers=state.get("quiz_answers", []),
+            quiz_score=state.get("quiz_score", 0),
+            qa_history=state.get("qa_history", []),
+        )
+    except Exception as exc:
+        _logger.error("save_results: failed to save general session: %s", exc)
     writer = get_stream_writer()
     writer({"type": "done", "project_id": state["project"]["id"]})
     return {"phase": "done"}

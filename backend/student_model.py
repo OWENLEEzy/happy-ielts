@@ -10,6 +10,8 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
+import tempfile
 import threading
 from datetime import date, timedelta
 from pathlib import Path
@@ -54,11 +56,16 @@ def read_student_model() -> dict:
 
 
 def write_student_model(model: dict) -> None:
-    """Overwrite student_model.json with the given model dict (thread-safe)."""
+    """Atomically overwrite student_model.json (thread-safe, crash-safe)."""
+    content = json.dumps(model, ensure_ascii=False, indent=2)
     with _model_lock:
-        STUDENT_MODEL_PATH.write_text(
-            json.dumps(model, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        dir_ = STUDENT_MODEL_PATH.parent
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=dir_, delete=False, suffix=".tmp"
+        ) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        os.replace(tmp_path, STUDENT_MODEL_PATH)
 
 
 def _compute_streak(session_dates: list[str]) -> int:
@@ -135,7 +142,7 @@ def update_student_model(reflect_handoff: ReflectHandoff, db) -> dict:
         model["writing_task_history"] = writing_task_history
     except Exception as e:
         logger.warning("Failed to query writing_task_history: %s", e)
-        writing_task_history = model.get("writing_task_history", {})
+        writing_task_history = model.get("writing_task_history") or {}
 
     # --- Curriculum: session_index, next_logic_type, current_task_type ---
     sessions_total = 0

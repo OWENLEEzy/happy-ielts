@@ -1,6 +1,9 @@
+import threading
+
 from fsrs import Card, Rating, Scheduler
 
 _scheduler = Scheduler()
+_scheduler_lock = threading.Lock()
 
 
 def new_card_state() -> dict:
@@ -12,9 +15,11 @@ def new_card_state() -> dict:
 def map_answer_to_rating(is_correct: bool, response_seconds: float) -> Rating:
     if not is_correct:
         return Rating.Again
-    if response_seconds > 15:
+    # Clamp to non-negative; negative values from timing bugs should not affect rating
+    secs = max(0.0, float(response_seconds))
+    if secs > 15:
         return Rating.Hard
-    elif response_seconds > 5:
+    elif secs > 5:
         return Rating.Good
     else:
         return Rating.Easy
@@ -24,7 +29,8 @@ def update_card(fsrs_state: dict, is_correct: bool, response_seconds: float) -> 
     """Apply a review result to an existing card state. Returns new state dict."""
     card = deserialize_card(fsrs_state)
     rating = map_answer_to_rating(is_correct, response_seconds)
-    card, _ = _scheduler.review_card(card, rating)
+    with _scheduler_lock:
+        card, _ = _scheduler.review_card(card, rating)
     return serialize_card(card)
 
 

@@ -116,20 +116,20 @@ def test_highlight_retries_on_parse_failure_then_succeeds():
     assert mock_llm.invoke.call_count == 2
 
 
-def test_highlight_raises_after_3_failures():
-    """All 3 LLM calls return unparseable garbage; tool must raise ValueError."""
+def test_highlight_returns_error_after_3_failures():
+    """All 3 LLM calls return unparseable garbage; tool must return error dict (not raise)."""
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = _llm_response("garbage %%% not json")
     with patch("backend.planner.tools._get_llm", return_value=mock_llm):
-        with pytest.raises(ValueError, match="3 attempts"):
-            highlight_key_paragraphs.invoke(
-                {
-                    "full_text": THREE_PARA_TEXT,
-                    "user_goal": "improve professional writing",
-                    "interests": ["technology"],
-                }
-            )
+        result = highlight_key_paragraphs.invoke(
+            {
+                "full_text": THREE_PARA_TEXT,
+                "user_goal": "improve professional writing",
+                "interests": ["technology"],
+            }
+        )
 
+    assert "error" in result
     assert mock_llm.invoke.call_count == 3
 
 
@@ -190,26 +190,26 @@ def test_generate_writing_task_retries_on_failure():
     assert mock_llm.invoke.call_count == 2
 
 
-def test_generate_writing_task_raises_after_3_failures():
-    """All 3 LLM calls return garbage; tool must raise ValueError."""
+def test_generate_writing_task_returns_error_after_3_failures():
+    """All 3 LLM calls return garbage; tool must return error dict (not raise)."""
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = _llm_response("not json @@@ garbage")
     with patch("backend.planner.tools._get_llm", return_value=mock_llm):
-        with pytest.raises(ValueError, match="3 attempts"):
-            generate_writing_task.invoke(
-                {
-                    "article": {
-                        "original_title": "How AI is changing software development",
-                        "article_logic": "argumentation",
-                    },
-                    "profile": {
-                        "goal": "advance career in tech",
-                        "level": 6,
-                        "writing_mode": "professional",
-                    },
-                }
-            )
+        result = generate_writing_task.invoke(
+            {
+                "article": {
+                    "original_title": "How AI is changing software development",
+                    "article_logic": "argumentation",
+                },
+                "profile": {
+                    "goal": "advance career in tech",
+                    "level": 6,
+                    "writing_mode": "professional",
+                },
+            }
+        )
 
+    assert "error" in result
     assert mock_llm.invoke.call_count == 3
 
 
@@ -240,14 +240,15 @@ def test_load_user_profile_returns_profile_dict():
 
 
 def test_load_user_profile_returns_error_when_none():
-    """load_user_profile returns error dict when no profile found."""
+    """load_user_profile returns error string when no profile found."""
     from unittest.mock import MagicMock, patch
 
     db_mock = MagicMock()
     db_mock.get_user_profile.return_value = None
     with patch("backend.planner.tools._db", db_mock):
         result = load_user_profile.invoke({})
-    assert "error" in result
+    assert isinstance(result, str)
+    assert "ERROR" in result
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +274,7 @@ def test_save_daily_lesson_calls_db_and_returns_confirmation():
     from backend.models import ArticleCreate, WritingTaskCreate
 
     db_mock = MagicMock()
+    db_mock.get_article_for_date.return_value = None  # No existing lesson — allow save
     db_mock.save_daily_lesson.return_value = (1, 1)
 
     article = ArticleCreate(
@@ -387,11 +389,12 @@ def test_scrape_article_falls_back_to_trafilatura_when_scraper_is_none():
     mock_scrape.assert_called_once_with("https://example.com")
 
 
-def test_scrape_article_raises_when_trafilatura_also_fails():
-    """RuntimeError is raised when both Scrapling and trafilatura fail."""
+def test_scrape_article_returns_error_when_trafilatura_also_fails():
+    """Returns ERROR string when both Scrapling and trafilatura fail (not a raise)."""
     with patch.object(_tools_mod, "_trafilatura_scrape", side_effect=RuntimeError("network error")):
-        with pytest.raises(RuntimeError, match="Could not scrape"):
-            scrape_article.invoke({"url": "https://example.com"})
+        result = scrape_article.invoke({"url": "https://example.com"})
+    assert isinstance(result, str)
+    assert result.startswith("ERROR:")
 
 
 def test_trafilatura_scrape_returns_extracted_text():

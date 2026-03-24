@@ -26,6 +26,8 @@ PLANNER_SYSTEM_PROMPT = """
 完成目标：读取用户画像 → 搜索并抓取相关文章 → 标注核心段落和逻辑类型 →
 生成写作任务 → 调用 save_daily_lesson 存库（必须最后调用）。
 
+开始执行前，用 write_todos 列出你打算执行的步骤；每完成一步，立即将该步骤状态更新为 completed。
+
 搜索时优先选择以下可抓取的来源：arxiv.org、hacker news（news.ycombinator.com）、dev.to、
 blog.openai.com、anthropic.com/research、simonwillison.net、eugeneyan.com。
 严格避免：medium.com（反爬）、substack.com（JS渲染）、technologyreview.com、wsj.com（付费墙）。
@@ -98,7 +100,9 @@ def create_deep_agent_planner(
     system_prompt = system_prompt + curriculum_context
 
     return create_deep_agent(
-        model=get_llm("qwen-max"),  # Offline pre-generation: use best model
+        model=get_llm("qwen-max").bind(
+            parallel_tool_calls=False
+        ),  # Offline pre-generation: best model; sequential (tools depend on prior outputs)
         tools=[
             load_user_profile,
             search_articles,

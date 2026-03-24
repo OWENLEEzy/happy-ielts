@@ -18,7 +18,8 @@ async def run_researcher(project_id: int, profile: UserGoalProfile, draft_map: L
     notebook_id = await nlm.create_notebook(f"Learning: {profile.topic}")
     db.update_general_project_notebook(project_id, notebook_id)
 
-    budget = BUDGET.get(db.get_general_project(project_id).tier, 50)  # type: ignore[union-attr]
+    _project = db.get_general_project(project_id)
+    budget = BUDGET.get(_project.tier, 50) if _project else 50
     used = 0
     rounds = 0
 

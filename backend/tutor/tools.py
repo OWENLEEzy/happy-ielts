@@ -71,13 +71,17 @@ User's writing:
 
 @tool
 def signal_done_reading() -> str:
-    """Signal that the student has finished reading and is ready for the writing task."""
+    """Call ONLY when the student explicitly says they are done reading or asks to move
+    on to writing. Do not call speculatively — wait for a clear signal. Calling this
+    ends the reading session immediately."""
     return "done_reading"
 
 
 @tool
 def explain_word(word: str, context: str, level: int) -> str:
-    """Explain a word in context for a language learner at the given level (1-10)."""
+    """Use when the student asks about a SINGLE word — its meaning, translation, usage,
+    or nuance. Do not use for phrase or sentence-level questions; use analyze_sentence
+    instead. Responds in Chinese, depth adjusted to level."""
     prompt = f"""
 Explain the word "{word}" as used in this sentence:
 "{context}"
@@ -95,7 +99,9 @@ Respond in Chinese (简体中文). Keep it under 100 words.
 
 @tool
 def analyze_sentence(sentence: str) -> str:
-    """Break down a complex English sentence into its grammatical structure."""
+    """Use when the student asks about a phrase, clause, or full sentence — its
+    grammatical structure, how it works, or why it is written that way. Do not use
+    for single-word vocabulary questions; use explain_word instead."""
     prompt = f"""
 Analyze this English sentence for a Chinese learner:
 "{sentence}"

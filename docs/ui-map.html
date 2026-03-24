@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>DynamicLingo UI Map</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0a0a0f; color: #e8e0d0; font-family: 'Helvetica Neue', sans-serif; padding: 32px 24px; min-width: 1400px; }
+h1 { text-align: center; color: #c9a84c; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 6px; }
+.subtitle { text-align: center; font-size: 11px; color: #444; margin-bottom: 40px; letter-spacing: 1px; }
+
+/* ── Track layout ── */
+.track { margin-bottom: 56px; }
+.track-title { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: #c9a84c; opacity: 0.6; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1a1a1a; }
+.track-row { display: flex; align-items: flex-start; gap: 0; }
+
+.step { display: flex; flex-direction: column; align-items: center; }
+.step-label { font-size: 9px; color: #444; letter-spacing: 1px; text-align: center; margin-top: 6px; }
+
+.arrow-col { display: flex; align-items: center; padding: 0 6px; padding-top: 50px; color: #2a2a2a; font-size: 18px; flex-shrink: 0; }
+
+/* ── Phone ── */
+.phone { width: 180px; flex-shrink: 0; }
+.phone-frame { border: 1.5px solid #1e1e1e; border-radius: 20px; overflow: hidden; height: 360px; background: #111; position: relative; }
+.phone-narrow { width: 160px; }
+.phone-narrow .phone-frame { height: 330px; }
+
+/* ── Sub-phases row ── */
+.sub-row { display: flex; gap: 0; }
+
+/* ══════════════════════════════════════════
+   ENGLISH FLYWHEEL PAGES
+══════════════════════════════════════════ */
+
+/* / root */
+.p-root { background: #0f0d1a; height:100%; display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px; }
+.root-box { font-size:9px;color:#c9a84c;background:#1a1730;border:1px solid #2e2850;padding:6px 12px;border-radius:6px;width:100%;text-align:center; }
+
+/* onboarding */
+.p-onb { background:#fff;height:100%;display:flex;flex-direction:column; }
+.onb-hdr { background:#fff;padding:8px 10px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:6px; }
+.avatar { width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#f59e0b,#d97706);display:flex;align-items:center;justify-content:center;font-size:13px; }
+.onb-name { font-size:9px;font-weight:700;color:#6d28d9; }
+.onb-role { font-size:8px;color:#999; }
+.msgs { flex:1;padding:8px 10px;display:flex;flex-direction:column;gap:5px;overflow:hidden; }
+.bai { background:#f3f4f6;border-radius:10px 10px 10px 3px;padding:6px 8px;font-size:8px;color:#222;max-width:82%;line-height:1.4; }
+.buser { background:linear-gradient(135deg,#6d28d9,#4c1d95);border-radius:10px 10px 3px 10px;padding:6px 8px;font-size:8px;color:#fff;max-width:72%;align-self:flex-end;line-height:1.4; }
+.pref-sec { padding:6px 10px;border-top:1px solid #eee; }
+.pref-ttl { font-size:7.5px;font-weight:700;color:#6d28d9;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px; }
+.chips { display:flex;gap:3px;flex-wrap:wrap; }
+.ch { font-size:7.5px;padding:2px 7px;border-radius:5px;border:1.5px solid #ddd;color:#666; }
+.ch.on { border-color:#6d28d9;background:#6d28d9;color:#fff; }
+.cta-en { margin:6px 10px 4px;background:linear-gradient(135deg,#6d28d9,#4c1d95);color:#fff;font-size:8.5px;font-weight:700;text-align:center;padding:7px;border-radius:16px; }
+.mnav { border-top:1px solid #eee;padding:5px 0;display:flex;justify-content:space-around; }
+.ni { display:flex;flex-direction:column;align-items:center;gap:1px;font-size:12px; }
+.ni span { font-size:7px;color:#bbb; }
+
+/* lesson loading */
+.p-lload { background:#fff;height:100%;display:flex;flex-direction:column; }
+.lload-hdr { padding:9px 12px;border-bottom:1px solid #eee;font-size:10px;font-weight:700;color:#6d28d9; }
+.lload-body { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:20px; }
+.dog-circle { width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#fcd34d,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:24px;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.1); }
+.lload-t { font-size:11px;font-weight:800;color:#6d28d9;text-align:center; }
+.lload-s { font-size:8px;color:#999;text-align:center;line-height:1.4; }
+.dots { display:flex;gap:4px;justify-content:center; }
+.dot { width:5px;height:5px;border-radius:50%;background:#6d28d9;opacity:.6; }
+
+/* lesson phases - shared header */
+.p-les { background:#fff;height:100%;display:flex;flex-direction:column; }
+.les-hdr { padding:7px 10px;border-bottom:1px solid #eee;display:flex;align-items:center;gap:5px; }
+.phase-dot { width:7px;height:7px;border-radius:50%; }
+.phase-nm { font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px; }
+.les-body { flex:1;padding:9px 10px;overflow:hidden;display:flex;flex-direction:column;gap:6px; }
+
+/* fill blank */
+.fb-card { background:#f5f3ff;border:1.5px solid #c4b5fd;border-radius:8px;padding:8px; }
+.fb-q { font-size:8px;color:#555;margin-bottom:5px;line-height:1.4; }
+.fb-blank { display:inline-block;width:40px;height:12px;background:#ddd6fe;border-radius:3px;vertical-align:middle; }
+.fb-opts { display:flex;gap:3px;flex-wrap:wrap;margin-top:6px; }
+.fopt { font-size:7.5px;padding:2px 7px;border-radius:10px;background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd; }
+
+/* article reader */
+.art-title { font-size:9.5px;font-weight:700;color:#111;margin-bottom:5px; }
+.hl { background:#fef9c3; }
+.art-body { font-size:8px;color:#444;line-height:1.5; }
+.art-btn { background:linear-gradient(135deg,#6d28d9,#4c1d95);color:#fff;font-size:8.5px;font-weight:700;text-align:center;padding:6px;border-radius:14px;margin-top:7px; }
+
+/* writing */
+.task-box { background:#f0fdf4;border:1px solid #86efac;border-radius:7px;padding:7px;font-size:7.5px;color:#166534;line-height:1.4; }
+.ta-mock { background:#f9fafb;border:1.5px solid #d1d5db;border-radius:7px;height:60px;padding:5px;font-size:7.5px;color:#bbb;margin-top:5px; }
+.sub-btn { background:linear-gradient(135deg,#6d28d9,#4c1d95);color:#fff;font-size:8.5px;font-weight:700;text-align:center;padding:6px;border-radius:14px;margin-top:5px; }
+
+/* feedback */
+.fb-score-row { display:flex;align-items:center;gap:6px;margin-bottom:7px; }
+.score-ring { width:34px;height:34px;border-radius:50%;background:conic-gradient(#6d28d9 252deg,#ede9fe 252deg);display:flex;align-items:center;justify-content:center; }
+.score-in { width:24px;height:24px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:#6d28d9; }
+.fb-txt { font-size:8px;color:#444;line-height:1.4; }
+.wchips { display:flex;gap:3px;flex-wrap:wrap;margin-top:5px; }
+.wch { font-size:7px;padding:2px 6px;border-radius:8px;background:#fef3c7;color:#92400e;border:1px solid #fcd34d; }
+
+/* ══════════════════════════════════════════
+   GENERAL LEARNING PAGES
+══════════════════════════════════════════ */
+
+/* /learn landing */
+.p-learn { background:linear-gradient(160deg,#0f0d1a 0%,#1a1428 50%,#0d1118 100%);height:100%;display:flex;flex-direction:column; }
+.lrn-nav { padding:9px 12px;display:flex;justify-content:space-between; }
+.lrn-nav span { font-size:8px;color:#c9a84c;opacity:.4;letter-spacing:2px;text-transform:uppercase; }
+.lrn-hero { flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 14px;gap:7px; }
+.lrn-badge { font-size:7px;color:#c9a84c;border:1px solid rgba(201,168,76,.3);padding:3px 10px;border-radius:20px;letter-spacing:1px; }
+.lrn-title { font-size:26px;font-weight:300;color:#f0ebe0;line-height:1.1;text-align:center; }
+.lrn-title em { color:#c9a84c;font-style:italic; }
+.lrn-sub { font-size:7.5px;color:rgba(240,235,224,.45);text-align:center;line-height:1.4;max-width:148px; }
+.lrn-cta { background:linear-gradient(135deg,#c9a84c,#e8c96a);color:#0f0d1a;font-size:8.5px;font-weight:700;padding:7px 18px;border-radius:20px; }
+.topic-strip { display:flex;gap:3px;flex-wrap:wrap;justify-content:center;padding:8px 12px; }
+.ttag { font-size:7px;padding:2px 8px;border-radius:10px;border:1px solid rgba(201,168,76,.15);color:rgba(240,235,224,.35); }
+.lrn-link { font-size:7px;color:rgba(240,235,224,.2);text-align:center;padding-bottom:8px; }
+
+/* /learn/onboarding */
+.p-lonb { background:#0f0d1a;height:100%;display:flex;flex-direction:column; }
+.lonb-hdr { padding:9px 12px;border-bottom:1px solid #2e2850;display:flex;align-items:center;gap:5px; }
+.lonb-t { font-size:10px;color:#c9a84c;font-weight:600; }
+.lonb-s { font-size:8px;color:rgba(240,235,224,.35); }
+.lonb-msgs { flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:5px;overflow:hidden; }
+.dbai { background:#1a1730;border:1px solid #2e2850;border-radius:10px 10px 10px 3px;padding:6px 8px;font-size:8px;color:#e8e0d0;max-width:85%;line-height:1.4; }
+.dbuser { background:#c9a84c;border-radius:10px 10px 3px 10px;padding:6px 8px;font-size:8px;color:#0f0d1a;max-width:75%;align-self:flex-end;line-height:1.4; }
+.lonb-input { display:flex;gap:5px;padding:6px 10px;border-top:1px solid #2e2850; }
+.lonb-inp { flex:1;background:#1a1730;border:1px solid #2e2850;border-radius:8px;padding:5px 8px;font-size:7.5px;color:#666; }
+.lonb-send { background:#c9a84c;color:#0f0d1a;font-size:8px;font-weight:700;padding:5px 10px;border-radius:8px; }
+.lonb-preview { margin:0 10px 8px;background:#1a1730;border:1px solid rgba(201,168,76,.2);border-radius:8px;padding:7px; }
+.lonb-pt { font-size:8px;color:#c9a84c;margin-bottom:3px; }
+.lonb-pj { font-size:6.5px;color:rgba(240,235,224,.4);font-family:monospace;line-height:1.4; }
+.lonb-confirm { margin:0 10px 8px;background:#c9a84c;color:#0f0d1a;font-size:8.5px;font-weight:700;text-align:center;padding:7px;border-radius:8px; }
+
+/* /learn/preparing */
+.p-prep { background:linear-gradient(160deg,#0f0d1a,#1a1428);height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:18px; }
+.prep-orb { width:70px;height:70px;border-radius:50%;border:1px solid rgba(201,168,76,.25);display:flex;align-items:center;justify-content:center; }
+.prep-orb-in { width:18px;height:18px;border-radius:50%;border:1.5px solid rgba(201,168,76,.45); }
+.prep-title { font-size:17px;font-weight:300;color:#f0ebe0;text-align:center;line-height:1.2; }
+.prep-title em { color:#c9a84c; }
+.prep-phases { display:flex;flex-direction:column;gap:7px;width:100%; }
+.pp { display:flex;align-items:center;gap:7px; }
+.pp-dot { width:15px;height:15px;border-radius:50%;border:1.5px solid rgba(201,168,76,.35);display:flex;align-items:center;justify-content:center;font-size:7.5px;flex-shrink:0; }
+.pp-dot.done { background:#c9a84c;border-color:#c9a84c;color:#0f0d1a; }
+.pp-dot.active { border-color:rgba(201,168,76,.7);color:#c9a84c; }
+.pp-dot.pending { border-color:rgba(240,235,224,.12);color:rgba(240,235,224,.15); }
+.pp-txt { font-size:8.5px;color:#f0ebe0; }
+.pp-txt.pending { color:rgba(240,235,224,.3); }
+.prep-note { font-size:7px;color:rgba(240,235,224,.2);text-align:center;line-height:1.4; }
+
+/* /learn/{id} dashboard */
+.p-dash { background:linear-gradient(160deg,#0f0d1a,#1a1428);height:100%;display:flex;flex-direction:column; }
+.dash-nav { padding:8px 12px;border-bottom:1px solid rgba(240,235,224,.05);font-size:8px;color:rgba(201,168,76,.35);letter-spacing:2px;text-transform:uppercase; }
+.dash-body { flex:1;padding:10px 12px;display:flex;flex-direction:column;gap:9px;overflow:hidden; }
+.goal-row { display:flex;align-items:flex-start;justify-content:space-between; }
+.goal-lbl { font-size:7px;color:rgba(201,168,76,.55);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px; }
+.goal-txt { font-size:11px;font-weight:300;color:#f0ebe0;line-height:1.2; }
+.ring { width:38px;height:38px;border-radius:50%;background:conic-gradient(#c9a84c 108deg,rgba(201,168,76,.08) 108deg);display:flex;align-items:center;justify-content:center; }
+.ring-in { width:27px;height:27px;border-radius:50%;background:#0f0d1a;display:flex;align-items:center;justify-content:center;font-size:7.5px;color:#c9a84c;font-weight:700; }
+.dim-grid { display:grid;grid-template-columns:1fr 1fr;gap:4px; }
+.dim-card { background:rgba(201,168,76,.03);border:1px solid rgba(201,168,76,.1);border-radius:5px;padding:4px 6px; }
+.dim-name { font-size:7.5px;color:#f0ebe0; }
+.dim-trend { font-size:6.5px;color:#6fba8a; }
+.ch-lbl { font-size:7px;color:rgba(201,168,76,.45);text-transform:uppercase;letter-spacing:1px; }
+.lrow { background:rgba(240,235,224,.03);border:1px solid rgba(240,235,224,.07);border-radius:7px;padding:6px 8px;display:flex;align-items:center;gap:5px;margin-top:3px; }
+.lrow.new { background:linear-gradient(135deg,rgba(201,168,76,.1),rgba(201,168,76,.03));border-color:rgba(201,168,76,.3); }
+.ldot { width:5px;height:5px;border-radius:50%;background:rgba(201,168,76,.4);flex-shrink:0; }
+.ldot.new { background:#c9a84c;box-shadow:0 0 6px #c9a84c; }
+.lname { font-size:8px;color:#f0ebe0;flex:1; }
+.nbadge { font-size:6.5px;color:#c9a84c;background:rgba(201,168,76,.13);padding:2px 5px;border-radius:7px; }
+.ltxt { font-size:6.5px;color:rgba(240,235,224,.18); }
+
+/* /learn/{id}/lesson/{lid} */
+.p-gles { background:#0f0d1a;height:100%;display:flex;flex-direction:column; }
+.gles-hdr { padding:7px 10px;border-bottom:1px solid #2e2850;display:flex;justify-content:space-between;align-items:center; }
+.gles-t { font-size:9px;color:#c9a84c;font-weight:600; }
+.gles-ph { font-size:7.5px;color:rgba(240,235,224,.45);background:#1a1730;border:1px solid #2e2850;padding:2px 7px;border-radius:8px; }
+.gles-body { flex:1;padding:9px 10px;display:flex;flex-direction:column;gap:6px;overflow:hidden; }
+.study-card { background:#1a1730;border:1px solid #2e2850;border-radius:8px;padding:8px;flex:1; }
+.study-txt { font-size:7.5px;color:#e8e0d0;line-height:1.5;opacity:.85; }
+.next-btn { background:#c9a84c;color:#0f0d1a;font-size:8.5px;font-weight:700;text-align:center;padding:7px;border-radius:7px; }
+.quiz-item { background:#1a1730;border:1px solid #2e2850;border-radius:7px;padding:7px 9px;margin-bottom:5px; }
+.quiz-qt { font-size:8px;color:#e8e0d0;margin-bottom:4px; }
+.quiz-inp { background:#0f0d1a;border:1px solid #2e2850;border-radius:4px;padding:3px 7px;font-size:7.5px;color:#555;width:100%; }
+.qa-row { display:flex;flex-direction:column;gap:4px;flex:1; }
+.qa-inp-row { display:flex;gap:4px; }
+.qa-inp { flex:1;background:#1a1730;border:1px solid #2e2850;border-radius:7px;padding:4px 8px;font-size:7.5px;color:#e8e0d0; }
+.qa-btn { background:#c9a84c;color:#0f0d1a;font-size:7.5px;font-weight:700;padding:4px 9px;border-radius:7px; }
+.end-btn { font-size:7.5px;color:rgba(240,235,224,.25);text-align:center;border:1px solid #2e2850;border-radius:7px;padding:5px;margin-top:3px; }
+</style>
+</head>
+<body>
+
+<h1>DynamicLingo · All Pages</h1>
+<p class="subtitle">两条完整用户流程</p>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="track">
+  <div class="track-title">① 英语飞轮 · English Flywheel &nbsp;—&nbsp; / → /onboarding → /lesson</div>
+  <div class="track-row">
+
+    <!-- / -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-root">
+            <div style="font-size:9px;color:#555;margin-bottom:4px;">纯跳转，无 UI</div>
+            <div class="root-box">onboarding未完成 →<br>/onboarding</div>
+            <div class="root-box">planner未就绪 →<br>/lesson?loading=true</div>
+            <div class="root-box">都好 → /lesson</div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /onboarding -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-onb">
+            <div class="onb-hdr">
+              <div class="avatar">🐕</div>
+              <div>
+                <div class="onb-name">PROFESSOR 金毛</div>
+                <div class="onb-role">你的专属语言学习顾问</div>
+              </div>
+            </div>
+            <div class="msgs">
+              <div class="bai">你好！我是你的语言学习顾问。先告诉我，你学英语最迫切想解决什么问题？</div>
+              <div class="buser">我需要提升职场英语写作能力</div>
+              <div class="bai">很好！你平时主要写什么类型的邮件？</div>
+            </div>
+            <div class="pref-sec">
+              <div class="pref-ttl">每日学习时长</div>
+              <div class="chips"><div class="ch">15分</div><div class="ch on">25分</div><div class="ch">40分</div></div>
+            </div>
+            <div class="pref-sec" style="padding-top:4px">
+              <div class="pref-ttl">写作目标</div>
+              <div class="chips"><div class="ch on">职场英语</div><div class="ch">雅思T1</div><div class="ch">雅思T2</div></div>
+            </div>
+            <div class="cta-en">开始我的第一节课 🚀</div>
+            <div class="mnav"><div class="ni">🏠<span>今日</span></div><div class="ni">📚<span>生词</span></div><div class="ni">⚙️<span>设置</span></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/onboarding</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /lesson loading -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-lload">
+            <div class="lload-hdr">DynamicLingo</div>
+            <div class="lload-body">
+              <div class="dog-circle">🐕</div>
+              <div class="lload-t">今日课程准备中…</div>
+              <div class="lload-s">DeepAgent Planner 正在抓取今日文章，请稍候。</div>
+              <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+              <div style="font-size:7.5px;color:#bbb;margin-top:4px;border:1px solid #eee;padding:4px 12px;border-radius:12px;">手动触发课程生成</div>
+            </div>
+            <div class="mnav"><div class="ni">🏠<span>今日</span></div><div class="ni">📚<span>生词</span></div><div class="ni">⚙️<span>设置</span></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/lesson (loading)</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /lesson 4 phases -->
+    <div class="step">
+      <div style="font-size:8.5px;color:#555;margin-bottom:8px;letter-spacing:1px;">/lesson · 4 phases</div>
+      <div class="sub-row">
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-les">
+                <div class="les-hdr"><div class="phase-dot" style="background:#f59e0b"></div><span class="phase-nm" style="color:#f59e0b">REVIEW</span></div>
+                <div class="les-body">
+                  <div style="font-size:7.5px;color:#999;">间隔复习 · FillBlankCard</div>
+                  <div class="fb-card">
+                    <div class="fb-q">He __ the email before the deadline.</div>
+                    <div class="fb-opts"><div class="fopt">submitted</div><div class="fopt">sends</div><div class="fopt">deliver</div></div>
+                  </div>
+                </div>
+                <div class="mnav"><div class="ni">🏠</div><div class="ni">📚</div><div class="ni">⚙️</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">① review</div>
+        </div>
+
+        <div class="arrow-col" style="padding-top:40px;font-size:12px;">→</div>
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-les">
+                <div class="les-hdr"><div class="phase-dot" style="background:#6d28d9"></div><span class="phase-nm" style="color:#6d28d9">READING</span></div>
+                <div class="les-body">
+                  <div class="art-title">AI Reshapes Supply Chains</div>
+                  <div class="art-body">Companies are <span class="hl">restructuring operations</span> in response to AI capabilities that reduce costs by 30%...</div>
+                  <div style="font-size:7.5px;color:#6d28d9;margin-top:4px;">▶ 3 key paragraphs</div>
+                  <div class="art-btn">已阅读，开始写作 →</div>
+                </div>
+                <div class="mnav"><div class="ni">🏠</div><div class="ni">📚</div><div class="ni">⚙️</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">② reading</div>
+        </div>
+
+        <div class="arrow-col" style="padding-top:40px;font-size:12px;">→</div>
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-les">
+                <div class="les-hdr"><div class="phase-dot" style="background:#059669"></div><span class="phase-nm" style="color:#059669">WRITING</span></div>
+                <div class="les-body">
+                  <div class="task-box">写一封给供应商的邮件，说明 AI 自动化对交货时间的影响。</div>
+                  <div class="ta-mock">Dear Mr. Chen,<br><br>I am writing to inform you...</div>
+                  <div class="sub-btn">提交写作</div>
+                </div>
+                <div class="mnav"><div class="ni">🏠</div><div class="ni">📚</div><div class="ni">⚙️</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">③ writing</div>
+        </div>
+
+        <div class="arrow-col" style="padding-top:40px;font-size:12px;">→</div>
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-les">
+                <div class="les-hdr"><div class="phase-dot" style="background:#dc2626"></div><span class="phase-nm" style="color:#dc2626">FEEDBACK</span></div>
+                <div class="les-body">
+                  <div class="fb-score-row">
+                    <div class="score-ring"><div class="score-in">70</div></div>
+                    <div><div style="font-size:8.5px;font-weight:700;color:#111;">写作得分</div><div style="font-size:7.5px;color:#999;">良好，有提升空间</div></div>
+                  </div>
+                  <div class="fb-txt">邮件结构清晰，但部分句式口语化。建议将 "tell" 改为 "inform"。</div>
+                  <div class="wchips"><div class="wch">tell→inform</div><div class="wch">get→obtain</div><div class="wch">big→significant</div></div>
+                </div>
+                <div class="mnav"><div class="ni">🏠</div><div class="ni">📚</div><div class="ni">⚙️</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">④ feedback</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<div class="track">
+  <div class="track-title">② 通用学习 · General Learning &nbsp;—&nbsp; /learn → /learn/onboarding → /learn/preparing → /learn/{id} → lesson</div>
+  <div class="track-row">
+
+    <!-- /learn -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-learn">
+            <div class="lrn-nav"><span>← DynamicLingo</span><span>General</span></div>
+            <div class="lrn-hero">
+              <div class="lrn-badge">● AI 备课系统</div>
+              <div class="lrn-title">掌握任何<br><em>你想学的</em></div>
+              <div class="lrn-sub">告诉我你的目标，AI 老师为你深度备课，生成专属学习地图。</div>
+              <div class="lrn-cta">开始学习 →</div>
+            </div>
+            <div class="topic-strip">
+              <div class="ttag">吉他</div><div class="ttag">投资</div><div class="ttag">摄影</div><div class="ttag">心理学</div><div class="ttag">以及一切...</div>
+            </div>
+            <div class="lrn-link">想练英语？切换到英语飞轮</div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/learn</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /learn/onboarding -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-lonb">
+            <div class="lonb-hdr"><div class="lonb-t">学习规划</div><div class="lonb-s">· 吉他</div></div>
+            <div style="padding:8px 12px;border-bottom:1px solid #2e2850;">
+              <div style="font-size:7.5px;color:#555;margin-bottom:5px;">步骤 1：输入主题</div>
+              <div style="background:#1a1730;border:1px solid #2e2850;border-radius:7px;padding:5px 10px;font-size:8px;color:#c9a84c;">吉他</div>
+            </div>
+            <div class="lonb-msgs">
+              <div class="dbai">你好！我会帮你规划「吉他」的学习课程。你最想实现什么目标？</div>
+              <div class="dbuser">希望能弹奏完整的流行歌曲</div>
+              <div class="dbai">很好！你现在是完全零基础，还是有一点基础？</div>
+            </div>
+            <div class="lonb-preview">
+              <div class="lonb-pt">📋 学习计划草稿</div>
+              <div class="lonb-pj">{ "chapters": 4,<br>  "total_lessons": 12,<br>  "week_1": "基础和弦" }</div>
+            </div>
+            <div class="lonb-confirm">确认计划，开始备课</div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/learn/onboarding</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /learn/preparing -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-prep">
+            <div class="prep-orb"><div class="prep-orb-in"></div></div>
+            <div class="prep-title">老师正在<br><em>备课中</em></div>
+            <div class="prep-phases">
+              <div class="pp"><div class="pp-dot done">✓</div><div class="pp-txt">了解你的学习目标</div></div>
+              <div class="pp"><div class="pp-dot active">↻</div><div class="pp-txt">深度研究中</div></div>
+              <div class="pp"><div class="pp-dot pending">○</div><div class="pp-txt pending">提取知识、生成课程</div></div>
+              <div class="pp"><div class="pp-dot pending">○</div><div class="pp-txt pending">第一节课已就绪</div></div>
+            </div>
+            <div class="prep-note">通常需要 15–30 分钟<br>可关闭页面稍后回来</div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/learn/preparing/{id}</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /learn/{id} dashboard -->
+    <div class="step">
+      <div class="phone">
+        <div class="phone-frame">
+          <div class="p-dash">
+            <div class="dash-nav">← 学习中心</div>
+            <div class="dash-body">
+              <div class="goal-row">
+                <div><div class="goal-lbl">学习目标</div><div class="goal-txt">能独立弹奏<br>流行歌曲</div></div>
+                <div class="ring"><div class="ring-in">30%</div></div>
+              </div>
+              <div class="dim-grid">
+                <div class="dim-card"><div class="dim-name">基础和弦</div><div class="dim-trend">↑ 进步中</div></div>
+                <div class="dim-card"><div class="dim-name">节奏感</div><div class="dim-trend" style="color:#ba6f6f;">↓ 需加强</div></div>
+              </div>
+              <div>
+                <div class="ch-lbl">Chapter 1 · 吉他入门</div>
+                <div class="lrow new"><div class="ldot new"></div><div class="lname">认识吉他与调音</div><div class="nbadge">新解锁</div></div>
+                <div class="lrow" style="opacity:.35"><div class="ldot"></div><div class="lname">第一个和弦 Am</div><div class="ltxt">准备中</div></div>
+                <div class="lrow" style="opacity:.2"><div class="ldot"></div><div class="lname">节拍器练习</div><div class="ltxt">准备中</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label">/learn/{id}</div>
+    </div>
+
+    <div class="arrow-col">→</div>
+
+    <!-- /learn/{id}/lesson 3 phases -->
+    <div class="step">
+      <div style="font-size:8.5px;color:#555;margin-bottom:8px;letter-spacing:1px;">/learn/{id}/lesson/{lid} · 3 phases</div>
+      <div class="sub-row">
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-gles">
+                <div class="gles-hdr"><div class="gles-t">认识吉他与调音</div><div class="gles-ph">阅读</div></div>
+                <div class="gles-body">
+                  <div class="study-card">
+                    <div class="study-txt">吉他由琴头、琴颈和琴身三部分组成。标准调音从低到高为 E-A-D-G-B-E，可使用调音器或手机 App 辅助完成...</div>
+                  </div>
+                  <div class="next-btn">继续 →</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">① reading</div>
+        </div>
+
+        <div class="arrow-col" style="padding-top:40px;font-size:12px;">→</div>
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-gles">
+                <div class="gles-hdr"><div class="gles-t">认识吉他与调音</div><div class="gles-ph">测验</div></div>
+                <div class="gles-body">
+                  <div style="font-size:9px;color:#c9a84c;font-weight:600;margin-bottom:3px;">随堂测验</div>
+                  <div class="quiz-item"><div class="quiz-qt">1. 标准调音最低弦是？</div><div class="quiz-inp">你的回答...</div></div>
+                  <div class="quiz-item"><div class="quiz-qt">2. 吉他共有几根弦？</div><div class="quiz-inp">你的回答...</div></div>
+                  <div class="next-btn">提交答案</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">② quiz</div>
+        </div>
+
+        <div class="arrow-col" style="padding-top:40px;font-size:12px;">→</div>
+
+        <div class="step">
+          <div class="phone phone-narrow">
+            <div class="phone-frame">
+              <div class="p-gles">
+                <div class="gles-hdr"><div class="gles-t">认识吉他与调音</div><div class="gles-ph">问答</div></div>
+                <div class="gles-body">
+                  <div style="font-size:9px;color:#c9a84c;font-weight:600;margin-bottom:3px;">自由问答</div>
+                  <div class="qa-row">
+                    <div class="dbuser" style="font-size:7.5px;">电吉他调音一样吗？</div>
+                    <div class="dbai" style="font-size:7.5px;">标准调音相同，都是 E-A-D-G-B-E...</div>
+                  </div>
+                  <div class="qa-inp-row"><div class="qa-inp">问老师任何问题...</div><div class="qa-btn">问</div></div>
+                  <div class="end-btn">结束本节课</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="step-label">③ free_qa</div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

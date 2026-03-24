@@ -4,6 +4,7 @@ import logging
 import os
 import tempfile
 
+from langchain.tools import tool
 from notebooklm import NotebookLMClient as _NLMClient
 
 _logger = logging.getLogger(__name__)
@@ -155,3 +156,28 @@ def get_nlm_client() -> NotebookLMWrapper:
     if _nlm_client is None:
         _nlm_client = NotebookLMWrapper()
     return _nlm_client
+
+
+def make_ask_notebook_tool(notebook_id: str):
+    """Factory: returns an ask_notebook tool that closes over notebook_id.
+
+    Usage (in a DeepAgent):
+        agent = create_deep_agent(tools=[make_ask_notebook_tool(project["notebook_id"]), ...])
+    """
+    nlm = get_nlm_client()
+
+    @tool
+    async def ask_notebook(question: str) -> str:
+        """ALWAYS use this tool when the user asks ANY question about the learning topic —
+        concept explanations, "why does X work", "what is Y", factual lookups, or anything
+        that requires accurate domain knowledge. Returns answers grounded in the notebook's
+        curated sources. Never answer topic questions from memory alone; use this tool to
+        avoid hallucination."""
+        try:
+            return await nlm.ask(notebook_id, question)
+        except Exception as e:
+            return (
+                f"ERROR: Failed to query notebook — {e}. Try rephrasing the question or try again."
+            )
+
+    return ask_notebook

@@ -2,8 +2,10 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Protocol
+
+from pydantic import ValidationError
 
 from backend.models import (
     Article,
@@ -20,6 +22,17 @@ from backend.models import (
     WritingTask,
     WritingTaskCreate,
 )
+
+
+def _safe_json(raw, fallback=None):
+    """Decode a JSON string; return *fallback* on any parse error or empty input."""
+    if not raw:
+        return fallback
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return fallback
+
 
 CREATE_TABLES = """
 CREATE TABLE IF NOT EXISTS user_profile (
@@ -210,12 +223,15 @@ class DatabaseProtocol(Protocol):
 
 
 _instance: "Database | None" = None
+_instance_lock = threading.Lock()
 
 
 def get_db(db_path: str = "./db.sqlite3") -> "Database":
     global _instance
     if _instance is None:
-        _instance = Database(db_path)
+        with _instance_lock:
+            if _instance is None:  # Double-checked locking
+                _instance = Database(db_path)
     return _instance
 
 
@@ -271,7 +287,7 @@ class Database:
                 return None
             return UserProfile(
                 goal=row["goal"],
-                interests=json.loads(row["interests"]),
+                interests=_safe_json(row["interests"], []),
                 level=row["level"],
                 bandwidth_minutes=row["bandwidth_minutes"],
                 writing_mode=row["writing_mode"],
@@ -318,9 +334,9 @@ class Database:
                 source_url=row["source_url"],
                 original_title=row["original_title"],
                 full_text=row["full_text"],
-                highlight_indices=json.loads(row["highlight_indices"]),
+                highlight_indices=_safe_json(row["highlight_indices"], []),
                 article_logic=row["article_logic"],
-                topic_tags=json.loads(row["topic_tags"]),
+                topic_tags=_safe_json(row["topic_tags"], []),
             )
 
     def upsert_writing_task(self, task: WritingTaskCreate) -> int:
@@ -406,7 +422,7 @@ class Database:
                     context_sentence=r["context_sentence"],
                     source=r["source"],
                     next_review=r["next_review"],
-                    fsrs_state=json.loads(r["fsrs_state"]),
+                    fsrs_state=_safe_json(r["fsrs_state"], {}),
                     article_id=r["article_id"],
                 )
                 for r in rows
@@ -422,7 +438,7 @@ class Database:
                     context_sentence=r["context_sentence"],
                     source=r["source"],
                     next_review=r["next_review"],
-                    fsrs_state=json.loads(r["fsrs_state"]),
+                    fsrs_state=_safe_json(r["fsrs_state"], {}),
                     article_id=r["article_id"],
                 )
                 for r in rows
@@ -518,7 +534,9 @@ class Database:
         with self._conn() as conn:
             writing_scores = conn.execute(
                 "SELECT date(submitted_at) as d, overall_score "
-                "FROM writing_submissions ORDER BY submitted_at DESC LIMIT 7"
+                "FROM writing_submissions "
+                "WHERE submitted_at > datetime('now', '-7 days') "
+                "ORDER BY submitted_at DESC"
             ).fetchall()
 
             chinglish_counts = conn.execute(
@@ -555,9 +573,9 @@ class Database:
                 source_url=row["source_url"],
                 original_title=row["original_title"],
                 full_text=row["full_text"],
-                highlight_indices=json.loads(row["highlight_indices"]),
+                highlight_indices=_safe_json(row["highlight_indices"], []),
                 article_logic=row["article_logic"],
-                topic_tags=json.loads(row["topic_tags"]),
+                topic_tags=_safe_json(row["topic_tags"], []),
             )
 
     def query_topic_performance(self) -> dict:
@@ -622,8 +640,6 @@ class Database:
     def create_general_project(
         self, topic: str, profile: UserGoalProfile | None, tier: str = "free"
     ) -> int:
-        from datetime import datetime
-
         with self._conn() as conn:
             cur = conn.execute(
                 "INSERT INTO learning_projects"
@@ -632,7 +648,7 @@ class Database:
                     topic,
                     json.dumps(profile.model_dump()) if profile else None,
                     tier,
-                    datetime.utcnow().isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )
             return cur.lastrowid  # type: ignore
@@ -645,12 +661,16 @@ class Database:
         if not row:
             return None
         d = dict(row)
-        d["goal_profile"] = (
-            UserGoalProfile(**json.loads(d["goal_profile"])) if d["goal_profile"] else None
-        )
-        d["learning_map"] = (
-            LearningMap(**json.loads(d["learning_map"])) if d["learning_map"] else None
-        )
+        try:
+            _raw = _safe_json(d["goal_profile"], None)
+            d["goal_profile"] = UserGoalProfile(**_raw) if _raw else None
+        except (TypeError, KeyError, ValidationError):
+            d["goal_profile"] = None
+        try:
+            _raw = _safe_json(d["learning_map"], None)
+            d["learning_map"] = LearningMap(**_raw) if _raw else None
+        except (TypeError, KeyError, ValidationError):
+            d["learning_map"] = None
         return GeneralProject(**d)
 
     def update_general_project_status(self, project_id: int, status: str) -> None:
@@ -735,8 +755,8 @@ class Database:
         result = []
         for row in rows:
             d = dict(row)
-            d["quiz_json"] = json.loads(d["quiz_json"]) if d["quiz_json"] else None
-            d["flashcards"] = json.loads(d["flashcards"]) if d["flashcards"] else None
+            d["quiz_json"] = _safe_json(d["quiz_json"], None)
+            d["flashcards"] = _safe_json(d["flashcards"], None)
             result.append(GeneralLesson(**d))
         return result
 
@@ -748,15 +768,13 @@ class Database:
         if not row:
             return None
         d = dict(row)
-        d["quiz_json"] = json.loads(d["quiz_json"]) if d["quiz_json"] else None
-        d["flashcards"] = json.loads(d["flashcards"]) if d["flashcards"] else None
+        d["quiz_json"] = _safe_json(d["quiz_json"], None)
+        d["flashcards"] = _safe_json(d["flashcards"], None)
         return GeneralLesson(**d)
 
     def save_general_session(
         self, project_id: int, lesson_id: int, quiz_answers: list, quiz_score: int, qa_history: list
     ) -> int:
-        from datetime import datetime
-
         with self._conn() as conn:
             cur = conn.execute(
                 "INSERT INTO project_sessions"
@@ -768,7 +786,7 @@ class Database:
                     json.dumps(quiz_answers),
                     quiz_score,
                     json.dumps(qa_history),
-                    datetime.utcnow().isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )
             return cur.lastrowid  # type: ignore
@@ -783,8 +801,8 @@ class Database:
         result = []
         for row in rows:
             d = dict(row)
-            d["quiz_answers"] = json.loads(d["quiz_answers"]) if d["quiz_answers"] else []
-            d["qa_history"] = json.loads(d["qa_history"]) if d["qa_history"] else []
+            d["quiz_answers"] = _safe_json(d["quiz_answers"], [])
+            d["qa_history"] = _safe_json(d["qa_history"], [])
             result.append(d)
         return result
 
@@ -837,7 +855,7 @@ class Database:
             ).fetchone()
         if row:
             goal_progress = row["goal_progress"]
-            dimensions = json.loads(row["dimensions"]) if row["dimensions"] else {}
+            dimensions = _safe_json(row["dimensions"], {})
 
         return {
             "id": project.id,

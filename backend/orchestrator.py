@@ -33,17 +33,28 @@ async def orchestrate_after_tutor(handoff: TutorHandoff, db) -> None:
     profile = db.get_user_profile()
     current_level = profile.level if profile else 5
 
-    reflect_handoff = await run_reflect(
-        handoff, weekly_stats, observations, insights_history, current_level=current_level
-    )
+    try:
+        reflect_handoff = await run_reflect(
+            handoff, weekly_stats, observations, insights_history, current_level=current_level
+        )
+    except Exception:
+        logger.exception("Orchestrator: Reflect failed — skipping Planner and student model update")
+        return
 
     # Quality gate: if insight is empty, retry with extended observations
     if not reflect_handoff.teaching_insight.strip():
         logger.warning("Orchestrator: Reflect returned empty insight, retrying with 14-day window")
         observations_ext = memory.read_observations(days=14)
-        reflect_handoff = await run_reflect(
-            handoff, weekly_stats, observations_ext, insights_history, current_level=current_level
-        )
+        try:
+            reflect_handoff = await run_reflect(
+                handoff,
+                weekly_stats,
+                observations_ext,
+                insights_history,
+                current_level=current_level,
+            )
+        except Exception:
+            logger.exception("Orchestrator: Reflect retry failed — storing empty insight")
         if not reflect_handoff.teaching_insight.strip():
             logger.warning("Orchestrator: Reflect still empty after retry — storing as-is")
 
@@ -117,7 +128,12 @@ async def _run_planner_async(target_date: str, reflect_handoff: ReflectHandoff |
         planner = create_deep_agent_planner(cp, reflect_handoff=reflect_handoff)
         config = get_planner_config(f"-{int(_time.time())}")
         target_msg = f"为 {target_date} 准备一节课"
-        await planner.ainvoke(  # type: ignore[attr-defined]
+        result = await planner.ainvoke(  # type: ignore[attr-defined]
             {"messages": [{"role": "user", "content": target_msg}]},
             config,
         )
+        todos = result.get("todos", []) if isinstance(result, dict) else []
+        if todos:
+            logger.info("Planner todos for %s:", target_date)
+            for todo in todos:
+                logger.info("  [%s] %s", todo.get("status", "?"), todo.get("content", ""))

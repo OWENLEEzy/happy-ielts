@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DynamicLingo — 系统架构时间线</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { min-width: 1400px; background: #0f172a; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; }
+    .phase-card { position: relative; min-width: 280px; max-width: 320px; }
+    .arrow-right {
+      display: flex; align-items: center; padding: 0 8px; flex-shrink: 0;
+    }
+    .arrow-right .arrow-line {
+      height: 2px; background: #475569; flex: 1; min-width: 32px; position: relative;
+    }
+    .arrow-right .arrow-label {
+      position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+      white-space: nowrap; font-size: 10px; color: #94a3b8; background: #1e293b;
+      padding: 1px 4px; border-radius: 3px; border: 1px solid #334155;
+    }
+    .arrow-right .arrowhead {
+      width: 0; height: 0;
+      border-top: 6px solid transparent; border-bottom: 6px solid transparent;
+      border-left: 8px solid #475569; flex-shrink: 0;
+    }
+    .loop-arrow {
+      display: flex; align-items: center; justify-content: center;
+      padding: 8px 0; color: #64748b; font-size: 11px;
+    }
+    .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
+    .chip-data { background: #374151; color: #d1d5db; border: 1px solid #4b5563; }
+    .chip-nlm { background: #0e4f5c; color: #67e8f9; border: 1px solid #0891b2; }
+    .chip-interrupt { background: #450a0a; color: #fca5a5; border: 1px solid #ef4444; }
+    .step-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; border-bottom: 1px solid #1e293b; }
+    .step-row:last-child { border-bottom: none; }
+    .step-num { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+    .code-block { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; padding: 10px 12px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 10px; line-height: 1.6; color: #c9d1d9; margin-top: 8px; }
+    .code-key { color: #79c0ff; }
+    .code-val { color: #a5d6ff; }
+    .code-comment { color: #8b949e; }
+    .interrupt-badge {
+      position: absolute; top: -8px; right: -8px;
+      background: #ef4444; color: white; border-radius: 9999px;
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      display: flex; align-items: center; gap: 3px; z-index: 10;
+      border: 2px solid #1e293b;
+    }
+    .first-time-badge {
+      position: absolute; top: -10px; left: 12px;
+      background: transparent; color: #10b981; border: 1.5px dashed #10b981;
+      border-radius: 9999px; font-size: 10px; font-weight: 600; padding: 2px 8px;
+    }
+    .section-label {
+      writing-mode: vertical-rl; text-orientation: mixed; transform: rotate(180deg);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em; padding: 8px 0;
+      display: flex; align-items: center;
+    }
+    .flywheel-arrow {
+      display: flex; flex-direction: column; align-items: center;
+      font-size: 10px; color: #64748b; gap: 2px;
+    }
+    details > summary { cursor: pointer; user-select: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    .summary-icon { transition: transform 0.2s; display: inline-block; }
+    details[open] .summary-icon { transform: rotate(90deg); }
+  </style>
+</head>
+<body class="p-8">
+
+  <!-- Header -->
+  <div class="mb-10 text-center">
+    <h1 class="text-3xl font-bold text-white mb-2">DynamicLingo — 系统架构时间线</h1>
+    <p class="text-slate-400 text-sm">两条学习路径的完整 Loop 协作流程 · 触发时机 · 关键数据结构 · 学习飞轮闭环</p>
+    <div class="flex items-center justify-center gap-6 mt-4 flex-wrap">
+      <span class="flex items-center gap-2 text-xs text-slate-400"><span class="w-3 h-3 rounded-full bg-amber-500 inline-block"></span>Planner (Slow Loop)</span>
+      <span class="flex items-center gap-2 text-xs text-slate-400"><span class="w-3 h-3 rounded-full bg-blue-500 inline-block"></span>Tutor / Lesson Graph</span>
+      <span class="flex items-center gap-2 text-xs text-slate-400"><span class="w-3 h-3 rounded-full bg-violet-500 inline-block"></span>Reflect</span>
+      <span class="flex items-center gap-2 text-xs text-slate-400"><span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>Onboarding</span>
+      <span class="flex items-center gap-2 text-xs text-slate-400"><span class="w-3 h-3 rounded-full bg-cyan-500 inline-block"></span>Researcher (NotebookLM)</span>
+      <span class="flex items-center gap-2 text-xs text-slate-400"><span class="w-3 h-3 rounded-full bg-indigo-500 inline-block"></span>Extractor</span>
+      <span class="chip chip-interrupt text-[11px]">⚡ 用户交互点</span>
+      <span class="chip chip-nlm text-[11px]">🤖 NotebookLM API</span>
+      <span class="chip chip-data text-[11px]">📦 数据写入</span>
+    </div>
+  </div>
+
+  <!-- ===== PATH A ===== -->
+  <div class="mb-12">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="section-label bg-amber-500/10 text-amber-400 rounded-lg px-3 py-4" style="writing-mode:horizontal-tb;transform:none;">
+        路径 A
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-amber-400">英语精读飞轮</h2>
+        <p class="text-slate-500 text-xs mt-0.5">凌晨自动备课 → 用户实时课堂 → 课后写作复盘 → 循环驱动下一课</p>
+      </div>
+    </div>
+
+    <div class="flex items-start gap-0 overflow-x-auto pb-4">
+
+      <!-- A1: Planner -->
+      <div class="phase-card">
+        <div class="relative bg-slate-800 border border-amber-500/40 rounded-xl p-4" style="min-height:460px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-sm">A1</div>
+            <div>
+              <div class="font-semibold text-amber-400 text-sm">Slow Loop — Planner</div>
+              <div class="text-slate-500 text-[10px]">DeepAgent · 每日 02:00 cron</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-amber-500/80">⏰ 触发：</span>APScheduler 02:00 或 Reflect 手动触发
+          </div>
+
+          <!-- Steps -->
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">1</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">load_user_profile</div>
+              <div class="text-[10px] text-slate-500">student_model.json + ReflectHandoff → UserProfile</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">2</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">search_articles <span class="text-slate-500">(TavilySearch)</span></div>
+              <div class="text-[10px] text-slate-500">interests, level, avoid_topics → 3篇候选 URL</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">3</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">scrape_article(url)</div>
+              <div class="text-[10px] text-slate-500">URL → full_text</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">4</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">highlight_key_paragraphs()</div>
+              <div class="text-[10px] text-slate-500">→ highlight_indices (3-5个) + article_logic</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">5</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">generate_writing_task()</div>
+              <div class="text-[10px] text-slate-500">→ instruction + min_words + mode</div>
+            </div>
+          </div>
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">6</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">save_daily_lesson()</div>
+              <div class="flex gap-1 mt-1 flex-wrap">
+                <span class="chip chip-data">articles 表</span>
+                <span class="chip chip-data">writing_tasks 表</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Data structure -->
+          <details class="mt-3">
+            <summary class="text-[11px] text-amber-400/80 hover:text-amber-400 flex items-center gap-1">
+              <span class="summary-icon">▶</span> 备课材料结构 (ArticleCreate)
+            </summary>
+            <div class="code-block">
+<span class="code-key">ArticleCreate</span> {<br>
+  <span class="code-key">  date</span>, <span class="code-key">source_url</span>, <span class="code-key">original_title</span><br>
+  <span class="code-key">  full_text</span>: <span class="code-val">str</span><br>
+  <span class="code-key">  highlight_indices</span>: <span class="code-val">[0, 2, 4]</span>  <span class="code-comment">← 前端高亮段落序号</span><br>
+  <span class="code-key">  article_logic</span>: <span class="code-val">compare|cause_effect|</span><br>
+  <span class="code-val">    argumentation|narrative|</span><br>
+  <span class="code-val">    problem_solution</span><br>
+  <span class="code-key">  topic_tags</span>: <span class="code-val">["AI", "NLP"]</span><br>
+}<br>
+<span class="code-key">WritingTaskCreate</span> {<br>
+  <span class="code-key">  mode</span>: <span class="code-val">professional|ielts_task1|ielts_task2</span><br>
+  <span class="code-key">  instruction</span>: <span class="code-val">"Write 150 words..."</span><br>
+  <span class="code-key">  min_words</span>: <span class="code-val">50-250</span><br>
+}
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Arrow A1->A2 -->
+      <div class="arrow-right self-center" style="min-width:70px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">ArticleCreate<br>WritingTaskCreate</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- A2: Tutor Graph -->
+      <div class="phase-card" style="max-width:340px;">
+        <div class="relative bg-slate-800 border border-blue-500/40 rounded-xl p-4" style="min-height:460px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold text-sm">A2</div>
+            <div>
+              <div class="font-semibold text-blue-400 text-sm">Fast Loop — Tutor Graph</div>
+              <div class="text-slate-500 text-[10px]">LangGraph · SSE 实时交互</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-blue-500/80">▶ 触发：</span>用户打开 App → POST /api/lesson/start
+          </div>
+
+          <!-- Nodes -->
+          <div class="step-row">
+            <div class="step-num bg-slate-700 text-slate-400">→</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">route_start <span class="text-slate-500 text-[10px]">Command</span></div>
+              <div class="text-[10px] text-slate-500">加载 article + task + due_vocab</div>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge">⚡ interrupt</span>
+            <div class="step-num bg-blue-500/20 text-blue-400">↻</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">spaced_review <span class="text-slate-500 text-[10px]">loop</span></div>
+              <div class="text-[10px] text-slate-500">回答 fill-blank 卡片</div>
+              <span class="chip chip-data mt-1">upsert_vocab_item (FSRS)</span>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge" style="top:-8px;">⚡ interrupt</span>
+            <div class="step-num bg-blue-500/20 text-blue-400">↻</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">reading <span class="text-slate-500 text-[10px]">loop · retry×3</span></div>
+              <div class="text-[10px] text-slate-500">explain_word / analyze_sentence / done_reading</div>
+              <span class="chip chip-data mt-1">upsert_vocab_item (reading_click)</span>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge" style="top:-8px;">⚡ interrupt</span>
+            <div class="step-num bg-blue-500/20 text-blue-400">⏸</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">writing_task</div>
+              <div class="text-[10px] text-slate-500">提交写作文本</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-slate-700 text-slate-400">⚙</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">evaluate_writing <span class="text-slate-500 text-[10px]">retry×3</span></div>
+              <div class="text-[10px] text-slate-500">自动评分 → state["writing_feedback"]</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-slate-700 text-slate-400">✓</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">save_results</div>
+              <div class="flex gap-1 mt-1 flex-wrap">
+                <span class="chip chip-data">writing_submissions</span>
+                <span class="chip chip-data">vocab_items (writing_error)</span>
+                <span class="chip chip-data">observations.jsonl</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 bg-slate-700/50 rounded-lg">
+            <div class="text-[10px] text-slate-500 mb-1">SSE 事件类型</div>
+            <div class="flex flex-wrap gap-1">
+              <span class="chip chip-data">fill_blank</span>
+              <span class="chip chip-data">awaiting_action</span>
+              <span class="chip chip-data">word_explanation</span>
+              <span class="chip chip-data">sentence_analysis</span>
+              <span class="chip chip-data">feedback</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow A2->A3 -->
+      <div class="arrow-right self-center" style="min-width:70px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">phases_completed ≥ 3<br>→ 触发 Reflect</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- A3: Reflect -->
+      <div class="phase-card">
+        <div class="relative bg-slate-800 border border-violet-500/40 rounded-xl p-4" style="min-height:460px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/40 flex items-center justify-center text-violet-400 font-bold text-sm">A3</div>
+            <div>
+              <div class="font-semibold text-violet-400 text-sm">Post-lesson — Reflect</div>
+              <div class="text-slate-500 text-[10px]">DeepAgent · 课后自动触发</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-violet-500/80">🔔 触发：</span>phases_completed ≥ 3
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-violet-500/20 text-violet-400">📊</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">聚合输入</div>
+              <div class="text-[10px] text-slate-500 space-y-0.5">
+                <div>weekly_stats (7天写作分)</div>
+                <div>chinglish 分布</div>
+                <div>observations.jsonl (7天)</div>
+                <div>insights.jsonl (14天)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-violet-500/20 text-violet-400">🧠</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">run_reflect</div>
+              <div class="text-[10px] text-slate-500">→ ReflectHandoff</div>
+            </div>
+          </div>
+
+          <div class="mt-2 p-2 bg-slate-700/50 rounded-lg">
+            <div class="text-[10px] text-violet-400/80 mb-1">ReflectHandoff 字段</div>
+            <div class="text-[10px] text-slate-400 space-y-0.5">
+              <div>• level_suggestion (±1)</div>
+              <div>• top_weaknesses</div>
+              <div>• improving_areas</div>
+              <div>• topic_recommendation</div>
+              <div>• teaching_insight</div>
+            </div>
+          </div>
+
+          <div class="step-row mt-2">
+            <div class="step-num bg-violet-500/20 text-violet-400">💾</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">写入</div>
+              <div class="flex gap-1 mt-1 flex-wrap">
+                <span class="chip chip-data">teaching-insights.jsonl</span>
+                <span class="chip chip-data">student_model.json</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-amber-500/20 text-amber-400">🚀</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">触发下一轮 Planner</div>
+              <div class="text-[10px] text-slate-500">_start_planner_thread(reflect_handoff)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow A3->Loop -->
+      <div class="arrow-right self-center" style="min-width:60px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">ReflectHandoff</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- A4: Loop back -->
+      <div class="phase-card" style="min-width:180px; max-width:200px;">
+        <div class="bg-slate-800/50 border border-slate-600/30 rounded-xl p-4 flex flex-col items-center justify-center" style="min-height:460px;">
+          <div class="text-5xl mb-3 text-amber-500/60">↺</div>
+          <div class="text-center">
+            <div class="text-amber-400 font-semibold text-sm">循环飞轮</div>
+            <div class="text-slate-500 text-[10px] mt-2 leading-relaxed">
+              ReflectHandoff 注入 Planner<br>系统提示
+            </div>
+            <div class="mt-3 space-y-1.5 text-left">
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-amber-400">↑</span> 调整难度 level</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-amber-400">↑</span> 优化选题主题</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-amber-400">↑</span> 避免已学内容</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-amber-400">↑</span> 针对弱点出题</div>
+            </div>
+          </div>
+          <div class="mt-4 text-[10px] text-slate-600 text-center">→ 回到 A1 Planner</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="border-t border-slate-700/50 my-8 mx-4"></div>
+
+  <!-- ===== PATH B ===== -->
+  <div class="mb-12">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="section-label bg-emerald-500/10 text-emerald-400 rounded-lg px-3 py-4" style="writing-mode:horizontal-tb;transform:none;">
+        路径 B
+      </div>
+      <div>
+        <h2 class="text-xl font-bold text-emerald-400">通用知识学习 General Learning</h2>
+        <p class="text-slate-500 text-xs mt-0.5">用户自定主题 → NotebookLM 深度研究 → 逐课提取材料 → 实时课堂 → 复盘循环</p>
+      </div>
+    </div>
+
+    <div class="flex items-start gap-0 overflow-x-auto pb-4">
+
+      <!-- B1: Onboarding -->
+      <div class="phase-card" style="max-width:300px;">
+        <div class="relative bg-slate-800 border border-emerald-500/40 rounded-xl p-4" style="min-height:480px; border-style: dashed;">
+          <span class="first-time-badge">首次设置</span>
+          <div class="flex items-center gap-2 mb-3 mt-2">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm">B1</div>
+            <div>
+              <div class="font-semibold text-emerald-400 text-sm">Onboarding</div>
+              <div class="text-slate-500 text-[10px]">DeepAgent · 首次进入 /learn</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-emerald-500/80">▶ 触发：</span>用户首次进入 /learn 页面
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-emerald-500/20 text-emerald-400">1</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">POST /api/learn/onboarding/start</div>
+              <div class="text-[10px] text-slate-500">创建 learning_projects 记录</div>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge">⚡ SSE 访谈</span>
+            <div class="step-num bg-emerald-500/20 text-emerald-400">2</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">DeepAgent 访谈</div>
+              <div class="text-[10px] text-slate-500">收集 UserGoalProfile</div>
+              <div class="text-[10px] text-slate-500 mt-1 space-y-0.5">
+                <div>• 学习目标</div>
+                <div>• 具体应用场景</div>
+                <div>• 背景知识水平</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-emerald-500/20 text-emerald-400">3</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">POST /api/learn/onboarding/confirm</div>
+              <div class="text-[10px] text-slate-500">保存 goal_profile + 初始 LearningMap</div>
+            </div>
+          </div>
+
+          <div class="mt-2 p-2 bg-slate-700/50 rounded-lg">
+            <div class="text-[10px] text-emerald-400/80 mb-1">LearningMap 结构 (LLM 生成)</div>
+            <div class="code-block" style="margin-top:6px;">
+<span class="code-key">chapters</span>: [<br>
+  { <span class="code-key">title</span>: <span class="code-val">"Chapter 1"</span>,<br>
+    <span class="code-key">lessons</span>: [<br>
+      { <span class="code-key">title</span>: <span class="code-val">"Lesson 1.1"</span>,<br>
+        <span class="code-key">objectives</span>: [...] },<br>
+      { <span class="code-key">title</span>: <span class="code-val">"Lesson 1.2"</span>, ... }<br>
+    ]<br>
+  } <span class="code-comment">// 3-6章，每章2-4课</span><br>
+]
+            </div>
+          </div>
+
+          <div class="mt-2 text-[10px] text-emerald-500/70 flex items-center gap-1">
+            <span>→</span> confirm 完成后 fire-and-forget 触发 Researcher
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow B1->B2 -->
+      <div class="arrow-right self-center" style="min-width:70px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">UserGoalProfile<br>LearningMap</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- B2: Researcher (NotebookLM) -->
+      <div class="phase-card" style="max-width:340px;">
+        <div class="relative bg-slate-800 border border-cyan-500/40 rounded-xl p-4" style="min-height:480px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 font-bold text-sm">B2</div>
+            <div>
+              <div class="font-semibold text-cyan-400 text-sm">Researcher — NotebookLM</div>
+              <div class="text-slate-500 text-[10px]">DeepAgent · 后台异步</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-cyan-500/80">🔄 触发：</span>onboarding confirm 后 fire-and-forget
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-cyan-500/20 text-cyan-400">1</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">创建笔记本</div>
+              <span class="chip chip-nlm mt-1">🤖 create_notebook(title)</span>
+              <div class="text-[10px] text-slate-500 mt-1">→ notebook_id</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-cyan-500/20 text-cyan-400">2</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">Round 1: 广泛扫描</div>
+              <span class="chip chip-nlm mt-1">🤖 add_research(topic+goal, mode="deep")</span>
+              <div class="text-[10px] text-slate-500 mt-1">最多 30 分钟深度研究</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-cyan-500/20 text-cyan-400">3-7</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">Round 2-7: 迭代填补知识缺口</div>
+              <div class="flex flex-col gap-1 mt-1">
+                <span class="chip chip-nlm">🤖 ask(nb_id, "缺什么知识？")</span>
+                <span class="chip chip-nlm">🤖 add_research(gap)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-cyan-500/20 text-cyan-400">8</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">生成思维导图</div>
+              <span class="chip chip-nlm mt-1">🤖 generate_mind_map(nb_id)</span>
+              <div class="text-[10px] text-slate-500 mt-1">→ /tmp/mindmap.json</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-cyan-500/20 text-cyan-400">9</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">适配 LearningMap</div>
+              <div class="text-[10px] text-slate-500">根据 mindmap 调整章节结构</div>
+              <span class="chip chip-data mt-1">learning_projects 更新</span>
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 bg-slate-700/40 rounded-lg">
+            <div class="text-[10px] text-cyan-400/80 mb-1">预算限制</div>
+            <div class="text-[10px] text-slate-400">
+              <span class="text-cyan-400">free:</span> 50次 / <span class="text-cyan-400">paid:</span> 300次 add_research 调用
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow B2->B3 -->
+      <div class="arrow-right self-center" style="min-width:70px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">notebook_id<br>LearningMap (updated)</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- B3: Extractor -->
+      <div class="phase-card" style="max-width:340px;">
+        <div class="relative bg-slate-800 border border-indigo-500/40 rounded-xl p-4" style="min-height:480px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 font-bold text-sm">B3</div>
+            <div>
+              <div class="font-semibold text-indigo-400 text-sm">Extractor — 提取备课材料</div>
+              <div class="text-slate-500 text-[10px]">每课异步提取</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-indigo-500/80">🔔 触发：</span>Researcher 完成后，逐课提取
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-indigo-500/20 text-indigo-400">1</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">详解课程知识点</div>
+              <span class="chip chip-nlm mt-1">🤖 ask(nb_id, "详解『{lesson}』", save_as_note=True)</span>
+              <div class="text-[10px] text-slate-500 mt-1">笔记保存到 notebook</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-indigo-500/20 text-indigo-400">2</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">生成学习指南</div>
+              <span class="chip chip-nlm mt-1">🤖 generate_study_guide(append="聚焦『{lesson}』")</span>
+              <div class="text-[10px] text-slate-500 mt-1">→ study_guide (Markdown)</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-indigo-500/20 text-indigo-400">3</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">生成测验题</div>
+              <span class="chip chip-nlm mt-1">🤖 generate_quiz()</span>
+              <div class="text-[10px] text-slate-500 mt-1">→ quiz_json (含答案 JSON)</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-indigo-500/20 text-indigo-400">4</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">生成闪卡</div>
+              <span class="chip chip-nlm mt-1">🤖 generate_flashcards()</span>
+              <div class="text-[10px] text-slate-500 mt-1">→ flashcards (JSON)</div>
+            </div>
+          </div>
+
+          <!-- Data structure -->
+          <details class="mt-3">
+            <summary class="text-[11px] text-indigo-400/80 hover:text-indigo-400 flex items-center gap-1">
+              <span class="summary-icon">▶</span> 备课材料结构 (GeneralLesson)
+            </summary>
+            <div class="code-block">
+<span class="code-key">GeneralLesson</span> {<br>
+  <span class="code-key">  title</span>, <span class="code-key">chapter</span>, <span class="code-key">lesson</span><br>
+  <span class="code-key">  study_guide</span>: <span class="code-val">"# Markdown..."</span>  <span class="code-comment">← 学习指南</span><br>
+  <span class="code-key">  quiz_json</span>: [{<span class="code-val">question</span>,<br>
+    <span class="code-val">answer</span>, ...}]  <span class="code-comment">← 测验题</span><br>
+  <span class="code-key">  flashcards</span>: [{<span class="code-val">front</span>, <span class="code-val">back</span>}]<br>
+  <span class="code-key">  status</span>: <span class="code-val">pending</span> → <span class="code-val">ready</span><br>
+}
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <!-- Arrow B3->B4 -->
+      <div class="arrow-right self-center" style="min-width:70px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">GeneralLesson<br>status: ready</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- B4: Lesson Graph -->
+      <div class="phase-card" style="max-width:340px;">
+        <div class="relative bg-slate-800 border border-blue-500/40 rounded-xl p-4" style="min-height:480px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/40 flex items-center justify-center text-blue-400 font-bold text-sm">B4</div>
+            <div>
+              <div class="font-semibold text-blue-400 text-sm">Fast Loop — LangGraph Lesson</div>
+              <div class="text-slate-500 text-[10px]">LangGraph · SSE 实时交互</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-blue-500/80">▶ 触发：</span>用户点击课程 → POST /api/learn/lesson/start
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-slate-700 text-slate-400">→</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">route_start <span class="text-slate-500 text-[10px]">Command</span></div>
+              <div class="text-[10px] text-slate-500">加载 GeneralLesson 内容</div>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge">⚡ interrupt</span>
+            <div class="step-num bg-blue-500/20 text-blue-400">↻</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">reading_session <span class="text-slate-500 text-[10px]">loop</span></div>
+              <div class="text-[10px] text-slate-500">阅读 study_guide；点击「继续」</div>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge" style="top:-8px;">⚡ interrupt</span>
+            <div class="step-num bg-blue-500/20 text-blue-400">⏸</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">quiz_session</div>
+              <div class="text-[10px] text-slate-500">回答测验题；自动评分 (0-100%)</div>
+            </div>
+          </div>
+
+          <div class="step-row relative">
+            <span class="interrupt-badge" style="top:-8px;">⚡ interrupt</span>
+            <div class="step-num bg-blue-500/20 text-blue-400">↻</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">free_qa_session <span class="text-slate-500 text-[10px]">loop</span></div>
+              <div class="text-[10px] text-slate-500">自由提问 → nlm.ask() 流式回答</div>
+              <span class="chip chip-nlm mt-1">🤖 ask(nb_id, question)</span>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-slate-700 text-slate-400">✓</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">save_results</div>
+              <div class="flex gap-1 mt-1 flex-wrap">
+                <span class="chip chip-data">project_sessions</span>
+                <span class="chip chip-data">→ 触发 Reflect</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 bg-slate-700/50 rounded-lg">
+            <div class="text-[10px] text-slate-500 mb-1">SSE 事件类型</div>
+            <div class="flex flex-wrap gap-1">
+              <span class="chip chip-data">reading_content</span>
+              <span class="chip chip-data">quiz_question</span>
+              <span class="chip chip-data">quiz_result</span>
+              <span class="chip chip-data">qa_answer</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow B4->B5 -->
+      <div class="arrow-right self-center" style="min-width:60px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">quiz_scores<br>session_data</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- B5: Reflect -->
+      <div class="phase-card">
+        <div class="relative bg-slate-800 border border-violet-500/40 rounded-xl p-4" style="min-height:480px;">
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/40 flex items-center justify-center text-violet-400 font-bold text-sm">B5</div>
+            <div>
+              <div class="font-semibold text-violet-400 text-sm">Post-lesson Reflect</div>
+              <div class="text-slate-500 text-[10px]">课后自动触发</div>
+            </div>
+          </div>
+          <div class="text-[10px] text-slate-500 mb-2 flex items-center gap-1">
+            <span class="text-violet-500/80">🔔 触发：</span>save_results 完成后
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-violet-500/20 text-violet-400">📊</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">分析近5节课</div>
+              <div class="text-[10px] text-slate-500">quiz_score 按 chapter 分维度</div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-violet-500/20 text-violet-400">🧠</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">生成 GeneralStudentModel</div>
+              <div class="text-[10px] text-slate-500 mt-1 space-y-0.5">
+                <div>• dimensions (各维度掌握度)</div>
+                <div>• fsrs_due (下次复习时间)</div>
+                <div>• goal_progress (0-1)</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-row">
+            <div class="step-num bg-cyan-500/20 text-cyan-400">🔁</div>
+            <div class="flex-1">
+              <div class="text-xs text-slate-200 font-medium">弱章节补充研究</div>
+              <span class="chip chip-nlm mt-1">🤖 add_research(weak_topic)</span>
+            </div>
+          </div>
+
+          <div class="mt-3 p-2 bg-violet-500/10 rounded-lg border border-violet-500/20">
+            <div class="text-[10px] text-violet-400 mb-1">触发链</div>
+            <div class="text-[10px] text-slate-400 space-y-0.5">
+              <div>弱章节 → add_research 补充资料</div>
+              <div>→ Extractor 重新提取该章节</div>
+              <div>→ GeneralLesson 内容更新</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Arrow B5->Loop -->
+      <div class="arrow-right self-center" style="min-width:55px;">
+        <div class="arrow-line relative flex-1">
+          <span class="arrow-label">weak_chapters</span>
+        </div>
+        <div class="arrowhead"></div>
+      </div>
+
+      <!-- B6: Loop back -->
+      <div class="phase-card" style="min-width:170px; max-width:190px;">
+        <div class="bg-slate-800/50 border border-slate-600/30 rounded-xl p-4 flex flex-col items-center justify-center" style="min-height:480px;">
+          <div class="text-5xl mb-3 text-emerald-500/60">↺</div>
+          <div class="text-center">
+            <div class="text-emerald-400 font-semibold text-sm">循环飞轮</div>
+            <div class="text-slate-500 text-[10px] mt-2 leading-relaxed">
+              弱章节 → 补充研究<br>→ 更新课程材料
+            </div>
+            <div class="mt-3 space-y-1.5 text-left">
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-emerald-400">↑</span> 强化弱点章节</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-emerald-400">↑</span> 更新 study_guide</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-emerald-400">↑</span> 刷新 quiz_json</div>
+              <div class="text-[10px] text-slate-400 flex items-center gap-1"><span class="text-emerald-400">↑</span> 追踪 goal_progress</div>
+            </div>
+          </div>
+          <div class="mt-4 text-[10px] text-slate-600 text-center">→ 回到 B3 Extractor</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer: Data Flow Summary -->
+  <div class="mt-8 bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+    <h3 class="text-sm font-semibold text-slate-300 mb-4">数据库表一览</h3>
+    <div class="grid grid-cols-2 gap-6">
+      <div>
+        <div class="text-xs text-amber-400 font-medium mb-2">路径 A — 英语精读飞轮</div>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">articles</span><span class="text-slate-500">— 每日文章 + highlight_indices</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">writing_tasks</span><span class="text-slate-500">— 写作任务 + mode + min_words</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">writing_submissions</span><span class="text-slate-500">— 用户写作 + feedback</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">vocab_items</span><span class="text-slate-500">— 生词 + FSRS 状态 + source</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">observations.jsonl</span><span class="text-slate-500">— 每课观察 (7天)</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">student_model.json</span><span class="text-slate-500">— 学生画像 + level + error_patterns</span></div>
+        </div>
+      </div>
+      <div>
+        <div class="text-xs text-emerald-400 font-medium mb-2">路径 B — 通用知识学习</div>
+        <div class="space-y-1.5">
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">learning_projects</span><span class="text-slate-500">— 项目 + goal_profile + LearningMap</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-cyan-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">notebooks</span><span class="text-slate-500">— NotebookLM notebook_id 映射</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">general_lessons</span><span class="text-slate-500">— study_guide + quiz_json + flashcards</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">project_sessions</span><span class="text-slate-500">— 课次记录 + quiz_score</span></div>
+          <div class="flex items-center gap-2 text-[11px]"><span class="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0"></span><span class="text-slate-300 font-mono">general_student_model</span><span class="text-slate-500">— dimensions + fsrs_due + goal_progress</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 pt-4 border-t border-slate-700/50">
+      <div class="text-xs text-slate-500">
+        <span class="font-mono text-slate-400">db.sqlite3</span> — 应用数据（articles, writing_tasks, submissions, vocab_items, learning_projects, lessons, sessions）
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        <span class="font-mono text-slate-400">checkpoints.sqlite3</span> — LangGraph checkpoint（tutor graph + onboarding + general lesson 的 thread 状态）
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

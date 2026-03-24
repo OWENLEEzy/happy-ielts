@@ -1,3 +1,5 @@
+from datetime import date
+
 from deepagents import create_deep_agent
 from langchain.tools import tool
 
@@ -13,21 +15,24 @@ def save_partial_profile(
     interests: list[str],
     level: int,
 ) -> str:
-    """Save initial profile fields after AI conversation (phases 1-3).
-
-    Frontend handles phases 4-5 (bandwidth and writing mode).
-    """
+    """Call ONCE, only after collecting all three fields through conversation: goal
+    (specific use-case, not vague), interests (3-5 keywords), and level (inferred
+    from the student's English writing sample). Do not call with estimated or
+    incomplete values — partial data will break downstream lesson generation."""
     from backend.models import UserProfile
 
-    profile = UserProfile(
-        goal=goal,
-        interests=interests,
-        level=level,
-        bandwidth_minutes=25,
-        writing_mode="professional",
-    )
-    _db.upsert_user_profile(profile)
-    return f"Saved profile for level-{level} learner with goal: {goal}"
+    try:
+        profile = UserProfile(
+            goal=goal,
+            interests=interests,
+            level=level,
+            bandwidth_minutes=25,
+            writing_mode="professional",
+        )
+        _db.upsert_user_profile(profile)
+        return f"Saved profile for level-{level} learner with goal: {goal}"
+    except Exception as e:
+        return f"ERROR: Failed to save profile — {e}. Try again."
 
 
 ONBOARDING_PROMPT = """
@@ -53,4 +58,4 @@ def create_onboarding_agent(checkpointer):
     )
 
 
-ONBOARDING_CONFIG = {"configurable": {"thread_id": "onboarding"}}
+ONBOARDING_CONFIG = {"configurable": {"thread_id": f"onboarding-{date.today().isoformat()}"}}
