@@ -57,6 +57,23 @@ DeepAgent Reflect
   analyze writing_submissions + vocab_items
   → generate ReflectHandoff (strength/weakness summary)
   → trigger Planner with handoff for next lesson
+
+General Learning loop (triggered by /api/general/*)
+────────────────────────────────────────────────────
+Researcher Agent
+  goal + StudentModel weaknesses → NotebookLM deep research
+  → create notebook + add sources
+  → generate GeneralLesson (chapters + quiz)
+        ↓
+LangGraph General Graph
+  route_start → reading_session  (while True: interrupt)
+             → quiz_session      (interrupt per question)
+             → free_qa_session   (interrupt loop)
+             → save_results
+        ↓
+Reflect Agent → 更新 StudentModel mastery/weaknesses
+        ↓
+Researcher 重新备课（针对弱点 deep research）
 ```
 
 **两个 SQLite 文件：**
@@ -95,6 +112,13 @@ DeepAgent Reflect
 | `tutor/nodes.py` | 节点实现（route_start、reading、writing_task、evaluate_writing、save_results） |
 | `onboarding/agent.py` | DeepAgent Onboarding（用户初始化） |
 | `reflect/agent.py` | DeepAgent Reflect（写作复盘 → 生成 ReflectHandoff） |
+| `general/graph.py` | General Learning LangGraph 图定义 |
+| `general/nodes.py` | 节点实现（route_start、reading_session、quiz_session、free_qa_session、save_results） |
+| `general/researcher.py` | 备课 agent：根据 goal + 弱点做 deep research |
+| `general/onboarding.py` | 通用学习 onboarding（goal → LearningMap → chapters） |
+| `general/reflect.py` | Reflect agent：分析 quiz 结果 → 更新 StudentModel 维度 |
+| `general/extractor.py` | NotebookLM 内容提取封装 |
+| `general/notebooklm.py` | NotebookLM API 封装（notebook 创建、source 添加、问答） |
 
 ## LangChain / LangGraph / DeepAgents 使用规则
 
@@ -142,6 +166,10 @@ DeepAgent Reflect
 **structured output 一律用 `with_structured_output()`：** 禁止 `json.loads(response.content)`，模型输出经常带 markdown code fence 导致解析失败。
 
 **Planner 单例：** `get_planner(checkpointer)` 而非 `create_planner()`，避免每次 API 请求泄漏 SQLite 连接。
+
+**Planner 工具 observation 格式：** `planner/tools.py` 所有工具返回统一结构：
+`{"status": "success"|"error", "summary": "...", "next_actions": [...], "data": ...}`
+agent 只需检查 `status`，不做 `startswith("ERROR:")` pattern match。
 
 ## Frontend
 
