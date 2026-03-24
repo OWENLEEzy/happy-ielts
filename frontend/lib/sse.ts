@@ -1,37 +1,32 @@
 import type { SSEChunk, LessonAction } from '@/types'
+import type { components } from '@/types/api'
+
+type LessonActionReq = components['schemas']['LessonActionRequest']
+type OnboardingMsgReq = components['schemas']['OnboardingMessageRequest']
+type GeneralOnboardingMsgReq = components['schemas']['GeneralOnboardingMessageRequest']
 
 export async function sendAction(
   action: LessonAction,
   onChunk: (chunk: SSEChunk) => void,
 ): Promise<void> {
+  // Validate action shape matches LessonActionRequest schema
+  const body: LessonActionReq = action
   const res = await fetch('/api/lesson/action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(action),
+    body: JSON.stringify(body),
   })
-
   if (!res.ok) throw new Error(`API error: ${res.status}`)
-
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const lines = decoder.decode(value).split('\n')
-    for (const line of lines) {
-      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-        try {
-          onChunk(JSON.parse(line.slice(6)))
-        } catch {
-          // skip malformed chunk
-        }
-      }
+  await _readSSEChunks(res, (line) => {
+    try {
+      onChunk(JSON.parse(line))
+    } catch {
+      /* skip */
     }
-  }
+  })
 }
 
-/** Map LangGraph node names to synthetic SSE chunks so the UI can restore phase on refresh. */
+/** Map LangGraph node names to synthetic SSE chunks for UI phase restore. */
 const NODE_TO_CHUNK: Record<string, SSEChunk> = {
   spaced_review: {
     type: 'awaiting_action',
@@ -50,10 +45,8 @@ export async function startLesson(
 ): Promise<void> {
   const res = await fetch('/api/lesson/start', { method: 'POST', signal })
   if (res.status === 409) {
-    // Lesson already in progress — restore UI phase from checkpoint info
     try {
       const data = await res.json()
-      // If the backend returned an interrupt value, use it directly (e.g. fill_blank)
       if (data.interrupt) {
         onChunk(data.interrupt as SSEChunk)
         return
@@ -62,7 +55,6 @@ export async function startLesson(
       const synthetic = firstNode ? NODE_TO_CHUNK[firstNode] : undefined
       if (synthetic) onChunk(synthetic)
     } catch {
-      // If parsing fails, default to reading phase
       onChunk({
         type: 'awaiting_action',
         article_full_text: '',
@@ -73,24 +65,13 @@ export async function startLesson(
     return
   }
   if (!res.ok) throw new Error(`API error: ${res.status}`)
-
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const lines = decoder.decode(value).split('\n')
-    for (const line of lines) {
-      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-        try {
-          onChunk(JSON.parse(line.slice(6)))
-        } catch {
-          // skip
-        }
-      }
+  await _readSSEChunks(res, (line) => {
+    try {
+      onChunk(JSON.parse(line))
+    } catch {
+      /* skip */
     }
-  }
+  })
 }
 
 export async function sendGeneralOnboardingMessage(
@@ -99,54 +80,49 @@ export async function sendGeneralOnboardingMessage(
   onToken: (token: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
+  const body: GeneralOnboardingMsgReq = { project_id: projectId, message }
   const res = await fetch('/api/learn/onboarding/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ project_id: projectId, message }),
+    body: JSON.stringify(body),
     signal,
   })
   if (!res.ok || !res.body) throw new Error('SSE failed')
-  const reader = res.body.getReader()
-  const decoder = new TextDecoder()
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    const text = decoder.decode(value)
-    for (const line of text.split('\n')) {
-      if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-        onToken(line.slice(6))
-      }
-    }
-  }
+  await _readSSEChunks(res, onToken)
 }
 
 export async function sendOnboardingMessage(
   message: string,
   onToken: (token: string) => void,
 ): Promise<void> {
+  const body: OnboardingMsgReq = { message, thread_id: 'onboarding' }
   const res = await fetch('/api/onboarding/message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   })
-
   if (!res.ok) throw new Error(`API error: ${res.status}`)
+  await _readSSEChunks(res, (line) => {
+    try {
+      const chunk = JSON.parse(line)
+      if (chunk.type === 'token') onToken(chunk.content)
+    } catch {
+      /* skip */
+    }
+  })
+}
 
+// ── Private helper ──────────────────────────────────────────────────────────
+
+async function _readSSEChunks(res: Response, onLine: (data: string) => void): Promise<void> {
   const reader = res.body!.getReader()
   const decoder = new TextDecoder()
-
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    const lines = decoder.decode(value).split('\n')
-    for (const line of lines) {
+    for (const line of decoder.decode(value).split('\n')) {
       if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-        try {
-          const chunk = JSON.parse(line.slice(6))
-          if (chunk.type === 'token') onToken(chunk.content)
-        } catch {
-          // skip
-        }
+        onLine(line.slice(6))
       }
     }
   }
