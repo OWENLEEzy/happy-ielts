@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { GL } from '@/lib/learn-theme'
+import { client } from '@/lib/client'
 
 interface Lesson {
   id: number
@@ -83,12 +84,16 @@ export default function ProjectDashboard() {
   const [newlyUnlocked, setNewlyUnlocked] = useState<number | null>(null)
 
   useEffect(() => {
-    fetch(`/api/learn/projects/${projectId}/dashboard`)
-      .then((r) => r.json())
-      .then((data: Project) => {
-        setProject(data)
+    client
+      .GET('/api/learn/projects/{project_id}/dashboard', {
+        params: { path: { project_id: Number(projectId) } },
+      })
+      .then(({ data }) => {
+        if (!data) return
+        const project = data as Project
+        setProject(project)
         // Find first ready lesson to highlight
-        for (const ch of data.chapters) {
+        for (const ch of project.chapters) {
           const first = ch.lessons.find((l) => l.status === 'ready')
           if (first) {
             setNewlyUnlocked(first.id)
@@ -219,7 +224,7 @@ export default function ProjectDashboard() {
 
           {project.chapters.map((ch, ci) => (
             <motion.div
-              key={ci}
+              key={ch.title}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 + ci * 0.08 }}

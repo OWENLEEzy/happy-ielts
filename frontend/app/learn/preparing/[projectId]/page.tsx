@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { GL } from '@/lib/learn-theme'
+import { client } from '@/lib/client'
 
 type ProjectStatus = 'onboarding' | 'researching' | 'extracting' | 'active' | 'error'
 
@@ -66,11 +67,13 @@ export default function PreparingPage() {
   useEffect(() => {
     const fetchProject = async () => {
       try {
-        const res = await fetch(`/api/learn/projects/${projectId}`)
-        if (!res.ok) return
-        const data: Project = await res.json()
-        setProject(data)
-        if (data.status === 'active' && !unlocked) {
+        const { data, response } = await client.GET('/api/learn/projects/{project_id}', {
+          params: { path: { project_id: Number(projectId) } },
+        })
+        if (!response.ok) return
+        const project = data as Project
+        setProject(project)
+        if (project.status === 'active' && !unlocked) {
           setUnlocked(true)
           setTimeout(() => router.push(`/learn/${projectId}`), 2800)
         }
@@ -108,13 +111,13 @@ export default function PreparingPage() {
 
           <svg className="w-full h-full" viewBox="0 0 100 100">
             {/* Edges */}
-            {EDGES.map((e, i) => {
+            {EDGES.map((e) => {
               const from = NODES[e.from]
               const to = NODES[e.to]
               const isLit = litNodes.has(e.from) && litNodes.has(e.to)
               return (
                 <line
-                  key={i}
+                  key={`${e.from}-${e.to}`}
                   x1={from.x}
                   y1={from.y}
                   x2={to.x}

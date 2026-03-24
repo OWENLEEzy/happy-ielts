@@ -1,6 +1,8 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { client } from '@/lib/client'
+import type { components } from '@/types/api'
 import { sendGeneralOnboardingMessage } from '@/lib/sse'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
@@ -42,14 +44,11 @@ export default function GeneralOnboardingPage() {
 
   const startOnboarding = async () => {
     if (!topic.trim()) return
-    const res = await fetch('/api/learn/onboarding/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic: topic.trim(), tier: 'free' }),
-    })
-    if (!res.ok) return
-    const data = await res.json()
-    setProjectId(data.project_id)
+    type StartReq = components['schemas']['GeneralOnboardingStartRequest']
+    const body: StartReq = { topic: topic.trim(), tier: 'free' }
+    const { data, response } = await client.POST('/api/learn/onboarding/start', { body })
+    if (!response.ok) return
+    setProjectId((data as { project_id: number }).project_id)
     setStarted(true)
     setMessages([
       mkMsg(
@@ -85,12 +84,15 @@ export default function GeneralOnboardingPage() {
         abortRef.current.signal,
       )
 
-      const projRes = await fetch(`/api/learn/projects/${projectId}`)
-      if (projRes.ok) {
-        const proj = await projRes.json()
-        if (proj.goal_profile && proj.learning_map) {
-          setPreview({ goal_profile: proj.goal_profile, learning_map: proj.learning_map })
-        }
+      const { data: proj } = await client.GET('/api/learn/projects/{project_id}', {
+        params: { path: { project_id: projectId } },
+      })
+      if (
+        proj &&
+        (proj as Record<string, unknown>).goal_profile &&
+        (proj as Record<string, unknown>).learning_map
+      ) {
+        setPreview(proj as LearningMapPreview)
       }
     } catch {
       // aborted or error
@@ -109,16 +111,16 @@ export default function GeneralOnboardingPage() {
   const confirmPlan = async () => {
     if (!projectId || !preview) return
     setConfirming(true)
-    const res = await fetch('/api/learn/onboarding/confirm', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        project_id: projectId,
-        goal_profile: preview.goal_profile,
-        learning_map: preview.learning_map,
-      }),
+    type ConfirmReq = components['schemas']['GeneralOnboardingConfirmRequest']
+    const confirmBody: ConfirmReq = {
+      project_id: projectId,
+      goal_profile: preview.goal_profile,
+      learning_map: preview.learning_map,
+    }
+    const { response: confirmRes } = await client.POST('/api/learn/onboarding/confirm', {
+      body: confirmBody,
     })
-    if (res.ok) {
+    if (confirmRes.ok) {
       localStorage.setItem('generalProjectId', String(projectId))
       router.push(`/learn/preparing/${projectId}`)
     } else {
@@ -216,7 +218,10 @@ export default function GeneralOnboardingPage() {
         className="flex items-center gap-3 px-6 py-3 border-b"
         style={{ borderColor: GL.navBorder }}
       >
-        <span className="text-xs font-mono-dm tracking-widest uppercase" style={{ color: GL.amber }}>
+        <span
+          className="text-xs font-mono-dm tracking-widest uppercase"
+          style={{ color: GL.amber }}
+        >
           学习规划
         </span>
         <span className="text-xs opacity-30">·</span>
