@@ -2,6 +2,8 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
+import { client } from '@/lib/client'
+import type { components } from '@/types/api'
 import { sendOnboardingMessage } from '@/lib/sse'
 import { useOnboardingStatus } from '@/hooks/useLesson'
 import { Header } from '@/components/Header'
@@ -81,13 +83,14 @@ export default function OnboardingPage() {
   const handlePreferenceSubmit = async () => {
     if (!bandwidth || !writingMode) return
     setSubmitting(true)
+    type SavePrefsReq = components['schemas']['SavePreferencesRequest']
     try {
-      await fetch('/api/onboarding/preferences', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bandwidth_minutes: bandwidth, writing_mode: writingMode }),
-      })
-      await fetch('/api/planner/run', { method: 'POST' })
+      const body: SavePrefsReq = {
+        bandwidth_minutes: bandwidth,
+        writing_mode: writingMode as SavePrefsReq['writing_mode'],
+      }
+      await client.POST('/api/onboarding/preferences', { body })
+      await client.POST('/api/planner/run', {})
       router.push('/lesson')
     } finally {
       setSubmitting(false)
@@ -101,7 +104,9 @@ export default function OnboardingPage() {
         {/* Tutor intro card */}
         <div className="flex items-center gap-3 bg-tertiary-container/25 rounded-lg p-4 border border-primary/10">
           <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
-            {dogUrls && <Image src={dogUrls.intro} fill sizes="48px" className="object-cover" alt="顾问" />}
+            {dogUrls && (
+              <Image src={dogUrls.intro} fill sizes="48px" className="object-cover" alt="顾问" />
+            )}
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label">
@@ -120,7 +125,15 @@ export default function OnboardingPage() {
             >
               {m.role === 'assistant' && (
                 <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
-                  {dogUrls && <Image src={dogUrls.message} fill sizes="28px" className="object-cover" alt="" />}
+                  {dogUrls && (
+                    <Image
+                      src={dogUrls.message}
+                      fill
+                      sizes="28px"
+                      className="object-cover"
+                      alt=""
+                    />
+                  )}
                 </div>
               )}
               <div
@@ -137,7 +150,15 @@ export default function OnboardingPage() {
           {isStreaming && (
             <div className="flex justify-start">
               <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
-                {dogUrls && <Image src={dogUrls.streaming} fill sizes="28px" className="object-cover" alt="" />}
+                {dogUrls && (
+                  <Image
+                    src={dogUrls.streaming}
+                    fill
+                    sizes="28px"
+                    className="object-cover"
+                    alt=""
+                  />
+                )}
               </div>
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 flex gap-1.5 items-center">
                 <span className="dot1 w-2 h-2 bg-primary rounded-full inline-block" />

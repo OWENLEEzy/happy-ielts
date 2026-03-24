@@ -11,6 +11,7 @@ import { Header } from '@/components/Header'
 import { LessonSidebar } from '@/components/LessonSidebar'
 import { MobileNav } from '@/components/MobileNav'
 import { useTodayLesson, usePlannerStatus } from '@/hooks/useLesson'
+import { client } from '@/lib/client'
 import { startLesson } from '@/lib/sse'
 import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
@@ -29,11 +30,7 @@ function LessonContent() {
   const { data: lesson, isLoading: lessonLoading } = useTodayLesson()
   const { data: plannerStatus } = usePlannerStatus()
   const [state, dispatch] = useReducer(lessonReducer, initialState)
-  const [loadingDogUrl, setLoadingDogUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    setLoadingDogUrl(getRandomTeacherDogUrl())
-  }, [])
+  const [loadingDogUrl] = useState(getRandomTeacherDogUrl)
 
   const handleChunk = useCallback((chunk: SSEChunk) => {
     switch (chunk.type) {
@@ -73,7 +70,13 @@ function LessonContent() {
           <div className="relative z-10">
             <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto mb-6">
               {loadingDogUrl && (
-                <Image src={loadingDogUrl} fill sizes="96px" className="object-cover" alt="准备中" />
+                <Image
+                  src={loadingDogUrl}
+                  fill
+                  sizes="96px"
+                  className="object-cover"
+                  alt="准备中"
+                />
               )}
             </div>
 
@@ -91,7 +94,7 @@ function LessonContent() {
                   </p>
                 )}
                 <button
-                  onClick={() => fetch('/api/planner/run', { method: 'POST' })}
+                  onClick={() => client.POST('/api/planner/run', {})}
                   className="signature-gradient text-white px-6 py-2 rounded-full font-bold text-sm font-label shadow-lg hover:scale-105 transition-transform"
                 >
                   重新生成课程
@@ -112,7 +115,7 @@ function LessonContent() {
                 )}
                 {!isRunning && (
                   <button
-                    onClick={() => fetch('/api/planner/run', { method: 'POST' })}
+                    onClick={() => client.POST('/api/planner/run', {})}
                     className="bg-surface-container-highest text-on-surface px-6 py-2 rounded-full font-bold text-sm font-label hover:bg-surface-variant transition-colors"
                   >
                     手动触发课程生成

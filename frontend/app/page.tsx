@@ -1,44 +1,46 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
+import { client } from '@/lib/client'
 
 type AppMode = 'english' | 'general'
 
+function subscribeToStorage(cb: () => void) {
+  window.addEventListener('storage', cb)
+  return () => window.removeEventListener('storage', cb)
+}
+
 export default function HomePage() {
   const router = useRouter()
-  const [checking, setChecking] = useState(true)
-  const [showSelect, setShowSelect] = useState(false)
+  const mode = useSyncExternalStore(
+    subscribeToStorage,
+    () => localStorage.getItem('appMode') as AppMode | null,
+    () => null,
+  )
 
-  useEffect(() => {
-    const mode = localStorage.getItem('appMode') as AppMode | null
-    if (!mode) {
-      setShowSelect(true)
-      setChecking(false)
-      return
-    }
-    redirectForMode(mode, router)
-  }, [router])
-
-  const chooseMode = (mode: AppMode) => {
-    localStorage.setItem('appMode', mode)
-    redirectForMode(mode, router)
+  const chooseMode = (m: AppMode) => {
+    localStorage.setItem('appMode', m)
+    redirectForMode(m, router)
   }
 
-  if (checking) return null
+  useEffect(() => {
+    if (mode) redirectForMode(mode, router)
+  }, [mode, router])
 
-  if (showSelect) return <ModeSelectScreen onChoose={chooseMode} />
-
-  return null
+  if (mode) return null
+  return <ModeSelectScreen onChoose={chooseMode} />
 }
 
 async function redirectForMode(mode: AppMode, router: ReturnType<typeof useRouter>) {
   if (mode === 'english') {
     const [onb, planner] = await Promise.all([
-      fetch('/api/onboarding/status')
-        .then((r) => r.json())
+      client
+        .GET('/api/onboarding/status')
+        .then(({ data }) => (data as { ready: boolean } | undefined) ?? { ready: false })
         .catch(() => ({ ready: false })),
-      fetch('/api/planner/status')
-        .then((r) => r.json())
+      client
+        .GET('/api/planner/status')
+        .then(({ data }) => (data as { ready: boolean } | undefined) ?? { ready: false })
         .catch(() => ({ ready: false })),
     ])
     if (!onb.ready) {
