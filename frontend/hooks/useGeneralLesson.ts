@@ -1,5 +1,9 @@
 'use client'
 import { useState, useCallback, useRef } from 'react'
+import type { components } from '@/types/api'
+
+type StartReq = components['schemas']['GeneralLessonStartRequest']
+type ActionReq = components['schemas']['GeneralLessonActionRequest']
 
 type Phase = 'reading' | 'quiz' | 'free_qa' | 'done'
 
@@ -23,10 +27,11 @@ export function useGeneralLesson(projectId: number, lessonId: number) {
 
   const start = useCallback(async () => {
     abortRef.current = new AbortController()
+    const body: StartReq = { project_id: projectId, lesson_id: lessonId }
     const res = await fetch('/api/learn/lesson/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project_id: projectId, lesson_id: lessonId }),
+      body: JSON.stringify(body),
       signal: abortRef.current.signal,
     })
     if (!res.body) return
@@ -64,10 +69,15 @@ export function useGeneralLesson(projectId: number, lessonId: number) {
 
   const sendAction = useCallback(
     async (payload: Record<string, unknown>) => {
+      const body = {
+        project_id: projectId,
+        lesson_id: lessonId,
+        ...(payload as Partial<ActionReq>),
+      } as ActionReq
       const res = await fetch('/api/learn/lesson/action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectId, lesson_id: lessonId, ...payload }),
+        body: JSON.stringify(body),
         signal: abortRef.current?.signal,
       })
       if (!res.body) return
