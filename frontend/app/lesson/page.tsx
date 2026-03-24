@@ -94,7 +94,7 @@ function LessonContent() {
                   </p>
                 )}
                 <button
-                  onClick={() => client.POST('/api/planner/run', {})}
+                  onClick={() => client.POST('/api/planner/run', {}).catch(console.error)}
                   className="signature-gradient text-white px-6 py-2 rounded-full font-bold text-sm font-label shadow-lg hover:scale-105 transition-transform"
                 >
                   重新生成课程
@@ -115,7 +115,7 @@ function LessonContent() {
                 )}
                 {!isRunning && (
                   <button
-                    onClick={() => client.POST('/api/planner/run', {})}
+                    onClick={() => client.POST('/api/planner/run', {}).catch(console.error)}
                     className="bg-surface-container-highest text-on-surface px-6 py-2 rounded-full font-bold text-sm font-label hover:bg-surface-variant transition-colors"
                   >
                     手动触发课程生成

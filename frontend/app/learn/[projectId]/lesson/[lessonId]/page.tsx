@@ -96,10 +96,7 @@ export default function LessonPage() {
               >
                 课程完成
               </h2>
-              <p
-                className="mt-2 text-sm opacity-50"
-                style={{ fontFamily: 'Manrope, sans-serif' }}
-              >
+              <p className="mt-2 text-sm opacity-50" style={{ fontFamily: 'Manrope, sans-serif' }}>
                 你已完成本节课的学习
               </p>
             </div>
@@ -135,14 +132,17 @@ export default function LessonPage() {
         </span>
         <span
           className="text-xs font-mono-dm tracking-widest uppercase px-3 py-1 rounded-full flex-shrink-0"
-          style={{ color: GL.amber, background: GL.amberFaint, border: `1px solid rgba(201,168,76,0.2)` }}
+          style={{
+            color: GL.amber,
+            background: GL.amberFaint,
+            border: `1px solid rgba(201,168,76,0.2)`,
+          }}
         >
           {phaseLabel}
         </span>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 max-w-2xl w-full mx-auto">
-
         {/* Reading phase */}
         {phase === 'reading' && (
           <motion.div
@@ -151,7 +151,10 @@ export default function LessonPage() {
             transition={{ duration: 0.5 }}
           >
             <div className="mb-3 flex items-center gap-2">
-              <span className="text-xs font-mono-dm tracking-widest uppercase" style={{ color: GL.amberMuted }}>
+              <span
+                className="text-xs font-mono-dm tracking-widest uppercase"
+                style={{ color: GL.amberMuted }}
+              >
                 学习材料
               </span>
             </div>
@@ -168,9 +171,18 @@ export default function LessonPage() {
               {studyGuide || (
                 <div className="flex items-center gap-3 opacity-40">
                   <div className="flex gap-1">
-                    <span className="dot1 w-1.5 h-1.5 rounded-full inline-block" style={{ background: GL.amber }} />
-                    <span className="dot2 w-1.5 h-1.5 rounded-full inline-block" style={{ background: GL.amber }} />
-                    <span className="dot3 w-1.5 h-1.5 rounded-full inline-block" style={{ background: GL.amber }} />
+                    <span
+                      className="dot1 w-1.5 h-1.5 rounded-full inline-block"
+                      style={{ background: GL.amber }}
+                    />
+                    <span
+                      className="dot2 w-1.5 h-1.5 rounded-full inline-block"
+                      style={{ background: GL.amber }}
+                    />
+                    <span
+                      className="dot3 w-1.5 h-1.5 rounded-full inline-block"
+                      style={{ background: GL.amber }}
+                    />
                   </div>
                   <span style={{ fontFamily: 'Manrope, sans-serif' }}>正在加载学习材料...</span>
                 </div>
@@ -195,7 +207,10 @@ export default function LessonPage() {
             transition={{ duration: 0.5 }}
           >
             <div className="mb-5">
-              <span className="text-xs font-mono-dm tracking-widest uppercase" style={{ color: GL.amberMuted }}>
+              <span
+                className="text-xs font-mono-dm tracking-widest uppercase"
+                style={{ color: GL.amberMuted }}
+              >
                 随堂测验
               </span>
               <h3
@@ -216,7 +231,9 @@ export default function LessonPage() {
                     className="text-sm mb-3 font-medium"
                     style={{ color: GL.fg, fontFamily: 'Manrope, sans-serif' }}
                   >
-                    <span style={{ color: GL.amber }} className="font-mono-dm mr-2">{i + 1}.</span>
+                    <span style={{ color: GL.amber }} className="font-mono-dm mr-2">
+                      {i + 1}.
+                    </span>
                     {q.q}
                   </p>
                   <input
@@ -260,7 +277,10 @@ export default function LessonPage() {
             className="flex flex-col h-full"
           >
             <div className="mb-5">
-              <span className="text-xs font-mono-dm tracking-widest uppercase" style={{ color: GL.amberMuted }}>
+              <span
+                className="text-xs font-mono-dm tracking-widest uppercase"
+                style={{ color: GL.amberMuted }}
+              >
                 自由问答
               </span>
               <h3
@@ -272,8 +292,8 @@ export default function LessonPage() {
             </div>
 
             <div className="flex flex-col gap-4 mb-4">
-              {qaHistory.map((entry, i) => (
-                <div key={i} className="space-y-2">
+              {qaHistory.map((entry) => (
+                <div key={entry.id} className="space-y-2">
                   <div className="flex justify-end">
                     <div
                       className="rounded-2xl px-4 py-3 text-sm max-w-[80%]"
@@ -290,13 +310,22 @@ export default function LessonPage() {
                   <div className="flex items-start gap-2">
                     <div
                       className="w-6 h-6 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center text-xs"
-                      style={{ background: 'rgba(201,168,76,0.15)', border: `1px solid ${GL.cardBorder}`, color: GL.amber }}
+                      style={{
+                        background: 'rgba(201,168,76,0.15)',
+                        border: `1px solid ${GL.cardBorder}`,
+                        color: GL.amber,
+                      }}
                     >
                       ✦
                     </div>
                     <div
                       className="rounded-2xl px-4 py-3 text-sm max-w-[80%] leading-relaxed"
-                      style={{ background: GL.card, border: `1px solid ${GL.cardBorder}`, color: GL.fg, fontFamily: 'Manrope, sans-serif' }}
+                      style={{
+                        background: GL.card,
+                        border: `1px solid ${GL.cardBorder}`,
+                        color: GL.fg,
+                        fontFamily: 'Manrope, sans-serif',
+                      }}
                     >
                       {entry.a}
                     </div>
@@ -307,7 +336,11 @@ export default function LessonPage() {
                 <div className="flex items-start gap-2">
                   <div
                     className="w-6 h-6 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center text-xs"
-                    style={{ background: 'rgba(201,168,76,0.15)', border: `1px solid ${GL.cardBorder}`, color: GL.amber }}
+                    style={{
+                      background: 'rgba(201,168,76,0.15)',
+                      border: `1px solid ${GL.cardBorder}`,
+                      color: GL.amber,
+                    }}
                   >
                     ✦
                   </div>
@@ -316,9 +349,18 @@ export default function LessonPage() {
                     style={{ background: GL.card, border: `1px solid ${GL.cardBorder}` }}
                   >
                     <div className="flex gap-1 items-center opacity-50">
-                      <span className="dot1 w-1.5 h-1.5 rounded-full inline-block" style={{ background: GL.amber }} />
-                      <span className="dot2 w-1.5 h-1.5 rounded-full inline-block" style={{ background: GL.amber }} />
-                      <span className="dot3 w-1.5 h-1.5 rounded-full inline-block" style={{ background: GL.amber }} />
+                      <span
+                        className="dot1 w-1.5 h-1.5 rounded-full inline-block"
+                        style={{ background: GL.amber }}
+                      />
+                      <span
+                        className="dot2 w-1.5 h-1.5 rounded-full inline-block"
+                        style={{ background: GL.amber }}
+                      />
+                      <span
+                        className="dot3 w-1.5 h-1.5 rounded-full inline-block"
+                        style={{ background: GL.amber }}
+                      />
                     </div>
                   </div>
                 </div>

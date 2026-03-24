@@ -1,24 +1,23 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { getRandomTogetherDogUrl, getRandomUserDogUrl } from '@/lib/constants'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { GL } from '@/lib/learn-theme'
+import { subscribeToStorage } from '@/lib/storage'
 
 export function Header({ streak = 0, dark }: { streak?: number; dark?: boolean }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [logoUrl, setLogoUrl] = useState<string | null>(null)
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
-  const [mode, setMode] = useState<string | null>(null)
-
-  useEffect(() => {
-    setLogoUrl(getRandomTogetherDogUrl())
-    setAvatarUrl(getRandomUserDogUrl())
-    setMode(localStorage.getItem('appMode'))
-  }, [])
+  const [logoUrl] = useState(getRandomTogetherDogUrl)
+  const [avatarUrl] = useState(getRandomUserDogUrl)
+  const mode = useSyncExternalStore(
+    subscribeToStorage,
+    () => localStorage.getItem('appMode'),
+    () => null,
+  )
 
   const switchMode = () => {
     localStorage.removeItem('appMode')

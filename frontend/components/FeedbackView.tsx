@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import { getRandomTogetherDogUrl, getRandomTeacherDogUrl } from '@/lib/constants'
 import type { WritingFeedback } from '@/types'
@@ -10,13 +10,8 @@ interface Props {
 }
 
 export function FeedbackView({ feedback, onRetry }: Props) {
-  const [scoreCardUrl, setScoreCardUrl] = useState<string | null>(null)
-  const [professorUrl, setProfessorUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    setScoreCardUrl(getRandomTogetherDogUrl())
-    setProfessorUrl(getRandomTeacherDogUrl())
-  }, [])
+  const [scoreCardUrl] = useState(getRandomTogetherDogUrl)
+  const [professorUrl] = useState(getRandomTeacherDogUrl)
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] md:pb-8">
       {/* Score card */}
@@ -38,7 +33,9 @@ export function FeedbackView({ feedback, onRetry }: Props) {
             <div className="text-sm opacity-70 mt-1 font-label">/ 10</div>
           </div>
           <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
-            {scoreCardUrl && <Image src={scoreCardUrl} fill sizes="64px" className="object-cover" alt="完成" />}
+            {scoreCardUrl && (
+              <Image src={scoreCardUrl} fill sizes="64px" className="object-cover" alt="完成" />
+            )}
           </div>
         </div>
         {feedback.rewrite_suggestions.length > 0 && (
@@ -66,9 +63,9 @@ export function FeedbackView({ feedback, onRetry }: Props) {
               {feedback.grammar_errors.length} 处
             </span>
           </div>
-          {feedback.grammar_errors.map((e, i) => (
+          {feedback.grammar_errors.map((e) => (
             <div
-              key={`${e.original}-${i}`}
+              key={`${e.original}-${e.correction}`}
               className="bg-surface-container-low rounded-lg p-4 mb-3 last:mb-0"
             >
               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -103,9 +100,9 @@ export function FeedbackView({ feedback, onRetry }: Props) {
               {feedback.chinglish_flags.length} 处
             </span>
           </div>
-          {feedback.chinglish_flags.map((f, i) => (
+          {feedback.chinglish_flags.map((f) => (
             <div
-              key={`${f.original}-${i}`}
+              key={`${f.original}-${f.native_alternative}`}
               className="bg-surface-container-lowest rounded-lg p-4 mb-3 last:mb-0"
             >
               <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -130,7 +127,9 @@ export function FeedbackView({ feedback, onRetry }: Props) {
       {feedback.rewrite_suggestions.length > 1 && (
         <div className="bg-tertiary-container/25 rounded-lg p-5 flex gap-3">
           <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
-            {professorUrl && <Image src={professorUrl} fill sizes="40px" className="object-cover" alt="tutor" />}
+            {professorUrl && (
+              <Image src={professorUrl} fill sizes="40px" className="object-cover" alt="tutor" />
+            )}
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

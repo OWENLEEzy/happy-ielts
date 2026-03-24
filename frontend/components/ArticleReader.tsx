@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Image from 'next/image'
 import { FullArticle } from './FullArticle'
 import { sendAction } from '@/lib/sse'
@@ -14,11 +14,7 @@ interface Props {
 export function ArticleReader({ article, onDone }: Props) {
   const [showTip, setShowTip] = useState(true)
   const [doneLoading, setDoneLoading] = useState(false)
-  const [dogUrl, setDogUrl] = useState<string | null>(null)
-
-  useEffect(() => {
-    setDogUrl(getRandomTeacherDogUrl())
-  }, [])
+  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   const handleDone = async () => {
     setDoneLoading(true)
@@ -61,7 +57,9 @@ export function ArticleReader({ article, onDone }: Props) {
       {showTip && (
         <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
           <div className="relative w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
-            {dogUrl && <Image src={dogUrl} fill sizes="32px" className="object-cover" alt="tutor" />}
+            {dogUrl && (
+              <Image src={dogUrl} fill sizes="32px" className="object-cover" alt="tutor" />
+            )}
           </div>
           <div className="flex-1">
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

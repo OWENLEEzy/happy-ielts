@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-page-custom-font */
 export default function LearnLayout({ children }: { children: React.ReactNode }) {
   return (
     <>

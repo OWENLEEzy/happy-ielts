@@ -17,11 +17,15 @@ function TextTokens({
   onExplained: (word: string, explanation: string) => void
 }) {
   return text.split(/(\s+)/).map((token, i) => {
+    // position is the unique identity for text tokens — same word/space can appear multiple times
+    // eslint-disable-next-line react/no-array-index-key
     if (/\s+/.test(token)) return <span key={`ws-${i}`}>{token}</span>
     const word = token.replace(/[.,!?;:'"()[\]]/g, '')
+    // eslint-disable-next-line react/no-array-index-key
     if (!word) return <span key={`punct-${i}`}>{token}</span>
     return (
       <WordChip
+        // eslint-disable-next-line react/no-array-index-key
         key={`word-${i}-${word}`}
         word={word}
         context={text}
@@ -63,6 +67,8 @@ export function FullArticle({ article, onWordExplained }: Props) {
       {paragraphs.map((para, idx) => {
         const isHighlighted = article.highlight_indices.includes(idx)
         return (
+          // paragraph position is the correct identity — content may repeat across list items
+          // eslint-disable-next-line react/no-array-index-key
           <p key={`para-${idx}`} className={`relative ${isHighlighted ? styles.highlighted : ''}`}>
             <TextTokens text={para} onExplained={handleExplained} />
           </p>

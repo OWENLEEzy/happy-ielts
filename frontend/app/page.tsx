@@ -2,13 +2,9 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
+import { subscribeToStorage } from '@/lib/storage'
 
 type AppMode = 'english' | 'general'
-
-function subscribeToStorage(cb: () => void) {
-  window.addEventListener('storage', cb)
-  return () => window.removeEventListener('storage', cb)
-}
 
 export default function HomePage() {
   const router = useRouter()

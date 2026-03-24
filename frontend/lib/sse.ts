@@ -120,7 +120,7 @@ async function _readSSEChunks(res: Response, onLine: (data: string) => void): Pr
   while (true) {
     const { done, value } = await reader.read()
     if (done) break
-    for (const line of decoder.decode(value).split('\n')) {
+    for (const line of decoder.decode(value, { stream: true }).split('\n')) {
       if (line.startsWith('data: ') && !line.includes('[DONE]')) {
         onLine(line.slice(6))
       }

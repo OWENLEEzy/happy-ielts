@@ -11,14 +11,16 @@ import { MobileNav } from '@/components/MobileNav'
 import { getRandomTeacherDogUrl } from '@/lib/constants'
 
 interface Message {
+  id: string
   role: 'user' | 'assistant'
   content: string
 }
 
 export default function OnboardingPage() {
   const router = useRouter()
-  const [messages, setMessages] = useState<Message[]>([
+  const [messages, setMessages] = useState<Message[]>(() => [
     {
+      id: crypto.randomUUID(),
       role: 'assistant',
       content: '你好！我是你的语言学习顾问。先告诉我，你学英语最迫切想解决什么问题？',
     },
@@ -31,19 +33,11 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { data: status, mutate } = useOnboardingStatus()
-  const [dogUrls, setDogUrls] = useState<{
-    intro: string
-    message: string
-    streaming: string
-  } | null>(null)
-
-  useEffect(() => {
-    setDogUrls({
-      intro: getRandomTeacherDogUrl(),
-      message: getRandomTeacherDogUrl(),
-      streaming: getRandomTeacherDogUrl(),
-    })
-  }, [])
+  const [dogUrls] = useState(() => ({
+    intro: getRandomTeacherDogUrl(),
+    message: getRandomTeacherDogUrl(),
+    streaming: getRandomTeacherDogUrl(),
+  }))
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -59,18 +53,23 @@ export default function OnboardingPage() {
     if (!input.trim() || isStreaming) return
     const userMsg = input.trim()
     setInput('')
-    setMessages((prev) => [...prev, { role: 'user', content: userMsg }])
+    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: 'user', content: userMsg }])
     setIsStreaming(true)
 
     let assistantContent = ''
-    setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
+    const assistantId = crypto.randomUUID()
+    setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: '' }])
 
     try {
       await sendOnboardingMessage(userMsg, (token) => {
         assistantContent += token
         setMessages((prev) => {
           const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: assistantContent }
+          updated[updated.length - 1] = {
+            id: assistantId,
+            role: 'assistant',
+            content: assistantContent,
+          }
           return updated
         })
       })
@@ -118,9 +117,9 @@ export default function OnboardingPage() {
 
         {/* Message list */}
         <div className="flex-1 min-h-0 space-y-3 overflow-y-auto">
-          {messages.map((m, i) => (
+          {messages.map((m) => (
             <div
-              key={`msg-${i}`}
+              key={m.id}
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               {m.role === 'assistant' && (

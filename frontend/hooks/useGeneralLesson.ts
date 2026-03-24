@@ -13,6 +13,7 @@ interface QuizQuestion {
 }
 
 interface QaEntry {
+  id: string
   q: string
   a: string
 }
@@ -40,7 +41,7 @@ export function useGeneralLesson(projectId: number, lessonId: number) {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      const text = decoder.decode(value)
+      const text = decoder.decode(value, { stream: true })
       for (const line of text.split('\n')) {
         if (!line.startsWith('data: ') || line.includes('[DONE]')) continue
         try {
@@ -58,7 +59,13 @@ export function useGeneralLesson(projectId: number, lessonId: number) {
             setPhase('free_qa')
           }
           if (event.type === 'free_qa_answer') {
-            setQaHistory(event.history ?? [])
+            setQaHistory(
+              (event.history ?? []).map((e: { q: string; a: string }, i: number) => ({
+                id: `qa-${i}`,
+                q: e.q,
+                a: e.a,
+              })),
+            )
           }
         } catch {
           // skip malformed
@@ -99,7 +106,13 @@ export function useGeneralLesson(projectId: number, lessonId: number) {
               setPhase('free_qa')
             }
             if (event.type === 'free_qa_answer') {
-              setQaHistory(event.history ?? [])
+              setQaHistory(
+                (event.history ?? []).map((e: { q: string; a: string }, i: number) => ({
+                  id: `qa-${i}`,
+                  q: e.q,
+                  a: e.a,
+                })),
+              )
             }
             if (event.type === 'done') {
               setPhase('done')
