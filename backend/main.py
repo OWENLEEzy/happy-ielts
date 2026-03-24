@@ -128,11 +128,11 @@ async def run_planner():
     async def _run_planner() -> None:
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-        from backend.planner.agent import create_deep_agent_planner, get_planner_config
+        from backend.planner.agent import get_planner, get_planner_config
 
         async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
             await cp.setup()
-            planner = create_deep_agent_planner(cp)
+            planner = get_planner(cp)
             config = get_planner_config(thread_suffix)
             await planner.ainvoke(  # type: ignore[attr-defined]
                 {"messages": [{"role": "user", "content": "为今天准备一节课"}]},

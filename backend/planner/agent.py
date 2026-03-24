@@ -59,9 +59,7 @@ _CURRICULUM_CONTEXT_TEMPLATE = """
 """
 
 
-def create_deep_agent_planner(
-    checkpointer, reflect_handoff: ReflectHandoff | None = None
-) -> object:
+def get_planner(checkpointer, reflect_handoff: ReflectHandoff | None = None) -> object:
     """Create a fresh planner agent. Injects ReflectHandoff + student_model curriculum context."""
     system_prompt = PLANNER_SYSTEM_PROMPT
 

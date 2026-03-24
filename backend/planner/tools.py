@@ -78,18 +78,27 @@ def _trafilatura_scrape(url: str) -> str:
 
 
 @tool
-def load_user_profile() -> dict[str, object] | str:
+def load_user_profile() -> dict[str, object]:
     """ALWAYS call this FIRST before any other tool. Returns the user's goal, interests,
     and proficiency level — required context for selecting a relevant article and calibrating
     task difficulty. Never skip or defer this step."""
     profile = _db.get_user_profile()
     if profile is None:
-        return "ERROR: No user profile found. Ask the user to complete onboarding first."
-    return profile.model_dump()
+        return {
+            "status": "error",
+            "summary": "No user profile found",
+            "next_actions": ["Ask user to complete onboarding first"],
+        }
+    return {
+        "status": "success",
+        "summary": "用户画像加载成功",
+        "next_actions": ["Call search_articles with user interests"],
+        "data": profile.model_dump(),
+    }
 
 
 @tool
-def scrape_article(url: str) -> str:
+def scrape_article(url: str) -> dict[str, object]:
     """Call after selecting an article URL from search results. Retrieves the full article
     text required by highlight_key_paragraphs. If scraping fails, try a different URL —
     never proceed with empty or error content."""
@@ -109,9 +118,19 @@ def scrape_article(url: str) -> str:
             text = _trafilatura_scrape(url)
         except Exception as e:
             logger.error(f"trafilatura fallback failed for {url}: {e}")
-            return f"ERROR: Could not scrape {url}. Try a different URL from search results."
+            return {
+                "status": "error",
+                "summary": f"Could not scrape {url}",
+                "next_actions": ["Try a different URL from search results"],
+            }
 
-    return text[:8000]  # Truncate to avoid context overflow (~2000 words)
+    truncated = text[:8000]  # Truncate to avoid context overflow (~2000 words)
+    return {
+        "status": "success",
+        "summary": f"Scraped {len(truncated)} chars from {url}",
+        "next_actions": ["Call highlight_key_paragraphs with this text"],
+        "data": truncated,
+    }
 
 
 @tool
@@ -133,11 +152,6 @@ def highlight_key_paragraphs(
             description="Underlying logical structure of the article"
         )
 
-    if full_text.startswith("ERROR:"):
-        return {
-            "error": "Cannot highlight: scraping error — call scrape_article with a different URL."
-        }
-
     paragraphs = full_text.split("\n\n")
     numbered = "\n\n".join(f"[{i}] {p}" for i, p in enumerate(paragraphs))
     prompt = HIGHLIGHT_PROMPT.format(
@@ -153,11 +167,21 @@ def highlight_key_paragraphs(
                 raise ValueError("Empty response from model")
             result: HighlightResult = parse_json(content, HighlightResult)  # type: ignore[assignment]
             valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
-            return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
+            return {
+                "status": "success",
+                "summary": (
+                    f"Identified {len(valid_indices)} highlight paragraphs,"
+                    f" logic: {result.article_logic}"
+                ),
+                "next_actions": ["Call generate_writing_task with article_logic"],
+                "data": {"highlight_indices": valid_indices, "article_logic": result.article_logic},
+            }
         except Exception as e:
             logger.warning(f"highlight_key_paragraphs attempt {attempt + 1} failed: {e}")
     return {
-        "error": "highlight_key_paragraphs failed after 3 attempts. Try a different article URL."
+        "status": "error",
+        "summary": "highlight_key_paragraphs failed after 3 attempts",
+        "next_actions": ["Try a different article URL"],
     }
 
 
@@ -208,29 +232,46 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
             if not content:
                 raise ValueError("Empty response from model")
             result: WritingTaskCreate = parse_json(content, WritingTaskCreate)  # type: ignore[assignment]
-            return result.model_dump()
+            return {
+                "status": "success",
+                "summary": f"Generated {profile.writing_mode} task for level {profile.level}",
+                "next_actions": ["Call save_daily_lesson with article and this task"],
+                "data": result.model_dump(),
+            }
         except Exception as e:
             logger.warning(f"generate_writing_task attempt {attempt + 1} failed: {e}")
     return {
-        "error": "generate_writing_task failed after 3 attempts. Check article and profile inputs."
+        "status": "error",
+        "summary": "generate_writing_task failed after 3 attempts",
+        "next_actions": ["Check article and profile inputs"],
     }
 
 
 @tool
-def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> str:
+def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> dict[str, object]:
     """ALWAYS call as the FINAL step after generate_writing_task. Persists the article
     and writing task to the database. Never skip — without this call, tomorrow's lesson
     will not be available to the student."""
     article = article.model_copy(update={"date": date.today().isoformat()})
     existing = _db.get_article_for_date(article.date)
     if existing is not None:
-        return (
-            f"ERROR: Lesson for {article.date} already saved"
-            f" ('{existing.original_title}'). Do not call save_daily_lesson again."
-        )
+        return {
+            "status": "error",
+            "summary": f"Lesson for {article.date} already exists",
+            "next_actions": ["Do not call save_daily_lesson again — lesson is already prepared"],
+        }
     try:
         _db.save_daily_lesson(article, task)
-        return f"Saved: '{article.original_title}'"
+        return {
+            "status": "success",
+            "summary": f"Saved lesson: '{article.original_title}'",
+            "next_actions": [],
+            "data": None,
+        }
     except Exception as e:
         logger.error(f"save_daily_lesson failed: {e}")
-        return f"ERROR: Failed to save lesson — {e}. Do not retry."
+        return {
+            "status": "error",
+            "summary": f"Failed to save lesson: {e}",
+            "next_actions": ["Do not retry — report the error"],
+        }

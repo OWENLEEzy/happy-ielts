@@ -121,11 +121,11 @@ async def _run_planner_async(target_date: str, reflect_handoff: ReflectHandoff |
 
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-    from backend.planner.agent import create_deep_agent_planner, get_planner_config
+    from backend.planner.agent import get_planner, get_planner_config
 
     async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
         await cp.setup()
-        planner = create_deep_agent_planner(cp, reflect_handoff=reflect_handoff)
+        planner = get_planner(cp, reflect_handoff=reflect_handoff)
         config = get_planner_config(f"-{int(_time.time())}")
         target_msg = f"为 {target_date} 准备一节课"
         result = await planner.ainvoke(  # type: ignore[attr-defined]
@@ -133,7 +133,16 @@ async def _run_planner_async(target_date: str, reflect_handoff: ReflectHandoff |
             config,
         )
         todos = result.get("todos", []) if isinstance(result, dict) else []
+        completed = sum(1 for t in todos if t.get("status") == "completed")
+        total = len(todos)
+        planner_state[target_date].update(
+            {
+                "todos_total": total,
+                "todos_completed": completed,
+                "completion_rate": round(completed / total, 2) if total else None,
+            }
+        )
         if todos:
-            logger.info("Planner todos for %s:", target_date)
+            logger.info("Planner todos for %s: %d/%d completed", target_date, completed, total)
             for todo in todos:
                 logger.info("  [%s] %s", todo.get("status", "?"), todo.get("content", ""))

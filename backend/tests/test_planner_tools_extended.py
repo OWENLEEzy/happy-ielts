@@ -69,9 +69,10 @@ def test_highlight_returns_valid_indices_and_logic():
             }
         )
 
-    assert isinstance(result["highlight_indices"], list)
-    assert all(isinstance(i, int) for i in result["highlight_indices"])
-    assert result["article_logic"] in ("compare", "cause_effect", "argumentation")
+    assert result["status"] == "success"
+    assert isinstance(result["data"]["highlight_indices"], list)
+    assert all(isinstance(i, int) for i in result["data"]["highlight_indices"])
+    assert result["data"]["article_logic"] in ("compare", "cause_effect", "argumentation")
 
 
 def test_highlight_filters_out_of_range_indices():
@@ -88,7 +89,8 @@ def test_highlight_filters_out_of_range_indices():
             }
         )
 
-    indices = result["highlight_indices"]
+    assert result["status"] == "success"
+    indices = result["data"]["highlight_indices"]
     assert 99 not in indices
     assert 0 in indices
     assert 1 in indices
@@ -111,8 +113,9 @@ def test_highlight_retries_on_parse_failure_then_succeeds():
             }
         )
 
-    assert "highlight_indices" in result
-    assert "article_logic" in result
+    assert result["status"] == "success"
+    assert "highlight_indices" in result["data"]
+    assert "article_logic" in result["data"]
     assert mock_llm.invoke.call_count == 2
 
 
@@ -129,7 +132,7 @@ def test_highlight_returns_error_after_3_failures():
             }
         )
 
-    assert "error" in result
+    assert result["status"] == "error"
     assert mock_llm.invoke.call_count == 3
 
 
@@ -157,10 +160,11 @@ def test_generate_writing_task_returns_valid_task():
             }
         )
 
-    assert "mode" in result
-    assert "instruction" in result
-    assert "min_words" in result
-    assert "article_id" in result
+    assert result["status"] == "success"
+    assert "mode" in result["data"]
+    assert "instruction" in result["data"]
+    assert "min_words" in result["data"]
+    assert "article_id" in result["data"]
 
 
 def test_generate_writing_task_retries_on_failure():
@@ -186,7 +190,8 @@ def test_generate_writing_task_retries_on_failure():
             }
         )
 
-    assert "mode" in result
+    assert result["status"] == "success"
+    assert "mode" in result["data"]
     assert mock_llm.invoke.call_count == 2
 
 
@@ -209,7 +214,7 @@ def test_generate_writing_task_returns_error_after_3_failures():
             }
         )
 
-    assert "error" in result
+    assert result["status"] == "error"
     assert mock_llm.invoke.call_count == 3
 
 
@@ -235,8 +240,9 @@ def test_load_user_profile_returns_profile_dict():
     db_mock.get_user_profile.return_value = profile
     with patch("backend.planner.tools._db", db_mock):
         result = load_user_profile.invoke({})
-    assert result["goal"] == "Improve career"
-    assert result["level"] == 6
+    assert result["status"] == "success"
+    assert result["data"]["goal"] == "Improve career"
+    assert result["data"]["level"] == 6
 
 
 def test_load_user_profile_returns_error_when_none():
@@ -247,8 +253,8 @@ def test_load_user_profile_returns_error_when_none():
     db_mock.get_user_profile.return_value = None
     with patch("backend.planner.tools._db", db_mock):
         result = load_user_profile.invoke({})
-    assert isinstance(result, str)
-    assert "ERROR" in result
+    assert result["status"] == "error"
+    assert "error" in result["summary"].lower() or "no user profile" in result["summary"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -295,8 +301,8 @@ def test_save_daily_lesson_calls_db_and_returns_confirmation():
 
     with patch("backend.planner.tools._db", db_mock):
         result = save_daily_lesson.invoke({"article": article, "task": task})
-    assert isinstance(result, str)
-    assert "AI in 2026" in result
+    assert result["status"] == "success"
+    assert "AI in 2026" in result["summary"]
     db_mock.save_daily_lesson.assert_called()
 
 
@@ -321,7 +327,8 @@ def test_highlight_raises_on_empty_response_then_succeeds():
             }
         )
 
-    assert "highlight_indices" in result
+    assert result["status"] == "success"
+    assert "highlight_indices" in result["data"]
     assert mock_llm.invoke.call_count == 2
 
 
@@ -352,7 +359,8 @@ def test_generate_writing_task_raises_on_empty_response_then_succeeds():
             }
         )
 
-    assert "mode" in result
+    assert result["status"] == "success"
+    assert "mode" in result["data"]
     assert mock_llm.invoke.call_count == 2
 
 
@@ -385,7 +393,8 @@ def test_scrape_article_falls_back_to_trafilatura_when_scraper_is_none():
         _tools_mod, "_trafilatura_scrape", return_value="article body"
     ) as mock_scrape:
         result = scrape_article.invoke({"url": "https://example.com"})
-    assert result == "article body"
+    assert result["status"] == "success"
+    assert result["data"] == "article body"
     mock_scrape.assert_called_once_with("https://example.com")
 
 
@@ -393,8 +402,7 @@ def test_scrape_article_returns_error_when_trafilatura_also_fails():
     """Returns ERROR string when both Scrapling and trafilatura fail (not a raise)."""
     with patch.object(_tools_mod, "_trafilatura_scrape", side_effect=RuntimeError("network error")):
         result = scrape_article.invoke({"url": "https://example.com"})
-    assert isinstance(result, str)
-    assert result.startswith("ERROR:")
+    assert result["status"] == "error"
 
 
 def test_trafilatura_scrape_returns_extracted_text():
@@ -467,10 +475,10 @@ def test_create_planner_with_reflect_handoff_injects_context():
         patch.dict(os.environ, {"TAVILY_API_KEY": "mock-key", "DASHSCOPE_API_KEY": "mock-key"}),
         patch("backend.planner.agent.create_deep_agent", side_effect=mock_create),
     ):
-        from backend.planner.agent import create_deep_agent_planner
+        from backend.planner.agent import get_planner
 
         mock_cp = MagicMock()
-        create_deep_agent_planner(mock_cp, reflect_handoff=reflect)
+        get_planner(mock_cp, reflect_handoff=reflect)
 
     assert len(captured_prompt) == 1
     prompt = captured_prompt[0]
@@ -485,7 +493,7 @@ def test_create_planner_without_reflect_uses_base_prompt():
     from unittest.mock import MagicMock, patch
 
     with patch.dict(os.environ, {"TAVILY_API_KEY": "mock-key", "DASHSCOPE_API_KEY": "mock-key"}):
-        from backend.planner.agent import PLANNER_SYSTEM_PROMPT, create_deep_agent_planner
+        from backend.planner.agent import PLANNER_SYSTEM_PROMPT, get_planner
 
     captured_prompt = []
 
@@ -497,7 +505,7 @@ def test_create_planner_without_reflect_uses_base_prompt():
         patch.dict(os.environ, {"TAVILY_API_KEY": "mock-key", "DASHSCOPE_API_KEY": "mock-key"}),
         patch("backend.planner.agent.create_deep_agent", side_effect=mock_create),
     ):
-        create_deep_agent_planner(MagicMock(), reflect_handoff=None)
+        get_planner(MagicMock(), reflect_handoff=None)
 
     # Base prompt is always included; curriculum context is now always appended
     assert captured_prompt[0].startswith(PLANNER_SYSTEM_PROMPT)

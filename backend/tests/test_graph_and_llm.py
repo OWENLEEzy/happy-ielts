@@ -87,14 +87,14 @@ def test_get_planner_config_returns_today_thread_id():
     assert config["configurable"]["thread_id"] == f"planner-{today}"
 
 
-def test_create_deep_agent_planner_delegates_to_create_deep_agent():
-    """create_deep_agent_planner returns the object returned by create_deep_agent."""
+def test_get_planner_delegates_to_create_deep_agent():
+    """get_planner returns the object returned by create_deep_agent."""
     mock_agent = MagicMock()
     with (
         patch("backend.planner.agent.create_deep_agent", return_value=mock_agent),
         patch("backend.planner.agent.get_llm", return_value=MagicMock()),
     ):
-        result = _agent_mod.create_deep_agent_planner(MagicMock())
+        result = _agent_mod.get_planner(MagicMock())
     assert result is mock_agent
 
 
