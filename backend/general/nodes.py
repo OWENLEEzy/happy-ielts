@@ -45,9 +45,29 @@ def quiz_session(state: dict) -> dict:
     # the same layout is presented to the user on first run AND used for
     # grading on the resumed run. Non-deterministic shuffles cause
     # answer-index mismatches between the two executions.
+    # Filter out questions where answerOptions are plain strings (legacy extraction
+    # format that lacks isCorrect/rationale — they cannot be graded correctly).
+    valid_quiz = [
+        q for q in quiz if q.get("answerOptions") and isinstance(q["answerOptions"][0], dict)
+    ]
+    if len(valid_quiz) < len(quiz):
+        _logger.warning(
+            "quiz_session: dropped %d/%d questions with legacy string-format options",
+            len(quiz) - len(valid_quiz),
+            len(quiz),
+        )
+
+    # If ALL questions are in legacy format, skip the quiz phase gracefully
+    # rather than presenting 0 questions (which would auto-grade as 100).
+    if not valid_quiz:
+        _logger.warning("quiz_session: no valid questions for lesson %d — skipping quiz", lesson.id)
+        writer = get_stream_writer()
+        writer({"type": "quiz_skipped", "reason": "content_updating", "lesson_id": lesson.id})
+        return {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa"}
+
     rng = random.Random(lesson.id)
     reshuffled = []
-    for q in quiz:
+    for q in valid_quiz:
         opts = list(q.get("answerOptions", []))
         rng.shuffle(opts)
         reshuffled.append({**q, "answerOptions": opts})
@@ -145,6 +165,7 @@ async def free_qa_session(state: dict) -> dict:
     # `qa_history` must therefore be seeded from persisted state, NOT initialised as [].
     nlm = get_nlm_client()
     project = state["project"]
+    lesson: GeneralLesson = state["lesson"]
     qa_history: list = list(state.get("qa_history", []))
 
     while True:
@@ -156,9 +177,12 @@ async def free_qa_session(state: dict) -> dict:
             break
         question = action.get("question", "")
         if question:
+            # Prefix lesson title so NLM answers in the context of the current
+            # lesson rather than the entire notebook indiscriminately.
+            contextual_q = f"关于「{lesson.title}」，{question}"
             # nlm.ask is placed AFTER interrupt() — executes only once per resume.
             try:
-                answer = await nlm.ask(project["notebook_id"], question)
+                answer = await nlm.ask(project["notebook_id"], contextual_q)
             except Exception as exc:
                 _logger.error("free_qa_session: nlm.ask failed: %s", exc)
                 answer = "抱歉，知识库暂时无法响应，请稍后再试。"
