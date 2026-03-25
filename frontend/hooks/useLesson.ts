@@ -3,12 +3,11 @@ import type { paths } from '@/types/api'
 import type { Article, WritingTask, VocabItem, UserProfile } from '@/types'
 
 // URL is validated against the OpenAPI spec at compile time
-const apiFetch = <T>(url: keyof paths) =>
-  fetch(url as string).then((r) => r.json() as Promise<T>)
+const apiFetch = <T>(url: keyof paths) => fetch(url as string).then((r) => r.json() as Promise<T>)
 
 export function useTodayLesson() {
   return useSWR<{ article: Article; task: WritingTask }>(
-    '/api/lesson/today' satisfies keyof paths,
+    '/api/lessons/today' satisfies keyof paths,
     apiFetch<{ article: Article; task: WritingTask }>,
   )
 }

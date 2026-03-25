@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/planner/run": {
+    "/api/planner/jobs": {
         parameters: {
             query?: never;
             header?: never;
@@ -31,7 +31,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Run Planner */
-        post: operations["run_planner_api_planner_run_post"];
+        post: operations["run_planner_api_planner_jobs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -55,7 +55,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/planner/prepare-next": {
+    "/api/planner/jobs/next": {
         parameters: {
             query?: never;
             header?: never;
@@ -68,14 +68,14 @@ export interface paths {
          * Prepare Next Lesson
          * @description Prepare tomorrow's lesson. Called by Orchestrator (hot) or cron (cold).
          */
-        post: operations["prepare_next_lesson_api_planner_prepare_next_post"];
+        post: operations["prepare_next_lesson_api_planner_jobs_next_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/onboarding/message": {
+    "/api/onboarding/messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -85,7 +85,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Onboarding Message */
-        post: operations["onboarding_message_api_onboarding_message_post"];
+        post: operations["onboarding_message_api_onboarding_messages_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -118,15 +118,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Save Preferences */
-        post: operations["save_preferences_api_onboarding_preferences_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Save Preferences */
+        patch: operations["save_preferences_api_onboarding_preferences_patch"];
         trace?: never;
     };
-    "/api/lesson/today": {
+    "/api/lessons/today": {
         parameters: {
             query?: never;
             header?: never;
@@ -134,7 +134,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Today Lesson */
-        get: operations["get_today_lesson_api_lesson_today_get"];
+        get: operations["get_today_lesson_api_lessons_today_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -143,7 +143,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/lesson/action": {
+    "/api/lessons/today/actions": {
         parameters: {
             query?: never;
             header?: never;
@@ -153,14 +153,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Lesson Action */
-        post: operations["lesson_action_api_lesson_action_post"];
+        post: operations["lesson_action_api_lessons_today_actions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/lesson/start": {
+    "/api/lessons/today/session": {
         parameters: {
             query?: never;
             header?: never;
@@ -173,7 +173,7 @@ export interface paths {
          * Start Lesson
          * @description Initialize or resume today's LangGraph session.
          */
-        post: operations["start_lesson_api_lesson_start_post"];
+        post: operations["start_lesson_api_lessons_today_session_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -215,7 +215,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/learn/onboarding/start": {
+    "/api/learn/projects": {
         parameters: {
             query?: never;
             header?: never;
@@ -225,14 +225,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** General Onboarding Start */
-        post: operations["general_onboarding_start_api_learn_onboarding_start_post"];
+        post: operations["general_onboarding_start_api_learn_projects_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/learn/onboarding/message": {
+    "/api/learn/projects/{project_id}/messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -242,24 +242,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** General Onboarding Message */
-        post: operations["general_onboarding_message_api_learn_onboarding_message_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/learn/onboarding/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** General Onboarding Confirm */
-        post: operations["general_onboarding_confirm_api_learn_onboarding_confirm_post"];
+        post: operations["general_onboarding_message_api_learn_projects__project_id__messages_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -280,7 +263,8 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** General Onboarding Confirm */
+        patch: operations["general_onboarding_confirm_api_learn_projects__project_id__patch"];
         trace?: never;
     };
     "/api/learn/projects/{project_id}/dashboard": {
@@ -300,7 +284,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/learn/lesson/start": {
+    "/api/learn/projects/{project_id}/lessons/{lesson_id}/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * General Lesson Reextract
+         * @description Re-extract study guide / quiz / flashcards for a single lesson.
+         *
+         *     Useful when a lesson has degraded (fallback) content from a failed extraction.
+         *     Runs asynchronously in the background; returns immediately.
+         */
+        post: operations["general_lesson_reextract_api_learn_projects__project_id__lessons__lesson_id__reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/lessons/{lesson_id}/sessions": {
         parameters: {
             query?: never;
             header?: never;
@@ -310,14 +317,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** General Lesson Start */
-        post: operations["general_lesson_start_api_learn_lesson_start_post"];
+        post: operations["general_lesson_start_api_learn_projects__project_id__lessons__lesson_id__sessions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/learn/lesson/action": {
+    "/api/learn/projects/{project_id}/lessons/{lesson_id}/actions": {
         parameters: {
             query?: never;
             header?: never;
@@ -327,7 +334,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** General Lesson Action */
-        post: operations["general_lesson_action_api_learn_lesson_action_post"];
+        post: operations["general_lesson_action_api_learn_projects__project_id__lessons__lesson_id__actions_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -365,37 +372,22 @@ export interface components {
         };
         /** GeneralLessonActionRequest */
         GeneralLessonActionRequest: {
-            /** Project Id */
-            project_id: number;
-            /** Lesson Id */
-            lesson_id: number;
             /** Type */
             type: string;
             /** Answer */
             answer?: string | null;
             /** Answers */
-            answers?: string[] | null;
+            answers?: (number | string)[] | null;
             /** Question */
             question?: string | null;
         };
-        /** GeneralLessonStartRequest */
-        GeneralLessonStartRequest: {
-            /** Project Id */
-            project_id: number;
-            /** Lesson Id */
-            lesson_id: number;
-        };
         /** GeneralOnboardingConfirmRequest */
         GeneralOnboardingConfirmRequest: {
-            /** Project Id */
-            project_id: number;
             goal_profile: components["schemas"]["UserGoalProfile"];
             learning_map: components["schemas"]["LearningMap-Input"];
         };
         /** GeneralOnboardingMessageRequest */
         GeneralOnboardingMessageRequest: {
-            /** Project Id */
-            project_id: number;
             /** Message */
             message: string;
         };
@@ -660,7 +652,7 @@ export interface operations {
             };
         };
     };
-    run_planner_api_planner_run_post: {
+    run_planner_api_planner_jobs_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -700,7 +692,7 @@ export interface operations {
             };
         };
     };
-    prepare_next_lesson_api_planner_prepare_next_post: {
+    prepare_next_lesson_api_planner_jobs_next_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -720,7 +712,7 @@ export interface operations {
             };
         };
     };
-    onboarding_message_api_onboarding_message_post: {
+    onboarding_message_api_onboarding_messages_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -773,7 +765,7 @@ export interface operations {
             };
         };
     };
-    save_preferences_api_onboarding_preferences_post: {
+    save_preferences_api_onboarding_preferences_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -806,7 +798,7 @@ export interface operations {
             };
         };
     };
-    get_today_lesson_api_lesson_today_get: {
+    get_today_lesson_api_lessons_today_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -826,7 +818,7 @@ export interface operations {
             };
         };
     };
-    lesson_action_api_lesson_action_post: {
+    lesson_action_api_lessons_today_actions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -859,7 +851,7 @@ export interface operations {
             };
         };
     };
-    start_lesson_api_lesson_start_post: {
+    start_lesson_api_lessons_today_session_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -952,7 +944,7 @@ export interface operations {
             };
         };
     };
-    general_onboarding_start_api_learn_onboarding_start_post: {
+    general_onboarding_start_api_learn_projects_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -985,49 +977,18 @@ export interface operations {
             };
         };
     };
-    general_onboarding_message_api_learn_onboarding_message_post: {
+    general_onboarding_message_api_learn_projects__project_id__messages_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                project_id: number;
+            };
             cookie?: never;
         };
         requestBody: {
             content: {
                 "application/json": components["schemas"]["GeneralOnboardingMessageRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    general_onboarding_confirm_api_learn_onboarding_confirm_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GeneralOnboardingConfirmRequest"];
             };
         };
         responses: {
@@ -1082,6 +1043,41 @@ export interface operations {
             };
         };
     };
+    general_onboarding_confirm_api_learn_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneralOnboardingConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_general_dashboard_api_learn_projects__project_id__dashboard_get: {
         parameters: {
             query?: never;
@@ -1113,18 +1109,17 @@ export interface operations {
             };
         };
     };
-    general_lesson_start_api_learn_lesson_start_post: {
+    general_lesson_reextract_api_learn_projects__project_id__lessons__lesson_id__reextract_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                project_id: number;
+                lesson_id: number;
+            };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GeneralLessonStartRequest"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -1146,11 +1141,46 @@ export interface operations {
             };
         };
     };
-    general_lesson_action_api_learn_lesson_action_post: {
+    general_lesson_start_api_learn_projects__project_id__lessons__lesson_id__sessions_post: {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                project_id: number;
+                lesson_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    general_lesson_action_api_learn_projects__project_id__lessons__lesson_id__actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                lesson_id: number;
+            };
             cookie?: never;
         };
         requestBody: {

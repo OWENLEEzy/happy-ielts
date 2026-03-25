@@ -1,18 +1,58 @@
 import logging
 import random
+from datetime import date
 
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 
 from backend.database import get_db
+from backend.fsrs_engine import new_card_state, update_card
 from backend.general.notebooklm import get_nlm_client
 from backend.models import GeneralLesson
 
 _logger = logging.getLogger(__name__)
 
 
+def _get_valid_reshuffled_quiz(quiz: list[dict], lesson_id: int) -> list[dict]:
+    """Filter legacy-format questions and deterministically reshuffle answer options.
+
+    Questions with string-format answerOptions (legacy NLM extraction) cannot be
+    graded and are dropped. The remaining questions have their options shuffled
+    with a seed derived from lesson_id so the same layout is used for display
+    and grading across HITL re-executions.
+    """
+    valid = [q for q in quiz if q.get("answerOptions") and isinstance(q["answerOptions"][0], dict)]
+    rng = random.Random(lesson_id)
+    result = []
+    for q in valid:
+        opts = list(q.get("answerOptions", []))
+        rng.shuffle(opts)
+        result.append({**q, "answerOptions": opts})
+    return result
+
+
 def route_start(state: dict) -> dict:
-    return {"phase": "reading"}
+    lesson: GeneralLesson = state["lesson"]
+    retry_hint: list = []
+    try:
+        prior = get_db().get_last_session_for_lesson(state["project"]["id"], lesson.id)
+        if prior and prior.get("quiz_score", 100) < 60:
+            reshuffled = _get_valid_reshuffled_quiz(lesson.quiz_json or [], lesson.id)
+            saved = prior.get("quiz_answers", [])
+            for i, q in enumerate(reshuffled):
+                opts = q.get("answerOptions", [])
+                student_idx = saved[i] if i < len(saved) else None
+                correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
+                if student_idx != correct_idx and correct_idx is not None:
+                    retry_hint.append(
+                        {
+                            "question": q.get("question", ""),
+                            "correct_answer": opts[correct_idx].get("text", ""),
+                        }
+                    )
+    except Exception:
+        _logger.warning("route_start: failed to load prior session", exc_info=True)
+    return {"phase": "reading", "retry_hint": retry_hint}
 
 
 def reading_session(state: dict) -> dict:
@@ -26,6 +66,7 @@ def reading_session(state: dict) -> dict:
             "type": "reading",
             "study_guide": lesson.study_guide or "",
             "title": lesson.title,
+            "retry_hint": state.get("retry_hint", []),
         }
         writer = get_stream_writer()
         writer(interrupt_data)
@@ -45,32 +86,21 @@ def quiz_session(state: dict) -> dict:
     # the same layout is presented to the user on first run AND used for
     # grading on the resumed run. Non-deterministic shuffles cause
     # answer-index mismatches between the two executions.
-    # Filter out questions where answerOptions are plain strings (legacy extraction
-    # format that lacks isCorrect/rationale — they cannot be graded correctly).
-    valid_quiz = [
-        q for q in quiz if q.get("answerOptions") and isinstance(q["answerOptions"][0], dict)
-    ]
-    if len(valid_quiz) < len(quiz):
+    reshuffled = _get_valid_reshuffled_quiz(quiz, lesson.id)
+    if len(reshuffled) < len(quiz):
         _logger.warning(
             "quiz_session: dropped %d/%d questions with legacy string-format options",
-            len(quiz) - len(valid_quiz),
+            len(quiz) - len(reshuffled),
             len(quiz),
         )
 
     # If ALL questions are in legacy format, skip the quiz phase gracefully
     # rather than presenting 0 questions (which would auto-grade as 100).
-    if not valid_quiz:
+    if not reshuffled:
         _logger.warning("quiz_session: no valid questions for lesson %d — skipping quiz", lesson.id)
         writer = get_stream_writer()
         writer({"type": "quiz_skipped", "reason": "content_updating", "lesson_id": lesson.id})
-        return {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa"}
-
-    rng = random.Random(lesson.id)
-    reshuffled = []
-    for q in valid_quiz:
-        opts = list(q.get("answerOptions", []))
-        rng.shuffle(opts)
-        reshuffled.append({**q, "answerOptions": opts})
+        return {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa", "fsrs_wrong_items": []}
 
     # answer_format documents the expected shape of the resume payload:
     #   {"type": "answers", "answers": [<int index 0-based>, ...]}
@@ -118,7 +148,27 @@ def quiz_session(state: dict) -> dict:
         {"type": "quiz_result", "score": score, "total": len(reshuffled), "details": result_details}
     )
 
-    return {"quiz_answers": answers, "quiz_score": score, "phase": "free_qa"}
+    # Track wrong answers for FSRS spaced-repetition.
+    fsrs_wrong_items: list = []
+    for i, q in enumerate(reshuffled):
+        opts = q.get("answerOptions", [])
+        student_idx = answers[i] if i < len(answers) else None
+        correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
+        if student_idx != correct_idx and correct_idx is not None:
+            fsrs_wrong_items.append(
+                {
+                    "q": q.get("question", ""),
+                    "correct": opts[correct_idx].get("text", ""),
+                    "fsrs_state": new_card_state(),
+                }
+            )
+
+    return {
+        "quiz_answers": answers,
+        "quiz_score": score,
+        "phase": "free_qa",
+        "fsrs_wrong_items": fsrs_wrong_items,
+    }
 
 
 def _auto_grade(quiz: list[dict], answers: list) -> int:
@@ -197,16 +247,54 @@ async def free_qa_session(state: dict) -> dict:
 
 async def save_results(state: dict) -> dict:
     db = get_db()
+    lesson_id = state["lesson"].id
     try:
         db.save_general_session(
             project_id=state["project"]["id"],
-            lesson_id=state["lesson"].id,
+            lesson_id=lesson_id,
             quiz_answers=state.get("quiz_answers", []),
             quiz_score=state.get("quiz_score", 0),
             qa_history=state.get("qa_history", []),
         )
     except Exception as exc:
         _logger.error("save_results: failed to save general session: %s", exc)
+
+    # Persist FSRS states for wrong quiz answers.
+    wrong = state.get("fsrs_wrong_items", [])
+    if wrong:
+        try:
+            existing = db.get_general_student_model_full(state["project"]["id"])
+            if existing:
+                by_key = {
+                    (item["lesson_id"], item["q"]): item
+                    for item in existing.fsrs_due
+                    if isinstance(item, dict) and "lesson_id" in item and "q" in item
+                }
+                for w in wrong:
+                    key = (lesson_id, w["q"])
+                    if key in by_key:
+                        by_key[key] = {
+                            **by_key[key],
+                            "fsrs_state": update_card(
+                                by_key[key]["fsrs_state"],
+                                is_correct=False,
+                                response_seconds=10.0,
+                            ),
+                        }
+                    else:
+                        by_key[key] = {"lesson_id": lesson_id, **w}
+                db.save_general_student_model(
+                    state["project"]["id"],
+                    existing.model_copy(
+                        update={
+                            "fsrs_due": list(by_key.values()),
+                            "updated": date.today().isoformat(),
+                        }
+                    ),
+                )
+        except Exception as exc:
+            _logger.error("save_results: failed to persist FSRS wrong items: %s", exc)
+
     writer = get_stream_writer()
     writer({"type": "done", "project_id": state["project"]["id"]})
     return {"phase": "done"}

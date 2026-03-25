@@ -88,8 +88,8 @@ export default function OnboardingPage() {
         bandwidth_minutes: bandwidth,
         writing_mode: writingMode as SavePrefsReq['writing_mode'],
       }
-      await client.POST('/api/onboarding/preferences', { body })
-      await client.POST('/api/planner/run', {})
+      await client.PATCH('/api/onboarding/preferences', { body })
+      await client.POST('/api/planner/jobs', {})
       router.push('/lesson')
     } finally {
       setSubmitting(false)

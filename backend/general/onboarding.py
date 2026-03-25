@@ -3,7 +3,7 @@ from langchain.tools import tool
 
 from backend.database import get_db
 from backend.llm import get_llm
-from backend.models import LearningMap, UserGoalProfile
+from backend.models import LearningChapter, LearningLesson, LearningMap, UserGoalProfile
 
 SKILL_ONBOARDING_PROMPT = """
 你是一位学习顾问，正在帮用户规划一门关于 {topic} 的学习课程。
@@ -67,8 +67,12 @@ def make_save_goal_profile_tool(project_id: int):
                 duration_weeks=duration_weeks,
                 constraints=constraints,
             )
-            db.update_general_project_goal_profile(project_id, profile)
-            return f"Goal profile saved for project {project_id}: {goal_outcome}"
+            learning_map = generate_draft_learning_map(profile)
+            db.update_general_project_profile_and_map(project_id, profile, learning_map)
+            return (
+                f"Goal profile and draft learning map saved"
+                f" for project {project_id}: {goal_outcome}"
+            )
         except Exception as e:
             return f"ERROR: Failed to save goal profile — {e}. Try again."
 
@@ -102,8 +106,19 @@ def generate_draft_learning_map(profile: UserGoalProfile) -> LearningMap:
     """Use LLM to generate an initial learning map draft (no NLM, instant)."""
     llm = get_llm()
     chain = llm.with_structured_output(LearningMap)
+    example = LearningMap(
+        topic="示例主题",
+        total_weeks=profile.duration_weeks,
+        chapters=[
+            LearningChapter(
+                title="示例章节",
+                lessons=[LearningLesson(title="示例课", objectives=["学习目标1", "学习目标2"])],
+            )
+        ],
+    )
     prompt = (
-        f"为以下学习目标生成一份结构化学习地图：\n\n"
+        f"为以下学习目标生成一份结构化学习地图，以 JSON 格式返回，字段名必须与示例完全一致：\n\n"
+        f"字段示例（必须使用这些字段名）：{example.model_dump_json()}\n\n"
         f"目标：{profile.goal_outcome}\n"
         f"主题：{profile.topic}\n"
         f"场景：{profile.context}\n"

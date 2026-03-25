@@ -58,7 +58,7 @@ DeepAgent Reflect
   → generate ReflectHandoff (strength/weakness summary)
   → trigger Planner with handoff for next lesson
 
-General Learning loop (triggered by /api/general/*)
+General Learning loop (triggered by /api/learn/projects)
 ────────────────────────────────────────────────────
 Researcher Agent
   goal + StudentModel weaknesses → NotebookLM deep research
@@ -82,7 +82,7 @@ Researcher 重新备课（针对弱点 deep research）
 
 **前端路由：** Next.js `app/api/[...proxy]/route.ts` 透传到 FastAPI，无需 CORS 配置。
 
-**SSE 模式：** 所有实时交互走 `POST /api/lesson/action` → `Command(resume=action)` → `stream_mode="custom"`，**不用 WebSocket**。
+**SSE 模式：** 所有实时交互走 `POST /api/lessons/today/actions` → `Command(resume=action)` → `stream_mode="custom"`，**不用 WebSocket**。
 
 **Thread ID 约定：**
 - Tutor: `date.today().isoformat()`（今日唯一）
@@ -170,6 +170,59 @@ Researcher 重新备课（针对弱点 deep research）
 **Planner 工具 observation 格式：** `planner/tools.py` 所有工具返回统一结构：
 `{"status": "success"|"error", "summary": "...", "next_actions": [...], "data": ...}`
 agent 只需检查 `status`，不做 `startswith("ERROR:")` pattern match。
+
+## API 设计规范
+
+### RESTful URL 约定
+
+- **资源用名词、复数形式**：`/api/lessons/`、`/api/learn/projects/`
+- **资源 ID 放 URL path，不放请求 body**：`/api/learn/projects/{project_id}/lessons/{lesson_id}`
+- **HTTP 动词语义**：POST=创建、PATCH=部分更新、GET=读取、DELETE=删除
+- **无法映射到 CRUD 的动作用名词子资源**：`/actions`、`/sessions`、`/messages`、`/jobs`
+
+### 请求 Body 规则
+
+Path 参数（`project_id`、`lesson_id` 等）**不在请求 body 中重复**。Body 只包含载荷字段。
+
+### 状态码
+
+- `201` — POST 创建资源成功
+- `409` — 资源已存在且冲突（例如 session 已启动）
+
+### 完整 API 端点表
+
+```
+# Planner
+POST   /api/planner/jobs              — 触发备课（异步）
+GET    /api/planner/status            — 查询规划状态
+POST   /api/planner/jobs/next         — 备明日课程
+
+# 英语 Onboarding
+POST   /api/onboarding/messages       — 发送 onboarding 消息（SSE）
+GET    /api/onboarding/status         — 查询 onboarding 是否完成
+PATCH  /api/onboarding/preferences    — 保存偏好设置
+
+# 英语 Lesson
+GET    /api/lessons/today             — 获取今日课程
+POST   /api/lessons/today/session     — 开始/恢复今日课程 session（SSE）
+POST   /api/lessons/today/actions     — 发送课程动作（SSE）
+
+# 用户 Profile & Vocab
+GET    /api/profile                   — 获取用户 profile
+PATCH  /api/profile                   — 更新用户兴趣
+GET    /api/vocab                     — 获取生词列表
+
+# General Learning — Projects
+POST   /api/learn/projects                                            — 创建学习项目（onboarding 第一步），返回 201
+POST   /api/learn/projects/{project_id}/messages                      — onboarding 对话（SSE）
+PATCH  /api/learn/projects/{project_id}                               — 确认学习计划，触发研究
+GET    /api/learn/projects/{project_id}                               — 获取项目详情
+GET    /api/learn/projects/{project_id}/dashboard                     — 项目仪表盘
+
+# General Learning — Lessons
+POST   /api/learn/projects/{project_id}/lessons/{lesson_id}/sessions  — 开始课程（SSE）
+POST   /api/learn/projects/{project_id}/lessons/{lesson_id}/actions   — 课程交互（SSE）
+```
 
 ## Frontend
 

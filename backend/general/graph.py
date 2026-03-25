@@ -22,6 +22,8 @@ class GeneralLessonState(TypedDict):
     quiz_score: int
     qa_history: list
     messages: Annotated[list, operator.add]
+    retry_hint: list  # wrong questions from last low-score attempt; [] on first try
+    fsrs_wrong_items: list  # wrong quiz items with FSRS initial state for this session
 
 
 def build_general_lesson_graph(checkpointer):

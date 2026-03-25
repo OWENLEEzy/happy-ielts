@@ -86,8 +86,20 @@ class NotebookLMWrapper:
                 if status == "completed":
                     sources = result.get("sources", [])
                     if sources:
-                        await c.research.import_sources(notebook_id, task_id, sources)
-                    return len(sources)
+                        existing = await c.sources.list(notebook_id)
+                        existing_titles = {getattr(s, "title", "") or "" for s in existing}
+                        new_sources = [
+                            s for s in sources if (s.get("title") or "") not in existing_titles
+                        ]
+                        if new_sources:
+                            await c.research.import_sources(notebook_id, task_id, new_sources)
+                        skipped = len(sources) - len(new_sources)
+                        if skipped:
+                            _logger.info(
+                                "add_research: skipped %d already-present sources", skipped
+                            )
+                        return len(new_sources)
+                    return 0
                 if status not in ("in_progress", "pending"):
                     _logger.warning(
                         "Research for notebook %s ended with terminal status %r",

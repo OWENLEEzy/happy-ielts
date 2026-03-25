@@ -1,10 +1,13 @@
 import json
+import os
 import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from typing import Protocol
 
+import psycopg2
+import psycopg2.extras
 from pydantic import ValidationError
 
 from backend.models import (
@@ -22,6 +25,8 @@ from backend.models import (
     WritingTask,
     WritingTaskCreate,
 )
+
+_DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 
 def _safe_json(raw, fallback=None):
@@ -45,7 +50,7 @@ CREATE TABLE IF NOT EXISTS user_profile (
 );
 
 CREATE TABLE IF NOT EXISTS articles (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     date TEXT NOT NULL,
     source_url TEXT NOT NULL,
     original_title TEXT NOT NULL,
@@ -57,7 +62,7 @@ CREATE TABLE IF NOT EXISTS articles (
 );
 
 CREATE TABLE IF NOT EXISTS writing_tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     article_id INTEGER NOT NULL,
     mode TEXT NOT NULL,
     instruction TEXT NOT NULL,
@@ -65,7 +70,7 @@ CREATE TABLE IF NOT EXISTS writing_tasks (
 );
 
 CREATE TABLE IF NOT EXISTS writing_submissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     task_id INTEGER NOT NULL,
     user_text TEXT NOT NULL,
     overall_score INTEGER NOT NULL,
@@ -76,7 +81,7 @@ CREATE TABLE IF NOT EXISTS writing_submissions (
 );
 
 CREATE TABLE IF NOT EXISTS vocab_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     word TEXT NOT NULL UNIQUE,
     context_sentence TEXT NOT NULL,
     source TEXT NOT NULL,
@@ -86,7 +91,7 @@ CREATE TABLE IF NOT EXISTS vocab_items (
 );
 
 CREATE TABLE IF NOT EXISTS learning_projects (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           SERIAL PRIMARY KEY,
     user_topic   TEXT NOT NULL,
     status       TEXT NOT NULL DEFAULT 'onboarding',
     goal_profile TEXT,
@@ -98,7 +103,7 @@ CREATE TABLE IF NOT EXISTS learning_projects (
 );
 
 CREATE TABLE IF NOT EXISTS project_lessons (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           SERIAL PRIMARY KEY,
     project_id   INTEGER NOT NULL REFERENCES learning_projects(id),
     chapter      INTEGER NOT NULL,
     lesson       INTEGER NOT NULL,
@@ -111,7 +116,7 @@ CREATE TABLE IF NOT EXISTS project_lessons (
 );
 
 CREATE TABLE IF NOT EXISTS project_sessions (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    id           SERIAL PRIMARY KEY,
     project_id   INTEGER NOT NULL REFERENCES learning_projects(id),
     lesson_id    INTEGER NOT NULL REFERENCES project_lessons(id),
     quiz_answers TEXT,
@@ -172,7 +177,7 @@ class DatabaseProtocol(Protocol):
 
     def count_articles(self) -> int: ...
 
-    def upsert_reading_start(self, today: date) -> None: ...
+    def upsert_reading_start(self, _today: date) -> None: ...
 
     def create_general_project(
         self, topic: str, profile: UserGoalProfile | None, tier: str
@@ -221,49 +226,121 @@ class DatabaseProtocol(Protocol):
 
     def get_general_project_dashboard(self, project_id: int) -> dict: ...
 
+    def get_last_session_for_lesson(self, project_id: int, lesson_id: int) -> dict | None: ...
+
+    def get_general_student_model_full(self, project_id: int) -> GeneralStudentModel | None: ...
+
 
 _instance: "Database | None" = None
 _instance_lock = threading.Lock()
 
 
-def get_db(db_path: str = "./db.sqlite3") -> "Database":
+def get_db() -> "Database":
     global _instance
     if _instance is None:
         with _instance_lock:
             if _instance is None:  # Double-checked locking
-                _instance = Database(db_path)
+                _instance = Database()
     return _instance
 
 
+class _SQLiteCursor:
+    """Thin wrapper that adapts a sqlite3 cursor to behave like a psycopg2 RealDictCursor.
+
+    Converts ``%s`` placeholders to ``?``, strips ``RETURNING id`` clauses (uses
+    ``lastrowid`` instead), and returns rows as plain ``dict`` objects.
+    """
+
+    def __init__(self, cur: sqlite3.Cursor) -> None:
+        self._cur = cur
+
+    def execute(self, sql: str, params: tuple = ()) -> "_SQLiteCursor":
+        sql = sql.replace("%s", "?")
+        self._had_returning = "RETURNING" in sql.upper()
+        sql = _strip_returning(sql)
+        self._cur.execute(sql, params)
+        return self
+
+    def fetchone(self) -> dict | None:
+        if getattr(self, "_had_returning", False):
+            return {"id": self._cur.lastrowid}
+        row = self._cur.fetchone()
+        return dict(row) if row else None
+
+    def fetchall(self) -> list[dict]:
+        return [dict(r) for r in self._cur.fetchall()]
+
+    @property
+    def lastrowid(self) -> int | None:
+        return self._cur.lastrowid
+
+    @property
+    def rowcount(self) -> int:
+        return self._cur.rowcount
+
+    def __getitem__(self, idx: int):  # type: ignore[return]
+        return self._cur.fetchall()[idx]
+
+
+def _strip_returning(sql: str) -> str:
+    """Remove ``RETURNING id`` from SQL for SQLite compatibility."""
+    import re
+
+    return re.sub(r"\s+RETURNING\s+\w+", "", sql, flags=re.IGNORECASE)
+
+
 class Database:
-    def __init__(self, db_path: str = "./db.sqlite3"):
-        self.db_path = db_path
+    def __init__(self, db_path: str | None = None) -> None:
         self._lock = threading.Lock()
-        self._conn_instance = sqlite3.connect(db_path, check_same_thread=False)
-        self._conn_instance.row_factory = sqlite3.Row
+        if db_path is not None:
+            # Test mode: SQLite in-memory or file
+            self._sqlite = True
+            self._conn_instance = sqlite3.connect(db_path, check_same_thread=False)
+            self._conn_instance.row_factory = sqlite3.Row
+        else:
+            self._sqlite = False
+            self._conn_instance = psycopg2.connect(_DATABASE_URL)
         self._init_tables()
+
+    def _cur(self, conn):  # type: ignore[return]
+        if self._sqlite:
+            return _SQLiteCursor(conn.cursor())
+        return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     @contextmanager
     def _conn(self):
         with self._lock:
-            try:
+            if self._sqlite:
                 yield self._conn_instance
-                self._conn_instance.commit()
-            except Exception:
-                self._conn_instance.rollback()
-                raise
+            else:
+                try:
+                    yield self._conn_instance
+                    self._conn_instance.commit()
+                except Exception:
+                    self._conn_instance.rollback()
+                    raise
 
     def _init_tables(self):
         with self._conn() as conn:
-            conn.executescript(CREATE_TABLES)
+            cur = self._cur(conn)
+            create_sql = CREATE_TABLES
+            if self._sqlite:
+                create_sql = create_sql.replace(
+                    "SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT"
+                )
+            for stmt in create_sql.split(";"):
+                stmt = stmt.strip()
+                if stmt:
+                    cur.execute(stmt)
 
     def upsert_user_profile(self, profile: UserProfile) -> None:
         with self._conn() as conn:
-            conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO user_profile
                     (id, goal, interests, level, bandwidth_minutes, writing_mode)
-                VALUES (1, ?, ?, ?, ?, ?)
+                VALUES (1, %s, %s, %s, %s, %s)
                 ON CONFLICT(id) DO UPDATE SET
                     goal=excluded.goal,
                     interests=excluded.interests,
@@ -282,7 +359,9 @@ class Database:
 
     def get_user_profile(self) -> UserProfile | None:
         with self._conn() as conn:
-            row = conn.execute("SELECT * FROM user_profile WHERE id=1").fetchone()
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM user_profile WHERE id=1")
+            row = cur.fetchone()
             if row is None:
                 return None
             return UserProfile(
@@ -295,11 +374,12 @@ class Database:
 
     def upsert_article(self, article: ArticleCreate) -> int:
         with self._conn() as conn:
-            cursor = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO articles (date, source_url, original_title, full_text,
                                       highlight_indices, article_logic, topic_tags)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT(date) DO UPDATE SET
                     source_url=excluded.source_url,
                     original_title=excluded.original_title,
@@ -319,13 +399,14 @@ class Database:
                     json.dumps(article.topic_tags),
                 ),
             )
-            return cursor.fetchone()[0]
+            row = cur.fetchone()
+            return row["id"] if row else 0
 
     def get_today_article(self) -> Article | None:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM articles WHERE date=?", (date.today().isoformat(),)
-            ).fetchone()
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM articles WHERE date=%s", (date.today().isoformat(),))
+            row = cur.fetchone()
             if row is None:
                 return None
             return Article(
@@ -341,40 +422,43 @@ class Database:
 
     def upsert_writing_task(self, task: WritingTaskCreate) -> int:
         with self._conn() as conn:
-            existing = conn.execute(
-                "SELECT id FROM writing_tasks WHERE article_id=?", (task.article_id,)
-            ).fetchone()
+            cur = self._cur(conn)
+            cur.execute("SELECT id FROM writing_tasks WHERE article_id=%s", (task.article_id,))
+            existing = cur.fetchone()
             if existing:
-                conn.execute(
+                cur.execute(
                     """
-                    UPDATE writing_tasks SET mode=?, instruction=?, min_words=?
-                    WHERE article_id=?
+                    UPDATE writing_tasks SET mode=%s, instruction=%s, min_words=%s
+                    WHERE article_id=%s
                 """,
                     (task.mode, task.instruction, task.min_words, task.article_id),
                 )
                 return existing["id"]
-            cursor = conn.execute(
+            cur.execute(
                 """
                 INSERT INTO writing_tasks (article_id, mode, instruction, min_words)
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
             """,
                 (task.article_id, task.mode, task.instruction, task.min_words),
             )
-            row_id = cursor.lastrowid
-            if row_id is None:
-                raise RuntimeError("INSERT into writing_tasks returned no lastrowid")
-            return row_id
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("INSERT into writing_tasks returned no id")
+            return row["id"]
 
     def get_today_writing_task(self) -> WritingTask | None:
         with self._conn() as conn:
-            row = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 SELECT wt.* FROM writing_tasks wt
                 JOIN articles a ON wt.article_id = a.id
-                WHERE a.date=?
+                WHERE a.date=%s
             """,
                 (date.today().isoformat(),),
-            ).fetchone()
+            )
+            row = cur.fetchone()
             if row is None:
                 return None
             return WritingTask(
@@ -387,11 +471,12 @@ class Database:
 
     def upsert_vocab_item(self, item: VocabItemCreate) -> None:
         with self._conn() as conn:
-            conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO vocab_items (word, context_sentence, source, next_review,
                                          fsrs_state, article_id)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT(word) DO UPDATE SET
                     context_sentence=excluded.context_sentence,
                     source=excluded.source,
@@ -411,10 +496,12 @@ class Database:
 
     def get_due_vocab_items(self, today: date) -> list[VocabItem]:
         with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT * FROM vocab_items WHERE next_review <= ? ORDER BY next_review",
+            cur = self._cur(conn)
+            cur.execute(
+                "SELECT * FROM vocab_items WHERE next_review <= %s ORDER BY next_review",
                 (today.isoformat(),),
-            ).fetchall()
+            )
+            rows = cur.fetchall()
             return [
                 VocabItem(
                     id=r["id"],
@@ -430,7 +517,9 @@ class Database:
 
     def get_all_vocab_items(self) -> list[VocabItem]:
         with self._conn() as conn:
-            rows = conn.execute("SELECT * FROM vocab_items ORDER BY next_review").fetchall()
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM vocab_items ORDER BY next_review")
+            rows = cur.fetchall()
             return [
                 VocabItem(
                     id=r["id"],
@@ -446,12 +535,14 @@ class Database:
 
     def save_writing_submission(self, sub: WritingSubmissionCreate) -> int:
         with self._conn() as conn:
-            cursor = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO writing_submissions
                     (task_id, user_text, overall_score, grammar_errors,
                      chinglish_flags, rewrite_suggestions, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
             """,
                 (
                     sub.task_id,
@@ -463,19 +554,20 @@ class Database:
                     sub.submitted_at.isoformat(),
                 ),
             )
-            row_id = cursor.lastrowid
-            if row_id is None:
-                raise RuntimeError("INSERT into writing_submissions returned no lastrowid")
-            return row_id
+            row = cur.fetchone()
+            if row is None:
+                raise RuntimeError("INSERT into writing_submissions returned no id")
+            return row["id"]
 
     def save_daily_lesson(self, article: ArticleCreate, task: WritingTaskCreate) -> tuple[int, int]:
         """Insert/update article and writing task atomically in a single transaction."""
         with self._conn() as conn:
-            cursor = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO articles (date, source_url, original_title, full_text,
                                       highlight_indices, article_logic, topic_tags)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT(date) DO UPDATE SET
                     source_url=excluded.source_url,
                     original_title=excluded.original_title,
@@ -495,36 +587,37 @@ class Database:
                     json.dumps(article.topic_tags),
                 ),
             )
-            article_id: int = cursor.fetchone()[0]
+            row = cur.fetchone()
+            article_id: int = row["id"] if row else 0
 
-            existing = conn.execute(
-                "SELECT id FROM writing_tasks WHERE article_id=?", (article_id,)
-            ).fetchone()
+            cur.execute("SELECT id FROM writing_tasks WHERE article_id=%s", (article_id,))
+            existing = cur.fetchone()
             if existing:
-                conn.execute(
+                cur.execute(
                     """
-                    UPDATE writing_tasks SET mode=?, instruction=?, min_words=?
-                    WHERE article_id=?
+                    UPDATE writing_tasks SET mode=%s, instruction=%s, min_words=%s
+                    WHERE article_id=%s
                 """,
                     (task.mode, task.instruction, task.min_words, article_id),
                 )
                 task_id: int = existing["id"]
             else:
-                task_cursor = conn.execute(
+                cur.execute(
                     """
                     INSERT INTO writing_tasks (article_id, mode, instruction, min_words)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
+                    RETURNING id
                 """,
                     (article_id, task.mode, task.instruction, task.min_words),
                 )
-                row_id = task_cursor.lastrowid
-                if row_id is None:
-                    raise RuntimeError("INSERT into writing_tasks returned no lastrowid")
-                task_id = row_id
+                row = cur.fetchone()
+                if row is None:
+                    raise RuntimeError("INSERT into writing_tasks returned no id")
+                task_id = row["id"]
 
             return (article_id, task_id)
 
-    def upsert_reading_start(self, today: date) -> None:  # noqa: ARG002
+    def upsert_reading_start(self, _today: date) -> None:
         """Idempotent marker that reading session started today."""
         # No separate table needed — article existence is the marker
         pass
@@ -532,39 +625,63 @@ class Database:
     def query_weekly_stats(self) -> dict:
         """Returns structured facts for Orchestrator → Reflect/Planner context."""
         with self._conn() as conn:
-            writing_scores = conn.execute(
-                "SELECT date(submitted_at) as d, overall_score "
-                "FROM writing_submissions "
-                "WHERE submitted_at > datetime('now', '-7 days') "
-                "ORDER BY submitted_at DESC"
-            ).fetchall()
+            cur = self._cur(conn)
 
-            chinglish_counts = conn.execute(
-                "SELECT json_extract(value, '$.issue') as issue, COUNT(*) as cnt "
-                "FROM writing_submissions, json_each(chinglish_flags) "
-                "WHERE submitted_at > datetime('now', '-7 days') "
-                "GROUP BY issue ORDER BY cnt DESC"
-            ).fetchall()
+            cur.execute(
+                """
+                SELECT date(submitted_at::timestamp) as d, overall_score
+                FROM writing_submissions
+                WHERE submitted_at::timestamp > NOW() - INTERVAL '7 days'
+                ORDER BY submitted_at DESC
+                """
+            )
+            writing_scores = cur.fetchall()
 
-            vocab_total = conn.execute("SELECT COUNT(*) FROM vocab_items").fetchone()[0]
+            # PostgreSQL JSON: unnest chinglish_flags array and extract issue field
+            cur.execute(
+                """
+                SELECT elem->>'issue' as issue, COUNT(*) as cnt
+                FROM writing_submissions,
+                     json_array_elements(chinglish_flags::json) AS elem
+                WHERE submitted_at::timestamp > NOW() - INTERVAL '7 days'
+                GROUP BY issue ORDER BY cnt DESC
+                """
+            )
+            chinglish_counts = cur.fetchall()
 
-            topic_distribution = conn.execute(
-                "SELECT json_each.value as topic, COUNT(*) as cnt "
-                "FROM articles, json_each(articles.topic_tags) "
-                "WHERE articles.date > date('now', '-14 days') "
-                "GROUP BY topic ORDER BY cnt DESC"
-            ).fetchall()
+            cur.execute("SELECT COUNT(*) as cnt FROM vocab_items")
+            vocab_total = cur.fetchone()["cnt"]  # type: ignore[index]
+
+            # PostgreSQL JSON: unnest topic_tags array
+            cur.execute(
+                """
+                SELECT elem as topic, COUNT(*) as cnt
+                FROM articles,
+                     json_array_elements_text(topic_tags::json) AS elem
+                WHERE date::date > CURRENT_DATE - INTERVAL '14 days'
+                GROUP BY elem ORDER BY cnt DESC
+                """
+            )
+            topic_distribution = cur.fetchall()
 
             return {
-                "writing_scores": [{"date": r[0], "score": r[1]} for r in writing_scores],
-                "chinglish_counts": [{"issue": r[0], "count": r[1]} for r in chinglish_counts],
+                "writing_scores": [
+                    {"date": r["d"], "score": r["overall_score"]} for r in writing_scores
+                ],
+                "chinglish_counts": [
+                    {"issue": r["issue"], "count": r["cnt"]} for r in chinglish_counts
+                ],
                 "vocab_mastered": vocab_total,
-                "topic_distribution": [{"topic": r[0], "count": r[1]} for r in topic_distribution],
+                "topic_distribution": [
+                    {"topic": r["topic"], "count": r["cnt"]} for r in topic_distribution
+                ],
             }
 
     def get_article_for_date(self, date_str: str) -> "Article | None":
         with self._conn() as conn:
-            row = conn.execute("SELECT * FROM articles WHERE date=?", (date_str,)).fetchone()
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM articles WHERE date=%s", (date_str,))
+            row = cur.fetchone()
             if row is None:
                 return None
             return Article(
@@ -581,59 +698,77 @@ class Database:
     def query_topic_performance(self) -> dict:
         """Returns per-topic writing performance aggregated from all submissions."""
         with self._conn() as conn:
-            rows = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
-                SELECT json_each.value as topic,
+                SELECT elem as topic,
                        COUNT(*) as sessions,
-                       ROUND(AVG(ws.overall_score), 1) as avg_score
+                       ROUND(AVG(ws.overall_score)::numeric, 1) as avg_score
                 FROM writing_submissions ws
                 JOIN writing_tasks wt ON ws.task_id = wt.id
                 JOIN articles a ON wt.article_id = a.id,
-                     json_each(a.topic_tags)
-                GROUP BY topic
+                     json_array_elements_text(a.topic_tags::json) AS elem
+                GROUP BY elem
                 ORDER BY sessions DESC
                 """
-            ).fetchall()
+            )
+            rows = cur.fetchall()
             return {
-                r["topic"]: {"sessions": r["sessions"], "avg_score": r["avg_score"]} for r in rows
+                r["topic"]: {
+                    "sessions": r["sessions"],
+                    "avg_score": float(r["avg_score"]) if r["avg_score"] is not None else 0.0,
+                }
+                for r in rows
             }
 
     def query_writing_task_history(self) -> dict:
         """Returns per-article-logic-type writing performance from all submissions."""
         with self._conn() as conn:
-            rows = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 SELECT a.article_logic as logic_type,
                        COUNT(*) as count,
-                       ROUND(AVG(ws.overall_score), 1) as avg_score
+                       ROUND(AVG(ws.overall_score)::numeric, 1) as avg_score
                 FROM writing_submissions ws
                 JOIN writing_tasks wt ON ws.task_id = wt.id
                 JOIN articles a ON wt.article_id = a.id
                 GROUP BY a.article_logic
                 """
-            ).fetchall()
+            )
+            rows = cur.fetchall()
             return {
-                r["logic_type"]: {"count": r["count"], "avg_score": r["avg_score"]} for r in rows
+                r["logic_type"]: {
+                    "count": r["count"],
+                    "avg_score": float(r["avg_score"]) if r["avg_score"] is not None else 0.0,
+                }
+                for r in rows
             }
 
     def count_sessions(self) -> int:
         """Total number of completed writing submissions."""
         with self._conn() as conn:
-            return conn.execute("SELECT COUNT(*) FROM writing_submissions").fetchone()[0]
+            cur = self._cur(conn)
+            cur.execute("SELECT COUNT(*) as cnt FROM writing_submissions")
+            return cur.fetchone()["cnt"]  # type: ignore[index]
 
     def query_session_dates(self) -> list[str]:
         """Distinct ISO dates where writing was submitted, newest first."""
         with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT date(submitted_at) as d "
+            cur = self._cur(conn)
+            cur.execute(
+                "SELECT DISTINCT date(submitted_at::timestamp) as d "
                 "FROM writing_submissions ORDER BY d DESC"
-            ).fetchall()
-            return [r["d"] for r in rows]
+            )
+            rows = cur.fetchall()
+            return [str(r["d"]) for r in rows]
 
     def count_articles(self) -> int:
         """Total number of articles stored (includes days without a submission)."""
         with self._conn() as conn:
-            return conn.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
+            cur = self._cur(conn)
+            cur.execute("SELECT COUNT(*) as cnt FROM articles")
+            return cur.fetchone()["cnt"]  # type: ignore[index]
 
     # ── General Learning ──────────────────────────────────────
 
@@ -641,9 +776,11 @@ class Database:
         self, topic: str, profile: UserGoalProfile | None, tier: str = "free"
     ) -> int:
         with self._conn() as conn:
-            cur = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 "INSERT INTO learning_projects"
-                " (user_topic, goal_profile, tier, created_at) VALUES (?, ?, ?, ?)",
+                " (user_topic, goal_profile, tier, created_at) VALUES (%s, %s, %s, %s)"
+                " RETURNING id",
                 (
                     topic,
                     json.dumps(profile.model_dump()) if profile else None,
@@ -651,13 +788,13 @@ class Database:
                     datetime.now(UTC).isoformat(),
                 ),
             )
-            return cur.lastrowid  # type: ignore
+            return cur.fetchone()["id"]  # type: ignore[index]
 
     def get_general_project(self, project_id: int) -> GeneralProject | None:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM learning_projects WHERE id = ?", (project_id,)
-            ).fetchone()
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM learning_projects WHERE id = %s", (project_id,))
+            row = cur.fetchone()
         if not row:
             return None
         d = dict(row)
@@ -675,14 +812,16 @@ class Database:
 
     def update_general_project_status(self, project_id: int, status: str) -> None:
         with self._conn() as conn:
-            conn.execute(
-                "UPDATE learning_projects SET status = ? WHERE id = ?", (status, project_id)
+            cur = self._cur(conn)
+            cur.execute(
+                "UPDATE learning_projects SET status = %s WHERE id = %s", (status, project_id)
             )
 
     def update_general_project_notebook(self, project_id: int, notebook_id: str) -> None:
         with self._conn() as conn:
-            conn.execute(
-                "UPDATE learning_projects SET notebook_id = ? WHERE id = ?",
+            cur = self._cur(conn)
+            cur.execute(
+                "UPDATE learning_projects SET notebook_id = %s WHERE id = %s",
                 (notebook_id, project_id),
             )
 
@@ -690,8 +829,9 @@ class Database:
         self, project_id: int, profile: UserGoalProfile
     ) -> None:
         with self._conn() as conn:
-            conn.execute(
-                "UPDATE learning_projects SET goal_profile = ? WHERE id = ?",
+            cur = self._cur(conn)
+            cur.execute(
+                "UPDATE learning_projects SET goal_profile = %s WHERE id = %s",
                 (profile.model_dump_json(), project_id),
             )
 
@@ -699,8 +839,9 @@ class Database:
         self, project_id: int, learning_map: LearningMap, budget_used: int
     ) -> None:
         with self._conn() as conn:
-            conn.execute(
-                "UPDATE learning_projects SET learning_map = ?, budget_used = ? WHERE id = ?",
+            cur = self._cur(conn)
+            cur.execute(
+                "UPDATE learning_projects SET learning_map = %s, budget_used = %s WHERE id = %s",
                 (learning_map.model_dump_json(), budget_used, project_id),
             )
 
@@ -708,8 +849,9 @@ class Database:
         self, project_id: int, profile: UserGoalProfile, learning_map: LearningMap
     ) -> None:
         with self._conn() as conn:
-            conn.execute(
-                "UPDATE learning_projects SET goal_profile = ?, learning_map = ? WHERE id = ?",
+            cur = self._cur(conn)
+            cur.execute(
+                "UPDATE learning_projects SET goal_profile = %s, learning_map = %s WHERE id = %s",
                 (profile.model_dump_json(), learning_map.model_dump_json(), project_id),
             )
 
@@ -724,11 +866,12 @@ class Database:
         flashcards: list,
     ) -> None:
         with self._conn() as conn:
-            conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO project_lessons
                     (project_id, chapter, lesson, title, study_guide, quiz_json, flashcards, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'ready')
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'ready')
                 ON CONFLICT(project_id, chapter, lesson) DO UPDATE SET
                     study_guide = excluded.study_guide,
                     quiz_json   = excluded.quiz_json,
@@ -748,10 +891,12 @@ class Database:
 
     def get_project_lessons(self, project_id: int) -> list[GeneralLesson]:
         with self._conn() as conn:
-            rows = conn.execute(
-                "SELECT * FROM project_lessons WHERE project_id = ? ORDER BY chapter, lesson",
+            cur = self._cur(conn)
+            cur.execute(
+                "SELECT * FROM project_lessons WHERE project_id = %s ORDER BY chapter, lesson",
                 (project_id,),
-            ).fetchall()
+            )
+            rows = cur.fetchall()
         result = []
         for row in rows:
             d = dict(row)
@@ -762,9 +907,9 @@ class Database:
 
     def get_general_lesson(self, lesson_id: int) -> GeneralLesson | None:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM project_lessons WHERE id = ?", (lesson_id,)
-            ).fetchone()
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM project_lessons WHERE id = %s", (lesson_id,))
+            row = cur.fetchone()
         if not row:
             return None
         d = dict(row)
@@ -776,10 +921,12 @@ class Database:
         self, project_id: int, lesson_id: int, quiz_answers: list, quiz_score: int, qa_history: list
     ) -> int:
         with self._conn() as conn:
-            cur = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 "INSERT INTO project_sessions"
                 " (project_id, lesson_id, quiz_answers, quiz_score, qa_history, created_at)"
-                " VALUES (?,?,?,?,?,?)",
+                " VALUES (%s,%s,%s,%s,%s,%s)"
+                " RETURNING id",
                 (
                     project_id,
                     lesson_id,
@@ -789,15 +936,17 @@ class Database:
                     datetime.now(UTC).isoformat(),
                 ),
             )
-            return cur.lastrowid  # type: ignore
+            return cur.fetchone()["id"]  # type: ignore[index]
 
     def get_project_sessions_recent(self, project_id: int, n: int) -> list[dict]:
         with self._conn() as conn:
-            rows = conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 "SELECT * FROM project_sessions"
-                " WHERE project_id = ? ORDER BY created_at DESC LIMIT ?",
+                " WHERE project_id = %s ORDER BY created_at DESC LIMIT %s",
                 (project_id, n),
-            ).fetchall()
+            )
+            rows = cur.fetchall()
         result = []
         for row in rows:
             d = dict(row)
@@ -808,11 +957,12 @@ class Database:
 
     def save_general_student_model(self, project_id: int, model: GeneralStudentModel) -> None:
         with self._conn() as conn:
-            conn.execute(
+            cur = self._cur(conn)
+            cur.execute(
                 """
                 INSERT INTO general_student_models
                     (project_id, goal_outcome, goal_progress, dimensions, fsrs_due, updated)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT(project_id) DO UPDATE SET
                     goal_outcome  = excluded.goal_outcome,
                     goal_progress = excluded.goal_progress,
@@ -829,6 +979,51 @@ class Database:
                     model.updated,
                 ),
             )
+
+    def get_last_session_for_lesson(self, project_id: int, lesson_id: int) -> dict | None:
+        with self._conn() as conn:
+            cur = self._cur(conn)
+            cur.execute(
+                "SELECT * FROM project_sessions"
+                " WHERE project_id = %s AND lesson_id = %s"
+                " ORDER BY created_at DESC LIMIT 1",
+                (project_id, lesson_id),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        d["quiz_answers"] = _safe_json(d["quiz_answers"], [])
+        d["qa_history"] = _safe_json(d["qa_history"], [])
+        return d
+
+    def get_general_student_model_full(self, project_id: int) -> GeneralStudentModel | None:
+        from backend.models import DimensionState
+
+        with self._conn() as conn:
+            cur = self._cur(conn)
+            cur.execute(
+                "SELECT * FROM general_student_models WHERE project_id = %s",
+                (project_id,),
+            )
+            row = cur.fetchone()
+        if not row:
+            return None
+        dimensions_raw = _safe_json(row["dimensions"], {})
+        dimensions = {}
+        for k, v in dimensions_raw.items():
+            try:
+                dimensions[k] = DimensionState(**v)
+            except (TypeError, KeyError, ValidationError):
+                pass
+        return GeneralStudentModel(
+            project_id=row["project_id"],
+            goal_outcome=row["goal_outcome"],
+            goal_progress=row["goal_progress"],
+            dimensions=dimensions,
+            fsrs_due=_safe_json(row["fsrs_due"], []),
+            updated=row["updated"],
+        )
 
     def get_general_project_dashboard(self, project_id: int) -> dict:
         project = self.get_general_project(project_id)
@@ -849,10 +1044,13 @@ class Database:
         goal_progress = 0.0
         dimensions: dict = {}
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT goal_progress, dimensions FROM general_student_models WHERE project_id = ?",
+            cur = self._cur(conn)
+            cur.execute(
+                "SELECT goal_progress, dimensions"
+                " FROM general_student_models WHERE project_id = %s",
                 (project_id,),
-            ).fetchone()
+            )
+            row = cur.fetchone()
         if row:
             goal_progress = row["goal_progress"]
             dimensions = _safe_json(row["dimensions"], {})

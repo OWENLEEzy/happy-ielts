@@ -48,7 +48,7 @@ export default function GeneralOnboardingPage() {
   const startOnboarding = async () => {
     if (!topic.trim()) return
     const body: StartReq = { topic: topic.trim(), tier: 'free' }
-    const { data, response } = await client.POST('/api/learn/onboarding/start', { body })
+    const { data, response } = await client.POST('/api/learn/projects', { body })
     if (!response.ok) return
     setProjectId(data?.project_id ?? null)
     setStarted(true)
@@ -109,13 +109,9 @@ export default function GeneralOnboardingPage() {
   const confirmPlan = async () => {
     if (!projectId || !preview) return
     setConfirming(true)
-    const confirmBody: ConfirmReq = {
-      project_id: projectId,
-      goal_profile: preview.goal_profile,
-      learning_map: preview.learning_map,
-    }
-    const { response: confirmRes } = await client.POST('/api/learn/onboarding/confirm', {
-      body: confirmBody,
+    const { response: confirmRes } = await client.PATCH('/api/learn/projects/{project_id}', {
+      params: { path: { project_id: projectId! } },
+      body: { goal_profile: preview.goal_profile, learning_map: preview.learning_map },
     })
     if (confirmRes.ok) {
       localStorage.setItem('generalProjectId', String(projectId))

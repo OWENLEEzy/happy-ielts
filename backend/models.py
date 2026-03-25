@@ -195,7 +195,7 @@ class GeneralStudentModel(BaseModel):
     goal_outcome: str
     goal_progress: float = Field(ge=0.0, le=1.0, default=0.0)
     dimensions: dict[str, DimensionState] = {}
-    fsrs_due: list[str] = []
+    fsrs_due: list[dict] = []
     updated: str
 
 

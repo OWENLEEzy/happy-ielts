@@ -3,7 +3,6 @@ import type { components } from '@/types/api'
 
 type LessonActionReq = components['schemas']['LessonActionRequest']
 type OnboardingMsgReq = components['schemas']['OnboardingMessageRequest']
-type GeneralOnboardingMsgReq = components['schemas']['GeneralOnboardingMessageRequest']
 
 export async function sendAction(
   action: LessonAction,
@@ -11,7 +10,7 @@ export async function sendAction(
 ): Promise<void> {
   // Validate action shape matches LessonActionRequest schema
   const body: LessonActionReq = action
-  const res = await fetch('/api/lesson/action', {
+  const res = await fetch('/api/lessons/today/actions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -43,7 +42,7 @@ export async function startLesson(
   onChunk: (chunk: SSEChunk) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const res = await fetch('/api/lesson/start', { method: 'POST', signal })
+  const res = await fetch('/api/lessons/today/session', { method: 'POST', signal })
   if (res.status === 409) {
     try {
       const data = await res.json()
@@ -80,11 +79,10 @@ export async function sendGeneralOnboardingMessage(
   onToken: (token: string) => void,
   signal?: AbortSignal,
 ): Promise<void> {
-  const body: GeneralOnboardingMsgReq = { project_id: projectId, message }
-  const res = await fetch('/api/learn/onboarding/message', {
+  const res = await fetch(`/api/learn/projects/${projectId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ message }),
     signal,
   })
   if (!res.ok || !res.body) throw new Error('SSE failed')

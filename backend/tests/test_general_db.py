@@ -134,3 +134,73 @@ def test_dashboard_goal_progress_zero_without_student_model(db):
     pid = db.create_general_project("吉他", _make_profile(), tier="free")
     dashboard = db.get_general_project_dashboard(pid)
     assert dashboard["goal_progress"] == 0.0
+
+
+# ── get_last_session_for_lesson ────────────────────────────
+
+
+def test_get_last_session_for_lesson_none_when_no_sessions(db):
+    pid = db.create_general_project("吉他", _make_profile(), tier="free")
+    db.upsert_general_lesson(pid, 0, 0, "L1", "guide", [], [])
+    lid = db.get_project_lessons(pid)[0].id
+
+    assert db.get_last_session_for_lesson(pid, lid) is None
+
+
+def test_get_last_session_for_lesson_returns_most_recent(db):
+    pid = db.create_general_project("吉他", _make_profile(), tier="free")
+    db.upsert_general_lesson(pid, 0, 0, "L1", "guide", [], [])
+    lid = db.get_project_lessons(pid)[0].id
+
+    db.save_general_session(pid, lid, [0, 1], quiz_score=40, qa_history=[])
+    db.save_general_session(pid, lid, [1, 0], quiz_score=80, qa_history=[])
+
+    row = db.get_last_session_for_lesson(pid, lid)
+    assert row is not None
+    assert row["quiz_score"] == 80
+    assert row["quiz_answers"] == [1, 0]
+
+
+def test_get_last_session_for_lesson_scoped_to_lesson_id(db):
+    """Sessions for a different lesson must not be returned."""
+    pid = db.create_general_project("吉他", _make_profile(), tier="free")
+    db.upsert_general_lesson(pid, 0, 0, "L1", "guide", [], [])
+    db.upsert_general_lesson(pid, 0, 1, "L2", "guide", [], [])
+    lessons = db.get_project_lessons(pid)
+    lid0, lid1 = lessons[0].id, lessons[1].id
+
+    db.save_general_session(pid, lid0, [0], quiz_score=50, qa_history=[])
+
+    # No session for lid1 — should return None even though lid0 has one.
+    assert db.get_last_session_for_lesson(pid, lid1) is None
+
+
+# ── get_general_student_model_full ────────────────────────
+
+
+def test_get_general_student_model_full_returns_none(db):
+    pid = db.create_general_project("吉他", _make_profile(), tier="free")
+    assert db.get_general_student_model_full(pid) is None
+
+
+def test_get_general_student_model_full_preserves_fsrs_due(db):
+    pid = db.create_general_project("吉他", _make_profile(), tier="free")
+    fsrs_item = {"lesson_id": 1, "q": "What note is this?", "correct": "C", "fsrs_state": {}}
+    model = GeneralStudentModel(
+        project_id=pid,
+        goal_outcome="婚礼演奏",
+        goal_progress=0.5,
+        dimensions={
+            "基础入门": DimensionState(mastery=0.5, sessions=1, last_reviewed="2026-01-01")
+        },
+        fsrs_due=[fsrs_item],
+        updated="2026-01-01",
+    )
+    db.save_general_student_model(pid, model)
+
+    loaded = db.get_general_student_model_full(pid)
+    assert loaded is not None
+    assert loaded.goal_progress == pytest.approx(0.5, abs=1e-3)
+    assert len(loaded.fsrs_due) == 1
+    assert loaded.fsrs_due[0]["q"] == "What note is this?"
+    assert loaded.dimensions["基础入门"].mastery == pytest.approx(0.5, abs=1e-3)

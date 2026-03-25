@@ -138,7 +138,7 @@ function EnglishSettings() {
 
   const save = (b: number, w: string) => {
     fetch('/api/onboarding/preferences', {
-      method: 'POST',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bandwidth_minutes: b, writing_mode: w }),
     }).catch(() => {})

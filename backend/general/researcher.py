@@ -3,7 +3,7 @@ import logging
 from backend.database import get_db
 from backend.general.notebooklm import get_nlm_client
 from backend.llm import get_llm
-from backend.models import LearningMap, UserGoalProfile
+from backend.models import LearningChapter, LearningLesson, LearningMap, UserGoalProfile
 
 _logger = logging.getLogger(__name__)
 
@@ -15,10 +15,15 @@ async def run_researcher(project_id: int, profile: UserGoalProfile, draft_map: L
     db = get_db()
     nlm = get_nlm_client()
 
-    notebook_id = await nlm.create_notebook(f"Learning: {profile.topic}")
-    db.update_general_project_notebook(project_id, notebook_id)
-
     _project = db.get_general_project(project_id)
+    if _project and _project.notebook_id:
+        notebook_id = _project.notebook_id
+        _logger.info(
+            "Researcher: reusing existing notebook %s for project %d", notebook_id, project_id
+        )
+    else:
+        notebook_id = await nlm.create_notebook(f"Learning: {profile.topic}")
+        db.update_general_project_notebook(project_id, notebook_id)
     budget = BUDGET.get(_project.tier, 50) if _project else 50
     used = 0
     rounds = 0
@@ -75,8 +80,20 @@ def _adapt_mind_map_to_profile(
     """Use LLM to convert NLM mind map JSON into our LearningMap schema."""
     llm = get_llm()
     chain = llm.with_structured_output(LearningMap)
+    example = LearningMap(
+        topic="示例主题",
+        total_weeks=profile.duration_weeks,
+        chapters=[
+            LearningChapter(
+                title="示例章节",
+                lessons=[LearningLesson(title="示例课", objectives=["目标1"])],
+            )
+        ],
+    )
     result = chain.invoke(
-        f"将以下知识地图转换为学习路径，目标是：{profile.goal_outcome}\n"
+        f"将以下知识地图转换为学习路径（JSON 格式），字段名必须与示例完全一致。\n"
+        f"字段示例（必须使用这些字段名）：{example.model_dump_json()}\n"
+        f"目标是：{profile.goal_outcome}\n"
         f"每周 {profile.time_per_week} 小时，共 {profile.duration_weeks} 周。\n"
         f"知识地图：{str(mind_map_raw)[:2000]}\n"
         f"参考草稿：{draft_map.model_dump_json()}"

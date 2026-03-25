@@ -4,7 +4,7 @@ from statistics import mean
 from typing import Literal
 
 from backend.database import get_db
-from backend.models import DimensionState, GeneralStudentModel
+from backend.models import DimensionState, GeneralStudentModel  # noqa: F401
 
 _logger = logging.getLogger(__name__)
 
@@ -52,14 +52,22 @@ async def run_reflect(project_id: int) -> None:
             trend=trend,
         )
 
-    goal_progress = mean(d.mastery for d in dimensions.values()) if dimensions else 0.0
+    all_lessons = db.get_project_lessons(project_id)
+    total_titles = {
+        project.learning_map.chapters[ls.chapter].title
+        for ls in all_lessons
+        if ls.chapter < len(project.learning_map.chapters)
+    }
+    mastered = sum(1 for t in total_titles if dimensions.get(t) and dimensions[t].mastery >= 0.5)
+    goal_progress = mastered / len(total_titles) if total_titles else 0.0
 
+    existing = db.get_general_student_model_full(project_id)
     model = GeneralStudentModel(
         project_id=project_id,
         goal_outcome=project.goal_profile.goal_outcome if project.goal_profile else "",
         goal_progress=round(goal_progress, 3),
         dimensions=dimensions,
-        fsrs_due=[],
+        fsrs_due=existing.fsrs_due if existing else [],
         updated=date.today().isoformat(),
     )
     db.save_general_student_model(project_id, model)

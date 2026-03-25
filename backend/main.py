@@ -1,16 +1,19 @@
 import asyncio
 import json
 import logging
+import os
 import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
 from backend.models import (
     GeneralOnboardingStartResponse,
@@ -54,15 +57,14 @@ class UpdateProfileRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    import aiosqlite
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
-    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
-    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg_pool import AsyncConnectionPool
 
-    serde = JsonPlusSerializer(allowed_json_modules=[("backend.models", "GeneralLesson")])
-    async with aiosqlite.connect("./checkpoints.sqlite3") as conn:
-        cp = AsyncSqliteSaver(conn, serde=serde)
+    database_url = os.environ.get("DATABASE_URL", "")
+    async with AsyncConnectionPool(conninfo=database_url, max_size=5, open=True) as pool:
+        cp = AsyncPostgresSaver(pool)
         await cp.setup()
         app.state.checkpointer = cp
 
@@ -95,6 +97,32 @@ async def _cron_prepare_next() -> None:
 
 
 app = FastAPI(title="DynamicLingo API", lifespan=lifespan)
+
+
+# ─── API Key Middleware ────────────────────────────────────────────────────────
+
+_API_KEYS: set[str] = set()
+_raw_keys = os.environ.get("API_KEY", "")
+if _raw_keys.strip():
+    _API_KEYS = {k.strip() for k in _raw_keys.split(",") if k.strip()}
+
+
+class ApiKeyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Skip check when no API keys are configured (local dev)
+        if not _API_KEYS:
+            return await call_next(request)
+        # Skip /api/cron/ routes — they use their own CRON_SECRET auth
+        path = request.url.path
+        if not path.startswith("/api/") or path.startswith("/api/cron/"):
+            return await call_next(request)
+        key = request.headers.get("X-API-Key", "")
+        if key not in _API_KEYS:
+            return JSONResponse({"detail": "Invalid API key"}, status_code=401)
+        return await call_next(request)
+
+
+app.add_middleware(ApiKeyMiddleware)
 
 # Shared planner state from orchestrator so both /run and orchestrator paths use same dict.
 from backend.orchestrator import _planner_lock  # noqa: E402
@@ -130,11 +158,14 @@ async def run_planner():
         _planner_state[today] = {"status": "running", "error": None}
 
     async def _run_planner() -> None:
-        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from psycopg_pool import AsyncConnectionPool
 
         from backend.planner.agent import get_planner, get_planner_config
 
-        async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
+        database_url = os.environ.get("DATABASE_URL", "")
+        async with AsyncConnectionPool(conninfo=database_url, max_size=2, open=True) as pool:
+            cp = AsyncPostgresSaver(pool)
             await cp.setup()
             planner = get_planner(cp)
             config = get_planner_config(thread_suffix)
@@ -504,6 +535,9 @@ async def general_onboarding_confirm(
     from backend.database import get_db
 
     db = get_db()
+    project = db.get_general_project(project_id)
+    if not project or project.status != "onboarding":
+        raise HTTPException(status_code=409, detail="Project already confirmed")
     profile = req.goal_profile
     learning_map = req.learning_map
     db.update_general_project_status(project_id, "researching")
@@ -539,6 +573,78 @@ class GeneralLessonActionRequest(BaseModel):
     answer: str | None = None
     answers: list[int | str] | None = None
     question: str | None = None
+
+
+class FsrsReviewItem(BaseModel):
+    lesson_id: int
+    q: str
+    correct: str
+    fsrs_state: dict
+
+
+class FsrsReviewResponse(BaseModel):
+    items: list[FsrsReviewItem]
+    count: int
+
+
+class FsrsReviewResponseItem(BaseModel):
+    q: str
+    lesson_id: int
+    is_correct: bool
+    response_seconds: float
+
+
+class FsrsReviewResponseRequest(BaseModel):
+    responses: list[FsrsReviewResponseItem]
+
+
+@app.get("/api/learn/projects/{project_id}/review", response_model=FsrsReviewResponse)
+async def get_fsrs_review(project_id: int):
+    from backend.database import get_db
+
+    db = get_db()
+    model = db.get_general_student_model_full(project_id)
+    if not model or not model.fsrs_due:
+        return FsrsReviewResponse(items=[], count=0)
+    items = [
+        FsrsReviewItem(
+            lesson_id=item["lesson_id"],
+            q=item["q"],
+            correct=item["correct"],
+            fsrs_state=item["fsrs_state"],
+        )
+        for item in model.fsrs_due
+    ]
+    return FsrsReviewResponse(items=items, count=len(items))
+
+
+@app.post("/api/learn/projects/{project_id}/review/responses")
+async def post_fsrs_review_responses(project_id: int, req: FsrsReviewResponseRequest):
+    from backend.database import get_db
+    from backend.fsrs_engine import update_card
+
+    db = get_db()
+    model = db.get_general_student_model_full(project_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Project student model not found")
+
+    # Build a mutable copy of fsrs_due indexed by (lesson_id, q)
+    due_list: list[dict] = [dict(item) for item in model.fsrs_due]
+    index: dict[tuple[int, str], int] = {
+        (item["lesson_id"], item["q"]): i for i, item in enumerate(due_list)
+    }
+
+    for resp in req.responses:
+        key = (resp.lesson_id, resp.q)
+        if key not in index:
+            continue
+        pos = index[key]
+        new_state = update_card(due_list[pos]["fsrs_state"], resp.is_correct, resp.response_seconds)
+        due_list[pos] = {**due_list[pos], "fsrs_state": new_state}
+
+    updated_model = model.model_copy(update={"fsrs_due": due_list})
+    db.save_general_student_model(project_id, updated_model)
+    return {"updated": len(req.responses)}
 
 
 @app.post("/api/learn/projects/{project_id}/lessons/{lesson_id}/reextract")

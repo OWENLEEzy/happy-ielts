@@ -227,9 +227,182 @@ def test_quiz_session_skips_all_legacy_quiz():
         result = nodes.quiz_session(state)
 
     mock_interrupt.assert_not_called()
-    assert result == {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa"}
+    assert result == {
+        "quiz_answers": [],
+        "quiz_score": 0,
+        "phase": "free_qa",
+        "fsrs_wrong_items": [],
+    }
     types = [e.get("type") for e in events]
     assert "quiz_skipped" in types
+
+
+# ---------------------------------------------------------------------------
+# _get_valid_reshuffled_quiz helper
+# ---------------------------------------------------------------------------
+
+
+def test_get_valid_reshuffled_quiz_filters_legacy_and_shuffles():
+    """Helper drops legacy-format questions and shuffles remaining options."""
+    from backend.general.nodes import _get_valid_reshuffled_quiz
+
+    valid_q = _make_question(0)
+    legacy_q = _make_legacy_question()
+    result = _get_valid_reshuffled_quiz([valid_q, legacy_q, valid_q], lesson_id=7)
+    assert len(result) == 2
+    for q in result:
+        assert all(isinstance(o, dict) for o in q["answerOptions"])
+        assert sum(1 for o in q["answerOptions"] if o.get("isCorrect")) == 1
+
+
+def test_get_valid_reshuffled_quiz_deterministic():
+    """Same lesson_id always produces the same shuffle."""
+    from backend.general.nodes import _get_valid_reshuffled_quiz
+
+    quiz = [_make_question(0), _make_question(1), _make_question(2)]
+    r1 = _get_valid_reshuffled_quiz(quiz, lesson_id=42)
+    r2 = _get_valid_reshuffled_quiz(quiz, lesson_id=42)
+    assert [q["answerOptions"] for q in r1] == [q["answerOptions"] for q in r2]
+
+
+# ---------------------------------------------------------------------------
+# route_start retry_hint logic
+# ---------------------------------------------------------------------------
+
+
+def _make_quiz_with_correct_at(correct_idx: int) -> list[dict]:
+    """3-question quiz where each question's correct answer is at index correct_idx."""
+    return [_make_question(correct_idx) for _ in range(3)]
+
+
+def test_route_start_no_prior_returns_empty_hint():
+    """No prior session → retry_hint is []."""
+    from backend.general.nodes import route_start
+
+    lesson = _make_lesson(lesson_id=1)
+    mock_db = MagicMock()
+    mock_db.get_last_session_for_lesson.return_value = None
+
+    with patch("backend.general.nodes.get_db", return_value=mock_db):
+        result = route_start({"lesson": lesson, "project": {"id": 1}})
+
+    assert result["retry_hint"] == []
+    assert result["phase"] == "reading"
+
+
+def test_route_start_high_score_returns_empty_hint():
+    """Prior session score >= 60 → retry_hint is []."""
+    from backend.general.nodes import route_start
+
+    lesson = _make_lesson(lesson_id=1, quiz=_make_quiz_with_correct_at(0))
+    mock_db = MagicMock()
+    mock_db.get_last_session_for_lesson.return_value = {
+        "quiz_score": 80,
+        "quiz_answers": [0, 0, 0],
+    }
+
+    with patch("backend.general.nodes.get_db", return_value=mock_db):
+        result = route_start({"lesson": lesson, "project": {"id": 1}})
+
+    assert result["retry_hint"] == []
+
+
+def test_route_start_low_score_returns_wrong_questions():
+    """Prior session score < 60 → retry_hint populated with wrong answers."""
+    from backend.general.nodes import route_start
+
+    # Use a quiz with predictable shuffle: all questions have correct at idx 0.
+    lesson = _make_lesson(lesson_id=1, quiz=_make_quiz_with_correct_at(0))
+    # Wrong answer: student answered idx 1 (wrong) for all 3 questions.
+    mock_db = MagicMock()
+    mock_db.get_last_session_for_lesson.return_value = {
+        "quiz_score": 20,
+        "quiz_answers": [1, 1, 1],
+    }
+
+    with patch("backend.general.nodes.get_db", return_value=mock_db):
+        result = route_start({"lesson": lesson, "project": {"id": 1}})
+
+    hint = result["retry_hint"]
+    # All 3 questions should appear in hint (all answered wrong).
+    assert len(hint) > 0
+    for item in hint:
+        assert "question" in item
+        assert "correct_answer" in item
+
+
+def test_route_start_db_error_degrades_gracefully():
+    """DB error in route_start → retry_hint is [] (graceful degradation)."""
+    from backend.general.nodes import route_start
+
+    lesson = _make_lesson(lesson_id=1)
+    mock_db = MagicMock()
+    mock_db.get_last_session_for_lesson.side_effect = RuntimeError("DB unavailable")
+
+    with patch("backend.general.nodes.get_db", return_value=mock_db):
+        result = route_start({"lesson": lesson, "project": {"id": 1}})
+
+    assert result["retry_hint"] == []
+    assert result["phase"] == "reading"
+
+
+# ---------------------------------------------------------------------------
+# quiz_session FSRS wrong-item tracking
+# ---------------------------------------------------------------------------
+
+
+def _run_quiz_session_with_answers(lesson_id: int, quiz: list, answers: list) -> dict:
+    """Run quiz_session with given answers and return the result dict."""
+    lesson = _make_lesson(lesson_id, quiz)
+    state = {"lesson": lesson}
+    events = []
+
+    def fake_writer(d):
+        events.append(d)
+
+    mock_writer = MagicMock(side_effect=fake_writer)
+
+    def fake_interrupt(_data):
+        return {"type": "answers", "answers": answers}
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=mock_writer),
+        patch("backend.general.nodes.interrupt", side_effect=fake_interrupt),
+    ):
+        from backend.general import nodes
+
+        return nodes.quiz_session(state)
+
+
+def test_quiz_session_builds_fsrs_wrong_items():
+    """Wrong answers are collected into fsrs_wrong_items with FSRS state."""
+    # 3-question quiz, correct answers all at index 0.
+    quiz = _make_quiz_with_correct_at(0)
+    # Student answers index 1 for all → all wrong.
+    result = _run_quiz_session_with_answers(lesson_id=5, quiz=quiz, answers=[1, 1, 1])
+
+    wrong = result.get("fsrs_wrong_items", [])
+    assert len(wrong) > 0
+    for item in wrong:
+        assert "q" in item
+        assert "correct" in item
+        assert "fsrs_state" in item
+        assert isinstance(item["fsrs_state"], dict)
+
+
+def test_quiz_session_empty_items_on_perfect_score():
+    """Perfect score → fsrs_wrong_items is empty."""
+    # All questions have correct answer at index 0; student answers 0 everywhere.
+    # After shuffle the correct answer may not be at index 0 anymore, so we
+    # need to find the correct indices from the reshuffled quiz.
+    # Use a lesson_id that keeps correct at position 0 after shuffle (just verify empty).
+    # Instead: build quiz where all options are identical except one is correct.
+    # The simplest approach: 1-option quiz so shuffle doesn't matter.
+    single_opt_quiz = [
+        {"question": "Q?", "hint": "", "answerOptions": [{"text": "A", "isCorrect": True}]}
+    ]
+    result = _run_quiz_session_with_answers(lesson_id=7, quiz=single_opt_quiz, answers=[0])
+    assert result.get("fsrs_wrong_items") == []
 
 
 def test_quiz_session_total_matches_valid_count():

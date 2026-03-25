@@ -77,9 +77,10 @@ function keepAlive() {
 | 项目 | 说明 |
 |------|------|
 | 冷启动延迟 | SGT 18:00 第一次请求等 30–148 秒，之后正常 |
-| SQLite 持久化 | 确认 Render 已挂载 Persistent Disk，否则重启后数据丢失 |
+| SQLite 持久化 | ⚠️ 数据库是 SQLite（`db.sqlite3` + `checkpoints.sqlite3`），Render 重启/重部署会清空数据。需挂载 Persistent Disk 或迁移至 Supabase PostgreSQL |
 | Render 用量 | 保活 6h/天 × 30 = 180h/月，750h 限额内安全 |
-| 环境变量 | `DASHSCOPE_API_KEY`、`TAVILY_API_KEY` 在 Render 后台配置 |
+| 环境变量 | `DASHSCOPE_API_KEY`、`TAVILY_API_KEY`、`API_KEY` 在 Render 后台配置 |
+| DATABASE_URL | `.env` 中有 Supabase 连接串，但**当前代码未使用**（`database.py` 直接用 SQLite）。迁移工作待做 |
 
 ---
 
