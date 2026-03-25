@@ -54,11 +54,15 @@ class UpdateProfileRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import aiosqlite
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
+    from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
     from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-    async with AsyncSqliteSaver.from_conn_string("./checkpoints.sqlite3") as cp:
+    serde = JsonPlusSerializer(allowed_json_modules=[("backend.models", "GeneralLesson")])
+    async with aiosqlite.connect("./checkpoints.sqlite3") as conn:
+        cp = AsyncSqliteSaver(conn, serde=serde)
         await cp.setup()
         app.state.checkpointer = cp
 
@@ -108,7 +112,7 @@ async def health():
 # ─── Planner ──────────────────────────────────────────────────────────────────
 
 
-@app.post("/api/planner/run")
+@app.post("/api/planner/jobs")
 async def run_planner():
     from backend.database import get_db
 
@@ -175,7 +179,7 @@ async def planner_status():
     }
 
 
-@app.post("/api/planner/prepare-next")
+@app.post("/api/planner/jobs/next")
 async def prepare_next_lesson():
     """Prepare tomorrow's lesson. Called by Orchestrator (hot) or cron (cold)."""
     from backend.database import get_db
@@ -194,7 +198,7 @@ async def prepare_next_lesson():
 # ─── Onboarding ───────────────────────────────────────────────────────────────
 
 
-@app.post("/api/onboarding/message")
+@app.post("/api/onboarding/messages")
 async def onboarding_message(body: OnboardingMessageRequest):
     from backend.onboarding.agent import ONBOARDING_CONFIG, create_onboarding_agent
 
@@ -230,7 +234,7 @@ async def onboarding_status():
     return {"ready": profile is not None}
 
 
-@app.post("/api/onboarding/preferences")
+@app.patch("/api/onboarding/preferences")
 async def save_preferences(body: SavePreferencesRequest):
     from backend.database import get_db
 
@@ -251,7 +255,7 @@ async def save_preferences(body: SavePreferencesRequest):
 # ─── Lesson ───────────────────────────────────────────────────────────────────
 
 
-@app.get("/api/lesson/today")
+@app.get("/api/lessons/today")
 async def get_today_lesson():
     from backend.database import get_db
 
@@ -263,7 +267,7 @@ async def get_today_lesson():
     return {"article": article.model_dump(), "task": task.model_dump()}
 
 
-@app.post("/api/lesson/action")
+@app.post("/api/lessons/today/actions")
 async def lesson_action(action: LessonActionRequest):
     from langgraph.types import Command
 
@@ -326,7 +330,7 @@ async def _trigger_orchestrator(_config, state_snapshot) -> None:
         _logger.exception("Orchestrator trigger failed (non-fatal)")
 
 
-@app.post("/api/lesson/start")
+@app.post("/api/lessons/today/session")
 async def start_lesson():
     """Initialize or resume today's LangGraph session."""
     from backend.tutor.graph import get_tutor_graph
@@ -441,40 +445,38 @@ class GeneralOnboardingStartRequest(BaseModel):
 
 
 class GeneralOnboardingMessageRequest(BaseModel):
-    project_id: int
     message: str = Field(min_length=1, max_length=2000)
 
 
 class GeneralOnboardingConfirmRequest(BaseModel):
-    project_id: int
     goal_profile: UserGoalProfile
     learning_map: LearningMap
 
 
-@app.post("/api/learn/onboarding/start", response_model=GeneralOnboardingStartResponse)
+@app.post("/api/learn/projects", response_model=GeneralOnboardingStartResponse)
 async def general_onboarding_start(req: GeneralOnboardingStartRequest):
     from backend.database import get_db
 
     db = get_db()
     pid = db.create_general_project(req.topic, profile=None, tier=req.tier)
-    return {"project_id": pid}
+    return JSONResponse({"project_id": pid}, status_code=201)
 
 
-@app.post("/api/learn/onboarding/message")
-async def general_onboarding_message(req: GeneralOnboardingMessageRequest):
+@app.post("/api/learn/projects/{project_id}/messages")
+async def general_onboarding_message(project_id: int, req: GeneralOnboardingMessageRequest):
     from backend.database import get_db
     from backend.general.onboarding import get_onboarding_agent
 
     db = get_db()
-    project = db.get_general_project(req.project_id)
+    project = db.get_general_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
     agent = get_onboarding_agent(
         app.state.checkpointer,
-        project_id=req.project_id,
+        project_id=project_id,
         topic=project.user_topic,
     )
-    config = {"configurable": {"thread_id": f"general-onboarding-{req.project_id}"}}
+    config = {"configurable": {"thread_id": f"general-onboarding-{project_id}"}}
 
     async def stream():
         try:
@@ -495,19 +497,19 @@ async def general_onboarding_message(req: GeneralOnboardingMessageRequest):
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-@app.post("/api/learn/onboarding/confirm")
+@app.patch("/api/learn/projects/{project_id}")
 async def general_onboarding_confirm(
-    req: GeneralOnboardingConfirmRequest, background_tasks: BackgroundTasks
+    project_id: int, req: GeneralOnboardingConfirmRequest, background_tasks: BackgroundTasks
 ):
     from backend.database import get_db
 
     db = get_db()
     profile = req.goal_profile
     learning_map = req.learning_map
-    db.update_general_project_status(req.project_id, "researching")
-    db.update_general_project_profile_and_map(req.project_id, profile, learning_map)
-    background_tasks.add_task(_run_researcher, req.project_id, profile, learning_map)
-    return {"status": "researching", "project_id": req.project_id}
+    db.update_general_project_status(project_id, "researching")
+    db.update_general_project_profile_and_map(project_id, profile, learning_map)
+    background_tasks.add_task(_run_researcher, project_id, profile, learning_map)
+    return {"status": "researching", "project_id": project_id}
 
 
 @app.get("/api/learn/projects/{project_id}", response_model=GeneralProject)
@@ -532,50 +534,73 @@ async def get_general_dashboard(project_id: int):
     return data
 
 
-class GeneralLessonStartRequest(BaseModel):
-    project_id: int
-    lesson_id: int
-
-
 class GeneralLessonActionRequest(BaseModel):
-    project_id: int
-    lesson_id: int
     type: str = Field(min_length=1, max_length=50)
     answer: str | None = None
-    answers: list[str] | None = None
+    answers: list[int | str] | None = None
     question: str | None = None
 
 
-@app.post("/api/learn/lesson/start")
-async def general_lesson_start(req: GeneralLessonStartRequest):
+@app.post("/api/learn/projects/{project_id}/lessons/{lesson_id}/reextract")
+async def general_lesson_reextract(project_id: int, lesson_id: int):
+    """Re-extract study guide / quiz / flashcards for a single lesson.
+
+    Useful when a lesson has degraded (fallback) content from a failed extraction.
+    Runs asynchronously in the background; returns immediately.
+    """
+    import asyncio as _asyncio
+
+    from backend.general.extractor import reextract_lesson
+
+    _asyncio.create_task(reextract_lesson(project_id, lesson_id))
+    return {"status": "reextract_started", "project_id": project_id, "lesson_id": lesson_id}
+
+
+@app.post("/api/learn/projects/{project_id}/lessons/{lesson_id}/sessions")
+async def general_lesson_start(project_id: int, lesson_id: int):
     import json as _json
 
     from backend.database import get_db
     from backend.general.graph import get_general_lesson_graph
 
     db = get_db()
-    project = db.get_general_project(req.project_id)
-    lessons = db.get_project_lessons(req.project_id)
-    lesson = next((ls for ls in lessons if ls.id == req.lesson_id), None)
+    project = db.get_general_project(project_id)
+    lessons = db.get_project_lessons(project_id)
+    lesson = next((ls for ls in lessons if ls.id == lesson_id), None)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
     graph = get_general_lesson_graph(app.state.checkpointer)
-    thread_id = f"general-{req.project_id}-{req.lesson_id}"
+    thread_id = f"general-{project_id}-{lesson_id}"
     config = {"configurable": {"thread_id": thread_id}}
+
+    # Check if session already exists with pending interrupt
+    # Note: LangGraph checkpoint metadata does not include "next" in all versions;
+    # use graph.aget_state() instead which is always authoritative.
+    checkpoint_tuple = await app.state.checkpointer.aget_tuple(config)
+    if checkpoint_tuple is not None:
+        state = await graph.aget_state(config)
+        if state.next:
+            interrupt_value: dict | None = None
+            for task in state.tasks:
+                if task.interrupts:
+                    interrupt_value = task.interrupts[0].value
+                    break
+            return JSONResponse(
+                {"status": "already_started", "interrupt": interrupt_value},
+                status_code=409,
+            )
 
     project_dict = project.model_dump() if project else {}
 
     async def stream():
         try:
-            async for event in graph.astream_events(
+            async for chunk in graph.astream(
                 {"project": project_dict, "lesson": lesson, "phase": "start", "messages": []},
                 config=config,
-                version="v2",
                 stream_mode="custom",
             ):
-                if event["event"] == "on_custom_event":
-                    yield f"data: {_json.dumps(event['data'])}\n\n"
+                yield f"data: {_json.dumps(chunk)}\n\n"
         except Exception as exc:
             _logger.error("general lesson start stream error: %s", exc)
             yield f"data: {_json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"
@@ -584,8 +609,8 @@ async def general_lesson_start(req: GeneralLessonStartRequest):
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-@app.post("/api/learn/lesson/action")
-async def general_lesson_action(req: GeneralLessonActionRequest):
+@app.post("/api/learn/projects/{project_id}/lessons/{lesson_id}/actions")
+async def general_lesson_action(project_id: int, lesson_id: int, req: GeneralLessonActionRequest):
     import json as _json
 
     from langchain_core.runnables import RunnableConfig
@@ -594,7 +619,7 @@ async def general_lesson_action(req: GeneralLessonActionRequest):
     from backend.general.graph import get_general_lesson_graph
 
     graph = get_general_lesson_graph(app.state.checkpointer)
-    thread_id = f"general-{req.project_id}-{req.lesson_id}"
+    thread_id = f"general-{project_id}-{lesson_id}"
     config = RunnableConfig(configurable={"thread_id": thread_id})
 
     action_payload: dict = {"type": req.type}
@@ -607,21 +632,18 @@ async def general_lesson_action(req: GeneralLessonActionRequest):
 
     async def stream():
         try:
-            async for event in graph.astream_events(
+            async for chunk in graph.astream(
                 Command(resume=action_payload),
                 config=config,
-                version="v2",
                 stream_mode="custom",
             ):
-                if event["event"] == "on_custom_event":
-                    data = event["data"]
-                    if isinstance(data, dict) and data.get("type") == "done":
-                        task = asyncio.create_task(
-                            _run_reflect_background(data.get("project_id", req.project_id))
-                        )
-                        _background_tasks.add(task)
-                        task.add_done_callback(_background_tasks.discard)
-                    yield f"data: {_json.dumps(data)}\n\n"
+                if isinstance(chunk, dict) and chunk.get("type") == "done":
+                    task = asyncio.create_task(
+                        _run_reflect_background(chunk.get("project_id", project_id))
+                    )
+                    _background_tasks.add(task)
+                    task.add_done_callback(_background_tasks.discard)
+                yield f"data: {_json.dumps(chunk)}\n\n"
         except Exception as exc:
             _logger.error("general lesson action stream error: %s", exc)
             yield f"data: {_json.dumps({'type': 'error', 'message': 'Stream interrupted'})}\n\n"

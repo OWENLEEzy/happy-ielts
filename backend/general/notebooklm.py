@@ -4,8 +4,31 @@ import logging
 import os
 import tempfile
 
+import httpx as _httpx
+import notebooklm._core as _nlm_core
 from langchain.tools import tool
 from notebooklm import NotebookLMClient as _NLMClient
+
+# httpx + anyio 走 HTTP CONNECT 代理时 TLS 握手会失败，socks5 没有这个问题。
+# 如果 all_proxy 是 socks5，强制覆盖 https_proxy。
+_socks5: str = os.environ.get("all_proxy") or os.environ.get("ALL_PROXY") or ""
+_http_proxy: str = os.environ.get("https_proxy") or os.environ.get("HTTPS_PROXY") or ""
+if _socks5.startswith("socks5://") and _http_proxy.startswith("http://"):
+    os.environ["https_proxy"] = _socks5
+    os.environ["HTTPS_PROXY"] = _socks5
+
+# IMPORT_RESEARCH 是批量导入操作，默认 30s 超时不够。
+# Python 函数默认参数在定义时固定，直接 patch Core.open() 让 AsyncClient 用 120s。
+_original_core_open = _nlm_core.ClientCore.open
+
+
+async def _patched_core_open(self: _nlm_core.ClientCore) -> None:
+    await _original_core_open(self)
+    if self._http_client:
+        self._http_client.timeout = _httpx.Timeout(120.0)
+
+
+_nlm_core.ClientCore.open = _patched_core_open  # type: ignore[method-assign]
 
 _logger = logging.getLogger(__name__)
 
@@ -44,7 +67,21 @@ class NotebookLMWrapper:
             deadline = loop.time() + RESEARCH_TIMEOUT_S
 
             while loop.time() < deadline:
-                result = await c.research.poll(notebook_id)
+                result = None
+                for poll_attempt in range(3):
+                    try:
+                        result = await c.research.poll(notebook_id)
+                        break
+                    except Exception as poll_exc:
+                        if poll_attempt == 2:
+                            raise
+                        _logger.warning(
+                            "poll attempt %d failed: %s — retrying", poll_attempt + 1, poll_exc
+                        )
+                        await asyncio.sleep(RETRY_DELAY_S)
+                if result is None:
+                    await asyncio.sleep(RESEARCH_POLL_INTERVAL_S)
+                    continue
                 status = result["status"]
                 if status == "completed":
                     sources = result.get("sources", [])
@@ -114,7 +151,8 @@ class NotebookLMWrapper:
                             notebook_id, tmp_path, artifact_id=status.task_id
                         )
                         with open(tmp_path, encoding="utf-8") as f:
-                            return json.load(f)
+                            data = json.load(f)
+                        return data.get("questions", data) if isinstance(data, dict) else data
                     finally:
                         os.unlink(tmp_path)
             except Exception as e:
@@ -137,7 +175,8 @@ class NotebookLMWrapper:
                             notebook_id, tmp_path, artifact_id=status.task_id
                         )
                         with open(tmp_path, encoding="utf-8") as f:
-                            return json.load(f)
+                            data = json.load(f)
+                        return data.get("cards", data) if isinstance(data, dict) else data
                     finally:
                         os.unlink(tmp_path)
             except Exception as e:
