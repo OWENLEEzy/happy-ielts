@@ -14,9 +14,13 @@ def test_skill_prompt_contains_goal_outcome():
 
 def test_save_goal_profile_tool_persists_to_db():
     """save_goal_profile must write to DB — not just return a string."""
-    with patch("backend.general.onboarding.get_db") as mock_db_fn:
+    with (
+        patch("backend.general.onboarding.get_db") as mock_db_fn,
+        patch("backend.general.onboarding.generate_draft_learning_map") as mock_map,
+    ):
         db = MagicMock()
         mock_db_fn.return_value = db
+        mock_map.return_value = MagicMock()
         save_tool = make_save_goal_profile_tool(project_id=42)
         result = save_tool.invoke(
             {
@@ -30,7 +34,7 @@ def test_save_goal_profile_tool_persists_to_db():
                 "constraints": [],
             }
         )
-        db.update_general_project_goal_profile.assert_called_once()
+        db.update_general_project_profile_and_map.assert_called_once()
         assert "42" in result
 
 

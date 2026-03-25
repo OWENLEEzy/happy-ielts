@@ -1,4 +1,5 @@
 import logging
+import random
 
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
@@ -38,25 +39,39 @@ def quiz_session(state: dict) -> dict:
     lesson: GeneralLesson = state["lesson"]
     quiz = lesson.quiz_json or []
 
+    # Reshuffle answerOptions to prevent position-memorisation bias.
+    # IMPORTANT (HITL re-execution): this node re-runs from the top on every
+    # resume. The shuffle MUST be deterministic — seeded by lesson ID — so
+    # the same layout is presented to the user on first run AND used for
+    # grading on the resumed run. Non-deterministic shuffles cause
+    # answer-index mismatches between the two executions.
+    rng = random.Random(lesson.id)
+    reshuffled = []
+    for q in quiz:
+        opts = list(q.get("answerOptions", []))
+        rng.shuffle(opts)
+        reshuffled.append({**q, "answerOptions": opts})
+
     # answer_format documents the expected shape of the resume payload:
     #   {"type": "answers", "answers": [<int index 0-based>, ...]}
     # Each integer is the index into question["answerOptions"].
     # NOTE (HITL re-execution): writer() is called every time the node
     # re-executes after a resume — the client should treat repeated
     # "quiz" events as idempotent re-renders, not duplicate questions.
-    interrupt_data = {"type": "quiz", "questions": quiz, "answer_format": "option_index"}
+    interrupt_data = {"type": "quiz", "questions": reshuffled, "answer_format": "option_index"}
     writer = get_stream_writer()
     writer(interrupt_data)
     action = interrupt(interrupt_data)
 
     answers = action.get("answers", [])
-    score = _auto_grade(quiz, answers)
+    # Grade against reshuffled — answers are indices into the per-session layout.
+    score = _auto_grade(reshuffled, answers)
 
     # Push result immediately so the student sees score + per-question feedback.
     # Each detail includes rationale for ALL options so students understand why
     # wrong answers are wrong — not just which answer was correct.
     result_details = []
-    for i, q in enumerate(quiz):
+    for i, q in enumerate(reshuffled):
         opts = q.get("answerOptions", [])
         student_idx = answers[i] if i < len(answers) else None
         correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
