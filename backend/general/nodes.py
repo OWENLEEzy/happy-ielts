@@ -114,7 +114,9 @@ def quiz_session(state: dict) -> dict:
             }
         )
     writer = get_stream_writer()
-    writer({"type": "quiz_result", "score": score, "total": len(quiz), "details": result_details})
+    writer(
+        {"type": "quiz_result", "score": score, "total": len(reshuffled), "details": result_details}
+    )
 
     return {"quiz_answers": answers, "quiz_score": score, "phase": "free_qa"}
 
