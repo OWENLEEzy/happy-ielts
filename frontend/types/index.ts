@@ -5,7 +5,7 @@ export interface UserProfile {
   interests: string[]
   level: number
   bandwidth_minutes: number
-  writing_mode: 'professional' | 'ielts' | 'both'
+  writing_mode: 'professional' | 'ielts_task1' | 'ielts_task2'
 }
 
 export interface Article {
@@ -63,7 +63,12 @@ export type SSEChunk =
   | { type: 'sentence_analysis'; result: string }
   | { type: 'feedback'; result: WritingFeedback }
   | { type: 'writing_task'; instruction: string; min_words: number }
-  | { type: 'awaiting_action'; article_full_text: string; highlight_indices: number[]; user_level: number }
+  | {
+      type: 'awaiting_action'
+      article_full_text: string
+      highlight_indices: number[]
+      user_level: number
+    }
   | { type: 'error'; message: string }
   | { type: 'token'; content: string }
 

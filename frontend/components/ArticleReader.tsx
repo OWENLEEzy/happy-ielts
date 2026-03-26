@@ -1,8 +1,9 @@
 'use client'
 import { useState } from 'react'
+import Image from 'next/image'
 import { FullArticle } from './FullArticle'
 import { sendAction } from '@/lib/sse'
-import { DOG_GOLDEN } from '@/lib/constants'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { Article } from '@/types'
 
 interface Props {
@@ -13,6 +14,7 @@ interface Props {
 export function ArticleReader({ article, onDone }: Props) {
   const [showTip, setShowTip] = useState(true)
   const [doneLoading, setDoneLoading] = useState(false)
+  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   const handleDone = async () => {
     setDoneLoading(true)
@@ -21,11 +23,11 @@ export function ArticleReader({ article, onDone }: Props) {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-24">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6 pb-[calc(var(--mobile-nav-height)+24px)] md:pb-8">
       {/* Article meta */}
       <div>
         <div className="flex flex-wrap gap-2 mb-4">
-          {article.topic_tags.map(tag => (
+          {article.topic_tags.map((tag) => (
             <span
               key={tag}
               className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-bold font-label"
@@ -34,7 +36,7 @@ export function ArticleReader({ article, onDone }: Props) {
             </span>
           ))}
           <span className="bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-xs font-bold font-label capitalize">
-            {article.article_logic.replace('_', ' ')}
+            {article.article_logic.replace(/_/g, ' ')}
           </span>
         </div>
         <h1 className="text-2xl md:text-3xl font-extrabold font-headline text-on-surface mb-2">
@@ -54,9 +56,10 @@ export function ArticleReader({ article, onDone }: Props) {
       {/* AI tutor tip */}
       {showTip && (
         <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+          <div className="relative w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
+            {dogUrl && (
+              <Image src={dogUrl} fill sizes="32px" className="object-cover" alt="tutor" />
+            )}
           </div>
           <div className="flex-1">
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

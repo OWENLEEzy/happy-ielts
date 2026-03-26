@@ -13,8 +13,9 @@ def test_scrape_article_returns_text_on_success():
     with patch("backend.planner.tools.Scraper", return_value=mock_scraper):
         result = scrape_article.invoke({"url": "https://example.com/article"})
 
-    assert "article body text" in result
-    assert len(result) > 10
+    assert result["status"] == "success"
+    assert "article body text" in result["data"]
+    assert len(result["data"]) > 10
 
 
 def test_scrape_article_falls_back_on_exception():
@@ -24,4 +25,5 @@ def test_scrape_article_falls_back_on_exception():
         # Playwright fallback also mocked to avoid network calls in tests
         with patch("backend.planner.tools._trafilatura_scrape", return_value="fallback text"):
             result = scrape_article.invoke({"url": "https://example.com/article"})
-    assert result == "fallback text"
+    assert result["status"] == "success"
+    assert result["data"] == "fallback text"

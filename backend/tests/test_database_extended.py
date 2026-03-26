@@ -39,7 +39,7 @@ def make_article(day: str = TODAY, title: str = "Test Article") -> ArticleCreate
         source_url="https://example.com/article",
         original_title=title,
         full_text=LONG_TEXT,
-        highlight_indices=[0, 2],
+        highlight_indices=[0, 1, 2],
         article_logic="compare",
         topic_tags=["tech"],
     )
@@ -156,7 +156,7 @@ def test_get_today_article_returns_correct_article(db):
     result = db.get_today_article()
     assert result is not None
     assert result.original_title == "Today's Article"
-    assert result.highlight_indices == [0, 2]
+    assert result.highlight_indices == [0, 1, 2]
     assert result.topic_tags == ["tech"]
 
 

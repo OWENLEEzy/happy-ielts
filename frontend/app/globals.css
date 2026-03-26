@@ -60,43 +60,46 @@
   --radius-md: 1rem;
   --radius-lg: 2rem;
   --radius-xl: 3rem;
+
+  /* Layout constants */
+  --mobile-nav-height: 64px;
 }
 
 @layer base {
   :root {
-    /* Material Design 3 purple system */
-    --primary:                  #6d4ab3;
-    --primary-dim:              #613da6;
-    --primary-fixed:            #b390fe;
-    --primary-container:        #b390fe;
-    --on-primary:               #fdf7ff;
-    --on-primary-container:     #310072;
-    --secondary:                #6c596e;
-    --secondary-container:      #f5daf4;
-    --on-secondary-container:   #5f4b60;
-    --tertiary:                 #5c5e6e;
-    --tertiary-container:       #e6e6fa;
-    --tertiary-dim:             #505262;
-    --on-tertiary-container:    #525464;
-    --background:               #fef7fe;
-    --surface:                  #fef7fe;
+    /* Happy IELTS — indigo-violet × slate × coral */
+    --primary:                  #6d28d9;
+    --primary-dim:              #5b21b6;
+    --primary-fixed:            #ddd6fe;
+    --primary-container:        #ede9fe;
+    --on-primary:               #ffffff;
+    --on-primary-container:     #2e1065;
+    --secondary:                #b85042;
+    --secondary-container:      #ffe8dc;
+    --on-secondary-container:   #5a2010;
+    --tertiary:                 #5b6f88;
+    --tertiary-container:       #d9e8f8;
+    --tertiary-dim:             #4a5e76;
+    --on-tertiary-container:    #1a2d40;
+    --background:               #f9f8fc;
+    --surface:                  #f9f8fc;
     --surface-container-lowest: #ffffff;
-    --surface-container-low:    #f8f1fa;
-    --surface-container:        #f2ebf5;
-    --surface-container-high:   #ede6f0;
-    --surface-container-highest:#e7e0ec;
-    --surface-variant:          #e7e0ec;
-    --on-surface:               #34313a;
-    --on-surface-variant:       #625d67;
-    --outline:                  #7e7983;
-    --outline-variant:          #b6b0bb;
-    --error:                    #a8364b;
-    --error-container:          #f97386;
-    --on-error:                 #fff7f7;
+    --surface-container-low:    #f5f3fb;
+    --surface-container:        #ede9f8;
+    --surface-container-high:   #e3deef;
+    --surface-container-highest:#d8d2e8;
+    --surface-variant:          #e4dfee;
+    --on-surface:               #1e1730;
+    --on-surface-variant:       #4a4060;
+    --outline:                  #756b8a;
+    --outline-variant:          #c4bcd8;
+    --error:                    #b83044;
+    --error-container:          #ffd0d8;
+    --on-error:                 #fff8f8;
 
     /* Font family CSS variables */
-    --dl-font-headline: 'Plus Jakarta Sans', sans-serif;
-    --dl-font-body:     'Manrope', sans-serif;
+    --dl-font-headline: var(--font-plus-jakarta-sans), sans-serif;
+    --dl-font-body:     var(--font-manrope), sans-serif;
 
     /* shadcn compatibility */
     --foreground:         var(--on-surface);
@@ -137,9 +140,9 @@
     backdrop-filter: blur(12px);
   }
   .ai-highlight {
-    background: linear-gradient(90deg, color-mix(in srgb, var(--primary-fixed) 18%, transparent) 0%, color-mix(in srgb, var(--primary) 8%, transparent) 100%);
-    border-radius: 6px;
-    padding: 2px 4px;
+    background: linear-gradient(105deg, #ede9fe 0%, #f5f3ff 60%, #faf8ff 100%);
+    border-radius: 8px;
+    border-left: 3px solid #a78bfa;
   }
   .vocab-word {
     border-bottom: 2px dotted var(--primary);

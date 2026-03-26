@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('authorization')
@@ -7,7 +8,7 @@ export async function GET(req: NextRequest) {
   }
 
   const backend = process.env.BACKEND_URL ?? 'http://localhost:8000'
-  const res = await fetch(`${backend}/api/planner/run`, { method: 'POST' })
+  const res = await fetch(`${backend}/api/planner/jobs`, { method: 'POST' })
 
   if (!res.ok) {
     return NextResponse.json({ error: 'Planner trigger failed' }, { status: 502 })

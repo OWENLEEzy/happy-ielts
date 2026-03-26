@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DynamicLingo — Agent 架构图</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  background: #f1f5f9;
+  color: #1e293b;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── 顶部标题栏 ─────────────────────────────────────── */
+header {
+  background: #ffffff;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 9px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+.logo {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, #7c3aed 0%, #0ea5e9 100%);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 900; color: white;
+  flex-shrink: 0;
+}
+
+.header-text h1 { font-size: 14px; font-weight: 800; color: #0f172a; letter-spacing: -0.01em; }
+.header-text p  { font-size: 10px; color: #94a3b8; margin-top: 1px; }
+
+.badges {
+  margin-left: auto;
+  display: flex; gap: 5px; align-items: center;
+}
+.badge {
+  font-size: 9px; font-weight: 700;
+  padding: 2px 8px; border-radius: 99px; letter-spacing: 0.04em;
+}
+.b-qmax   { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+.b-qplus  { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.b-qflash { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+.b-db     { background: #e0e7ff; color: #3730a3; border: 1px solid #c7d2fe; }
+.b-sse    { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+/* ── 第一区：Hub 拓扑图 ─────────────────────────────── */
+.hub-band {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  background: #f1f5f9;
+  background-image: radial-gradient(circle, #dde4ed 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.hub-inner {
+  position: relative;
+  width: 940px;
+  height: 530px;
+  flex-shrink: 0;
+}
+
+/*
+  连接线：起点 = 编排器中心 (470, 265)
+  四角卡片中心（210px宽 × ~180px高）：
+    入门向导 TL: (105, 90)  → dx=-365, dy=-175 → angle≈-154.4°, len≈402
+    规划师   TR: (835, 90)  → dx=+365, dy=-175 → angle≈-25.6°
+    辅导图   BL: (105, 440) → dx=-365, dy=+175 → angle≈+154.4°
+    反思器   BR: (835, 440) → dx=+365, dy=+175 → angle≈+25.6°
+*/
+.conn {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(to right, #94a3b8, #e2e8f0);
+  transform-origin: 0 50%;
+  z-index: 1;
+  left: 470px;
+  top: 264px; /* (265 - 1) so vertical center = 265 */
+}
+
+/* ── Agent 卡片 ─────────────────────────────────────── */
+.card {
+  position: absolute;
+  width: 210px;
+  background: #ffffff;
+  border-radius: 11px;
+  padding: 13px 14px 11px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04);
+  border-top: 3px solid var(--c);
+  z-index: 10;
+}
+
+#onboarding { --c: #0ea5e9; --ct: #0369a1; --cbg: #f0f9ff; left: 0;   top: 0;    }
+#planner    { --c: #f59e0b; --ct: #92400e; --cbg: #fffbeb; right: 0;  top: 0;    }
+#tutor      { --c: #8b5cf6; --ct: #6d28d9; --cbg: #f5f3ff; left: 0;   bottom: 0; }
+#reflect    { --c: #10b981; --ct: #065f46; --cbg: #ecfdf5; right: 0;  bottom: 0; }
+
+.card-head {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.card-name {
+  font-size: 13px; font-weight: 800;
+  color: var(--ct);
+  letter-spacing: -0.01em;
+}
+
+.card-fw {
+  font-size: 8px; font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 5px; border-radius: 3px;
+  background: var(--cbg); color: var(--ct);
+  border: 1px solid var(--c);
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.card-model {
+  font-size: 10px; color: #64748b;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  margin-bottom: 8px;
+}
+
+.card-divider {
+  height: 1px; background: #f1f5f9;
+  margin-bottom: 7px;
+}
+
+.card-facts {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.card-facts li {
+  font-size: 11px; color: #334155;
+  padding-left: 10px;
+  position: relative;
+  line-height: 1.4;
+}
+.card-facts li::before {
+  content: '·';
+  position: absolute; left: 1px;
+  color: var(--c);
+  font-size: 16px; line-height: 1; top: -2px;
+}
+.card-facts li .mono {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px;
+  color: #475569;
+}
+
+.card-io {
+  display: flex; gap: 4px; flex-wrap: wrap;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed #e2e8f0;
+}
+.io-tag {
+  font-size: 9px; font-weight: 600;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  padding: 1px 6px; border-radius: 3px;
+}
+.io-in  { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+.io-out { background: #fef9c3; color: #713f12; border: 1px solid #fde68a; }
+
+/* ── 编排器（中心节点）─────────────────────────────── */
+.orch {
+  position: absolute;
+  width: 256px;
+  background: #ffffff;
+  border-radius: 13px;
+  padding: 14px 17px;
+  box-shadow: 0 6px 24px rgba(71,85,105,0.16), 0 0 0 2px #cbd5e1;
+  z-index: 10;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  animation: orch-pulse 4s ease-in-out infinite;
+}
+
+@keyframes orch-pulse {
+  0%, 100% { box-shadow: 0 6px 24px rgba(71,85,105,0.16), 0 0 0 2px #cbd5e1; }
+  50%       { box-shadow: 0 8px 28px rgba(71,85,105,0.24), 0 0 0 3px #94a3b8; }
+}
+
+.orch-icon { font-size: 22px; margin-bottom: 2px; }
+
+.orch-name {
+  font-size: 15px; font-weight: 800;
+  color: #1e293b; letter-spacing: -0.02em;
+  margin-bottom: 1px;
+}
+
+.orch-sub {
+  font-size: 10px; color: #64748b;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  margin-bottom: 9px;
+}
+
+.orch-cron {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700;
+  padding: 3px 10px; border-radius: 99px;
+  background: #fef3c7; color: #92400e;
+  border: 1px solid #fde68a;
+  margin-bottom: 9px;
+}
+
+.orch-divider {
+  height: 1px; background: #f1f5f9; margin-bottom: 8px;
+}
+
+.orch-items {
+  list-style: none;
+  display: flex; flex-direction: column; gap: 3px;
+  text-align: left;
+}
+.orch-items li {
+  font-size: 11px; color: #334155;
+  padding-left: 13px;
+  position: relative;
+  line-height: 1.4;
+}
+.orch-items li::before {
+  content: '▸';
+  position: absolute; left: 0;
+  color: #94a3b8; font-size: 9px; top: 2px;
+}
+.orch-items li .mono {
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  font-size: 10px; color: #64748b;
+}
+
+/* ── 第二区：共享基础设施 ───────────────────────────── */
+.infra-band {
+  flex-shrink: 0;
+  background: #ffffff;
+  border-top: 2px solid #e2e8f0;
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.infra-section { display: flex; flex-direction: column; gap: 4px; }
+
+.infra-title {
+  font-size: 9px; font-weight: 700;
+  color: #64748b; text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.chip {
+  font-size: 9px; font-weight: 600;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  padding: 2px 7px; border-radius: 4px;
+}
+.chip-db  { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.chip-mem { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.chip-ck  { background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; }
+
+.infra-sep {
+  width: 1px; background: #e2e8f0;
+  align-self: stretch; margin: 0 2px;
+}
+
+/* ── 第三区：SSE 事件 ───────────────────────────────── */
+.sse-band {
+  flex-shrink: 0;
+  background: #fff7ed;
+  border-top: 1px solid #fed7aa;
+  padding: 7px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sse-title {
+  font-size: 9px; font-weight: 800;
+  color: #c2410c; text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.sse-pills { display: flex; flex-wrap: wrap; gap: 5px; }
+
+.sse-pill {
+  font-size: 10px; font-weight: 600;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+  padding: 3px 10px; border-radius: 99px;
+  background: #fed7aa; color: #7c2d12;
+  border: 1px solid rgba(251,146,60,0.4);
+}
+</style>
+</head>
+<body>
+
+<!-- ── 标题栏 ── -->
+<header>
+  <div class="logo">D</div>
+  <div class="header-text">
+    <h1>DynamicLingo</h1>
+    <p>AI 英语读写飞轮 · Agent 系统架构</p>
+  </div>
+  <div class="badges">
+    <span class="badge b-qmax">qwen-max</span>
+    <span class="badge b-qplus">qwen-plus</span>
+    <span class="badge b-qflash">qwen3.5-flash</span>
+    <span class="badge b-db">SQLite</span>
+    <span class="badge b-sse">SSE</span>
+  </div>
+</header>
+
+<!-- ── 第一区：Hub 拓扑图 ── -->
+<div class="hub-band">
+  <div class="hub-inner">
+
+    <!--
+      连接线起点：编排器中心 (470, 265)
+      入门向导 → angle -154°  |  规划师 → angle -26°
+      辅导图   → angle  154°  |  反思器 → angle  26°
+    -->
+    <div class="conn" style="width:400px; transform:rotate(-154deg);"></div>
+    <div class="conn" style="width:400px; transform:rotate(-26deg);"></div>
+    <div class="conn" style="width:400px; transform:rotate(154deg);"></div>
+    <div class="conn" style="width:400px; transform:rotate(26deg);"></div>
+
+    <!-- 入门向导（左上） -->
+    <div class="card" id="onboarding">
+      <div class="card-head">
+        <span class="card-name">入门向导</span>
+        <span class="card-fw">DeepAgent</span>
+      </div>
+      <div class="card-model">qwen3.5-flash · 一次性运行</div>
+      <div class="card-divider"></div>
+      <ul class="card-facts">
+        <li>收集英语水平与学习目标</li>
+        <li>兴趣话题偏好调查</li>
+        <li>工具: <span class="mono">save_profile</span></li>
+        <li>Thread: <span class="mono">"onboarding"</span>（固定值）</li>
+        <li>写入: <span class="mono">user_profile</span> 表</li>
+      </ul>
+      <div class="card-io">
+        <span class="io-tag io-in">↓ 用户对话</span>
+        <span class="io-tag io-out">↑ user_profile</span>
+      </div>
+    </div>
+
+    <!-- 规划师（右上） -->
+    <div class="card" id="planner">
+      <div class="card-head">
+        <span class="card-name">规划师</span>
+        <span class="card-fw">DeepAgent</span>
+      </div>
+      <div class="card-model">qwen-max · 每日运行</div>
+      <div class="card-divider"></div>
+      <ul class="card-facts">
+        <li>Tavily 搜索英语时事新闻</li>
+        <li>抓取完整文章正文</li>
+        <li>提取关键段落并高亮</li>
+        <li>生成配套写作任务</li>
+        <li>写入: <span class="mono">articles</span> + <span class="mono">writing_tasks</span></li>
+      </ul>
+      <div class="card-io">
+        <span class="io-tag io-in">↓ ReflectHandoff</span>
+        <span class="io-tag io-out">↑ 每日课程</span>
+      </div>
+    </div>
+
+    <!-- 编排器（中心） -->
+    <div class="orch">
+      <div class="orch-icon">⚙</div>
+      <div class="orch-name">编排器</div>
+      <div class="orch-sub">Python · 协调层</div>
+      <div class="orch-cron">⏰ APScheduler · 每日 02:00</div>
+      <div class="orch-divider"></div>
+      <ul class="orch-items">
+        <li>触发 Reflect → Planner 链</li>
+        <li>读取 JSONL 记忆文件（7d/14d TTL）</li>
+        <li>根据表现自动调整难度等级</li>
+        <li><span class="mono">/prepare-next</span> API 端点</li>
+        <li>管理 <span class="mono">app.state</span> 单例资源</li>
+      </ul>
+    </div>
+
+    <!-- 辅导图（左下） -->
+    <div class="card" id="tutor">
+      <div class="card-head">
+        <span class="card-name">辅导图</span>
+        <span class="card-fw">LangGraph</span>
+      </div>
+      <div class="card-model">qwen3.5-flash · SSE 流式</div>
+      <div class="card-divider"></div>
+      <ul class="card-facts">
+        <li><span class="mono">route_start</span> 路由分发</li>
+        <li><span class="mono">spaced_review</span> 间隔复习</li>
+        <li><span class="mono">reading</span> 阅读（while True: interrupt）</li>
+        <li><span class="mono">writing_task</span> → <span class="mono">evaluate_writing</span></li>
+        <li>Thread: <span class="mono">date.today()</span>（每日唯一）</li>
+      </ul>
+      <div class="card-io">
+        <span class="io-tag io-in">↓ SSE 动作</span>
+        <span class="io-tag io-out">↑ vocab_items</span>
+      </div>
+    </div>
+
+    <!-- 反思器（右下） -->
+    <div class="card" id="reflect">
+      <div class="card-head">
+        <span class="card-name">反思器</span>
+        <span class="card-fw">LangChain</span>
+      </div>
+      <div class="card-model">qwen-plus · 结构化输出</div>
+      <div class="card-divider"></div>
+      <ul class="card-facts">
+        <li>读取近期写作提交记录</li>
+        <li><span class="mono">with_structured_output</span> 解析</li>
+        <li>识别 chinglish_flags 错误</li>
+        <li>输出 <span class="mono">ReflectHandoff</span> 上下文</li>
+        <li>难度等级建议 → 编排器</li>
+      </ul>
+      <div class="card-io">
+        <span class="io-tag io-in">↓ writing_submissions</span>
+        <span class="io-tag io-out">↑ ReflectHandoff</span>
+      </div>
+    </div>
+
+  </div><!-- .hub-inner -->
+</div><!-- .hub-band -->
+
+<!-- ── 第二区：共享基础设施 ── -->
+<div class="infra-band">
+  <div class="infra-section">
+    <div class="infra-title">🗄 SQLite · db.sqlite3</div>
+    <div class="chips">
+      <span class="chip chip-db">user_profile</span>
+      <span class="chip chip-db">articles</span>
+      <span class="chip chip-db">writing_tasks</span>
+      <span class="chip chip-db">vocab_items</span>
+      <span class="chip chip-db">writing_submissions</span>
+    </div>
+  </div>
+  <div class="infra-sep"></div>
+  <div class="infra-section">
+    <div class="infra-title">📁 JSONL 记忆文件</div>
+    <div class="chips">
+      <span class="chip chip-mem">tutor-observations · 7d TTL</span>
+      <span class="chip chip-mem">teaching-insights · 14d TTL</span>
+    </div>
+  </div>
+  <div class="infra-sep"></div>
+  <div class="infra-section">
+    <div class="infra-title">🔗 检查点</div>
+    <div class="chips">
+      <span class="chip chip-ck">AsyncSqliteSaver · app.state 单例</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── 第三区：SSE 事件 ── -->
+<div class="sse-band">
+  <div class="sse-title">⚡ SSE 实时事件</div>
+  <div class="sse-pills">
+    <span class="sse-pill">fill_blank</span>
+    <span class="sse-pill">awaiting_action</span>
+    <span class="sse-pill">word_explanation</span>
+    <span class="sse-pill">feedback</span>
+    <span class="sse-pill">spaced_review</span>
+    <span class="sse-pill">lesson_action</span>
+    <span class="sse-pill">lesson_complete</span>
+  </div>
+</div>
+
+</body>
+</html>

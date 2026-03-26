@@ -1,19 +1,30 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+import re
+from datetime import UTC, date, datetime
+from functools import lru_cache
 from typing import Any, Literal
 
+from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.config import get_stream_writer
 from langgraph.types import Command, interrupt
 
+from backend import memory
 from backend.database import get_db
 from backend.fsrs_engine import new_card_state, update_card
+from backend.llm import get_llm
 from backend.models import VocabItem, VocabItemCreate
-from backend.tutor.tools import analyze_sentence, explain_word, run_feedback
+from backend.student_model import read_student_model
+from backend.tutor.tools import analyze_sentence, explain_word, run_feedback, signal_done_reading
 
 logger = logging.getLogger(__name__)
 _db = get_db()
+
+
+@lru_cache(maxsize=1)
+def _get_reading_llm():
+    return get_llm().bind_tools([explain_word, analyze_sentence, signal_done_reading])
 
 
 def route_start(_state: dict) -> Command[Literal["spaced_review", "reading"]]:
@@ -37,10 +48,36 @@ def route_start(_state: dict) -> Command[Literal["spaced_review", "reading"]]:
     return Command(update=updates, goto="reading")
 
 
+def _extract_sentence(text: str, phrase: str) -> str:
+    """Return the sentence in text that contains phrase, or a short fallback clause."""
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        if phrase.lower() in sent.lower():
+            return sent.strip()[:400]
+    # Build a minimal context clause so it's never a bare word
+    return f"{phrase} is used in this context."[:400]
+
+
+def _find_valid_item(queue: list, start: int) -> tuple[int, VocabItem | None]:
+    """Return the first index >= start with a usable context sentence, or (len, None)."""
+    for i in range(start, len(queue)):
+        raw = queue[i]
+        item = raw if isinstance(raw, VocabItem) else VocabItem(**raw)
+        ctx = item.context_sentence or ""
+        if ctx and ctx != item.word and item.word.lower() in ctx.lower() and len(ctx) <= 400:
+            return i, item
+        logger.warning(
+            "spaced_review: skipping %r — unusable context (len=%d)", item.word, len(ctx)
+        )
+    return len(queue), None
+
+
 def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     """Present one fill-blank card; loop until all done."""
-    item_data = state["review_queue"][state["review_index"]]
-    item = item_data if isinstance(item_data, VocabItem) else VocabItem(**item_data)
+    queue: list = state["review_queue"]
+    index, item = _find_valid_item(queue, state["review_index"])
+
+    if item is None:
+        return Command(update={"review_index": index}, goto="reading")
 
     event = {
         "type": "fill_blank",
@@ -51,6 +88,8 @@ def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     user_answer = interrupt(event)
 
     is_correct = user_answer.get("answer", "").strip().lower() == item.word.lower()
+    correct_delta = 1 if is_correct else 0
+    current_correct = state.get("vocab_correct", 0)
     response_seconds = user_answer.get("response_seconds", 10.0)
 
     new_state = update_card(item.fsrs_state, is_correct, response_seconds)
@@ -66,65 +105,112 @@ def spaced_review(state: dict) -> Command[Literal["spaced_review", "reading"]]:
     )
     _db.upsert_vocab_item(updated_item)
 
-    next_index = state["review_index"] + 1
-    if next_index < len(state["review_queue"]):
-        return Command(update={"review_index": next_index}, goto="spaced_review")
-    return Command(goto="reading")
+    next_index = index + 1
+    if next_index < len(queue):
+        return Command(
+            update={"review_index": next_index, "vocab_correct": current_correct + correct_delta},
+            goto="spaced_review",
+        )
+    return Command(update={"vocab_correct": current_correct + correct_delta}, goto="reading")
+
+
+def _handle_explain_word(user_action: dict, state: dict, writer: Any) -> None:
+    """Handle explain_word action (structured or LLM-extracted args)."""
+    word = user_action.get("word", "")
+    if not word:
+        writer({"type": "error", "message": "explain_word requires a 'word' field"})
+        return
+    level = state["user_profile"].level if state["user_profile"] else 5
+    result = explain_word.invoke(
+        {"word": word, "context": user_action.get("context", ""), "level": level}
+    )
+    if state["today_article"]:
+        _db.upsert_vocab_item(
+            VocabItemCreate(
+                word=word,
+                context_sentence=_extract_sentence(user_action.get("context", ""), word),
+                source="reading_click",
+                next_review=date.today().isoformat(),
+                fsrs_state=new_card_state(),
+                article_id=state["today_article"].id,
+            )
+        )
+    writer({"type": "word_explanation", "result": result})
 
 
 def reading_session(state: dict) -> Command[Literal["writing_task"]]:
-    """Loop: wait for user actions (explain_word, analyze_sentence, done_reading)."""
+    """Loop: wait for user messages, route via LLM or handle structured actions."""
     _db.upsert_reading_start(date.today())
+
+    article = state["today_article"]
+    profile = state["user_profile"]
+    student_model = read_student_model()
+    writing_level = student_model.get("levels", {}).get("writing", profile.level if profile else 5)
+
+    system_prompt = (
+        "你是一位英语教师，正在帮助学生阅读以下文章。"
+        f"学生写作水平：{writing_level}/10。\n\n"
+        f"文章全文：\n{article.full_text if article else '（无文章）'}\n\n"
+        "职责：\n"
+        "- 解释词汇 → 调用 explain_word\n"
+        "- 分析句子结构 → 调用 analyze_sentence\n"
+        "- 判断学生已读完时 → 调用 signal_done_reading\n"
+        "- 其他问题 → 直接用中文回答（不超过150字）"
+    )
 
     while True:
         writer = get_stream_writer()
         awaiting_event = {
             "type": "awaiting_action",
-            "article_full_text": state["today_article"].full_text if state["today_article"] else "",
-            "highlight_indices": (
-                state["today_article"].highlight_indices if state["today_article"] else []
-            ),
-            "user_level": state["user_profile"].level if state["user_profile"] else 5,
+            "article_full_text": article.full_text if article else "",
+            "highlight_indices": article.highlight_indices if article else [],
+            "user_level": profile.level if profile else 5,
         }
         writer(awaiting_event)
         user_action = interrupt(awaiting_event)
         action_type = user_action.get("type")
 
-        if action_type == "explain_word":
-            word = user_action.get("word", "")
-            if not word:
-                writer({"type": "error", "message": "explain_word requires a 'word' field"})
-                continue
-            result = explain_word.invoke(
-                {
-                    "word": word,
-                    "context": user_action.get("context", ""),
-                    "level": state["user_profile"].level if state["user_profile"] else 5,
-                }
-            )
-            if state["today_article"]:
-                _db.upsert_vocab_item(
-                    VocabItemCreate(
-                        word=word,
-                        context_sentence=user_action.get("context", ""),
-                        source="reading_click",
-                        next_review=date.today().isoformat(),
-                        fsrs_state=new_card_state(),
-                        article_id=state["today_article"].id,
-                    )
-                )
-            writer({"type": "word_explanation", "result": result})
-
+        # --- Backward-compatible structured actions ---
+        if action_type == "done_reading":
+            break
+        elif action_type == "explain_word":
+            _handle_explain_word(user_action, state, writer)
+            continue
         elif action_type == "analyze_sentence":
             sentence = user_action.get("sentence", "")
             if not sentence:
                 writer({"type": "error", "message": "analyze_sentence requires a 'sentence' field"})
-                continue
-            result = analyze_sentence.invoke({"sentence": sentence})
-            writer({"type": "sentence_analysis", "result": result})
+            else:
+                result = analyze_sentence.invoke({"sentence": sentence})
+                writer({"type": "sentence_analysis", "result": result})
+            continue
 
-        elif action_type == "done_reading":
+        # --- LLM routing for free-form messages ---
+        user_message = user_action.get("message", "")
+        if not user_message:
+            continue
+
+        response = _get_reading_llm().invoke(
+            [SystemMessage(content=system_prompt), HumanMessage(content=user_message)]
+        )
+
+        done = False
+        for tool_call in response.tool_calls:  # type: ignore[union-attr]
+            name = tool_call["name"]
+            args = tool_call.get("args", {})
+            if name == "signal_done_reading":
+                done = True
+            elif name == "explain_word":
+                _handle_explain_word(args, state, writer)
+            elif name == "analyze_sentence":
+                if args.get("sentence"):
+                    result = analyze_sentence.invoke(args)
+                    writer({"type": "sentence_analysis", "result": result})
+        if done:
             break
+
+        if response.content and not response.tool_calls:  # type: ignore[union-attr]
+            writer({"type": "tutor_message", "result": str(response.content)})
 
     return Command(goto="writing_task")
 
@@ -143,7 +229,7 @@ def writing_task(state: dict) -> dict:
 
 
 def evaluate_writing(state: dict) -> dict:
-    """Run AI feedback on the user's writing."""
+    """Run AI feedback on the user's writing, depth-adapted to student model level."""
     writer = get_stream_writer()
     profile = state["user_profile"]
     task = state["today_task"]
@@ -153,12 +239,28 @@ def evaluate_writing(state: dict) -> dict:
         writer({"type": "error", "message": "Missing writing or task context"})
         return {}
 
-    feedback = run_feedback(
-        user_text=user_text,
-        task=task,
-        user_goal=profile.goal,
-        level=profile.level,
-    )
+    # Determine feedback depth from student model (falls back to profile.level)
+    student_model = read_student_model()
+    writing_level = student_model.get("levels", {}).get("writing", profile.level)
+    if writing_level <= 4:
+        depth = "basic"
+    elif writing_level <= 7:
+        depth = "intermediate"
+    else:
+        depth = "advanced"
+
+    try:
+        feedback = run_feedback(
+            user_text=user_text,
+            task=task,
+            user_goal=profile.goal,
+            level=writing_level,
+            depth=depth,
+        )
+    except Exception as exc:
+        logger.error("evaluate_writing: feedback generation failed: %s", exc)
+        writer({"type": "error", "message": "写作批改暂时失败，请稍后重试。"})
+        return {}
     writer({"type": "feedback", "result": feedback.model_dump()})
     return {
         "writing_feedback": feedback,
@@ -167,12 +269,14 @@ def evaluate_writing(state: dict) -> dict:
 
 
 def save_results(state: dict) -> dict:
-    """Persist submission and update vocab from writing errors."""
+    """Persist submission, update vocab, write Tutor observations to memory."""
     from backend.models import WritingSubmissionCreate
 
     feedback = state.get("writing_feedback")
     task = state.get("today_task")
     user_text = state.get("user_writing", "")
+    article = state.get("today_article")
+
     if feedback and task and user_text:
         sub = WritingSubmissionCreate(
             task_id=task.id,
@@ -181,19 +285,45 @@ def save_results(state: dict) -> dict:
             grammar_errors=feedback.grammar_errors,
             chinglish_flags=feedback.chinglish_flags,
             rewrite_suggestions=feedback.rewrite_suggestions,
-            submitted_at=datetime.now(),
+            submitted_at=datetime.now(UTC),
         )
         _db.save_writing_submission(sub)
-        article_id = state["today_article"].id if state["today_article"] else None
+        article_id = article.id if article else None
         for flag in feedback.chinglish_flags:
             _db.upsert_vocab_item(
                 VocabItemCreate(
                     word=flag.original,
-                    context_sentence=flag.original,
+                    context_sentence=_extract_sentence(user_text, flag.original),
                     source="writing_error",
                     next_review=date.today().isoformat(),
                     fsrs_state=new_card_state(),
                     article_id=article_id,
                 )
             )
-    return {"user_writing": None, "writing_feedback": None}
+
+        # Write Tutor observation to memory (sync file I/O, safe in sync node)
+        chinglish_issues = [f.issue for f in feedback.chinglish_flags]
+        obs_text = (
+            f"写作分数: {feedback.overall_score}/10, "
+            f"chinglish 问题: {chinglish_issues}, "
+            f"文章逻辑: {article.article_logic if article else 'unknown'}, "
+            f"话题: {article.topic_tags[0] if article and article.topic_tags else 'unknown'}"
+        )
+        memory.append_observation(
+            {
+                "date": date.today().isoformat(),
+                "observation": obs_text,
+            }
+        )
+
+    # Compute completed phases authoritatively before clearing state
+    phases: list[str] = []
+    if state.get("review_queue"):
+        phases.append("review")
+    phases.append("reading")  # save_results only executes after reading completed
+    if state.get("user_writing") is not None or feedback is not None:
+        phases.append("writing")
+    if feedback is not None:
+        phases.append("feedback")
+
+    return {"user_writing": None, "writing_feedback": None, "phases_completed": phases}

@@ -1,9 +1,9 @@
 import logging
 from datetime import date
+from functools import lru_cache
 from typing import Literal
 
 from langchain.tools import tool
-from langchain_community.chat_models import ChatTongyi
 from pydantic import BaseModel, Field
 
 try:
@@ -12,12 +12,18 @@ except (ImportError, AttributeError):
     Scraper = None  # type: ignore[assignment,misc]
 
 from backend.database import get_db
+from backend.llm import get_llm
 from backend.models import ArticleCreate, WritingTaskCreate
 from backend.utils import parse_json
 
 logger = logging.getLogger(__name__)
 
-_llm = ChatTongyi(model="qwen-max")
+
+@lru_cache(maxsize=1)
+def _get_llm():
+    return get_llm()
+
+
 _db = get_db()
 
 
@@ -73,36 +79,68 @@ def _trafilatura_scrape(url: str) -> str:
 
 @tool
 def load_user_profile() -> dict[str, object]:
-    """Load the user's profile from the database."""
+    """ALWAYS call this FIRST before any other tool. Returns the user's goal, interests,
+    and proficiency level — required context for selecting a relevant article and calibrating
+    task difficulty. Never skip or defer this step."""
     profile = _db.get_user_profile()
     if profile is None:
-        return {"error": "No user profile found. Run onboarding first."}
-    return profile.model_dump()
+        return {
+            "status": "error",
+            "summary": "No user profile found",
+            "next_actions": ["Ask user to complete onboarding first"],
+        }
+    return {
+        "status": "success",
+        "summary": "用户画像加载成功",
+        "next_actions": ["Call search_articles with user interests"],
+        "data": profile.model_dump(),
+    }
 
 
 @tool
-def scrape_article(url: str) -> str:
-    """Scrape the full text of an article. Falls back to trafilatura if Scrapling fails."""
+def scrape_article(url: str) -> dict[str, object]:
+    """Call after selecting an article URL from search results. Retrieves the full article
+    text required by highlight_key_paragraphs. If scraping fails, try a different URL —
+    never proceed with empty or error content."""
+    text: str | None = None
     try:
         if Scraper is None:
             raise ImportError("Scraper not available in this scrapling version")
         scraper = Scraper(auto_match=True)
         page = scraper.get(url)
-        return page.get_best_text(auto_filter=True)
+        scraped = page.get_best_text(auto_filter=True)
+        text = scraped if scraped else None  # Treat empty string as failure
     except Exception as e:
         logger.warning(f"Scrapling failed for {url}: {e}. Trying trafilatura.")
-    try:
-        return _trafilatura_scrape(url)
-    except Exception as e:
-        logger.error(f"trafilatura fallback failed for {url}: {e}")
-        raise RuntimeError(f"Could not scrape article: {url}")
+
+    if text is None:
+        try:
+            text = _trafilatura_scrape(url)
+        except Exception as e:
+            logger.error(f"trafilatura fallback failed for {url}: {e}")
+            return {
+                "status": "error",
+                "summary": f"Could not scrape {url}",
+                "next_actions": ["Try a different URL from search results"],
+            }
+
+    truncated = text[:8000]  # Truncate to avoid context overflow (~2000 words)
+    return {
+        "status": "success",
+        "summary": f"Scraped {len(truncated)} chars from {url}",
+        "next_actions": ["Call highlight_key_paragraphs with this text"],
+        "data": truncated,
+    }
 
 
 @tool
 def highlight_key_paragraphs(
     full_text: str, user_goal: str, interests: list[str]
 ) -> dict[str, object]:
-    """Identify 3-5 core paragraphs and article logic type for a language learner."""
+    """ALWAYS call after scrape_article and before generate_writing_task. Identifies the
+    3-5 paragraphs most valuable for deep reading and determines the article's logical
+    structure (compare / cause_effect / argumentation). The article_logic value is a
+    required input for generate_writing_task — do not skip this step."""
 
     class HighlightResult(BaseModel):
         highlight_indices: list[int] = Field(
@@ -123,16 +161,28 @@ def highlight_key_paragraphs(
     )
     for attempt in range(3):
         try:
-            response = _llm.invoke(prompt)
+            response = _get_llm().invoke(prompt)
             content = str(response.content).strip()
             if not content:
                 raise ValueError("Empty response from model")
             result: HighlightResult = parse_json(content, HighlightResult)  # type: ignore[assignment]
             valid_indices = [i for i in result.highlight_indices if 0 <= i < len(paragraphs)]
-            return {"highlight_indices": valid_indices, "article_logic": result.article_logic}
+            return {
+                "status": "success",
+                "summary": (
+                    f"Identified {len(valid_indices)} highlight paragraphs,"
+                    f" logic: {result.article_logic}"
+                ),
+                "next_actions": ["Call generate_writing_task with article_logic"],
+                "data": {"highlight_indices": valid_indices, "article_logic": result.article_logic},
+            }
         except Exception as e:
             logger.warning(f"highlight_key_paragraphs attempt {attempt + 1} failed: {e}")
-    raise ValueError("highlight_key_paragraphs failed after 3 attempts")
+    return {
+        "status": "error",
+        "summary": "highlight_key_paragraphs failed after 3 attempts",
+        "next_actions": ["Try a different article URL"],
+    }
 
 
 class ArticleContext(BaseModel):
@@ -157,7 +207,9 @@ class ProfileContext(BaseModel):
 
 @tool
 def generate_writing_task(article: ArticleContext, profile: ProfileContext) -> dict[str, object]:
-    """Generate a writing task based on the article context and user profile."""
+    """Call after highlight_key_paragraphs, using the article_logic it returned. Generates
+    a writing task calibrated to the user's level and goal. The result is required input
+    for save_daily_lesson."""
     mode: str = profile.writing_mode
 
     prompt = f"""
@@ -175,20 +227,51 @@ Return ONLY a JSON object with no prose, no markdown fences. Schema:
 """
     for attempt in range(3):
         try:
-            response = _llm.invoke(prompt)
+            response = _get_llm().invoke(prompt)
             content = str(response.content).strip()
             if not content:
                 raise ValueError("Empty response from model")
             result: WritingTaskCreate = parse_json(content, WritingTaskCreate)  # type: ignore[assignment]
-            return result.model_dump()
+            return {
+                "status": "success",
+                "summary": f"Generated {profile.writing_mode} task for level {profile.level}",
+                "next_actions": ["Call save_daily_lesson with article and this task"],
+                "data": result.model_dump(),
+            }
         except Exception as e:
             logger.warning(f"generate_writing_task attempt {attempt + 1} failed: {e}")
-    raise ValueError("generate_writing_task failed after 3 attempts")
+    return {
+        "status": "error",
+        "summary": "generate_writing_task failed after 3 attempts",
+        "next_actions": ["Check article and profile inputs"],
+    }
 
 
 @tool
-def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> str:
-    """Save today's article and writing task to the database. Call as the final step."""
+def save_daily_lesson(article: ArticleCreate, task: WritingTaskCreate) -> dict[str, object]:
+    """ALWAYS call as the FINAL step after generate_writing_task. Persists the article
+    and writing task to the database. Never skip — without this call, tomorrow's lesson
+    will not be available to the student."""
     article = article.model_copy(update={"date": date.today().isoformat()})
-    _db.save_daily_lesson(article, task)
-    return f"Saved: '{article.original_title}'"
+    existing = _db.get_article_for_date(article.date)
+    if existing is not None:
+        return {
+            "status": "error",
+            "summary": f"Lesson for {article.date} already exists",
+            "next_actions": ["Do not call save_daily_lesson again — lesson is already prepared"],
+        }
+    try:
+        _db.save_daily_lesson(article, task)
+        return {
+            "status": "success",
+            "summary": f"Saved lesson: '{article.original_title}'",
+            "next_actions": [],
+            "data": None,
+        }
+    except Exception as e:
+        logger.error(f"save_daily_lesson failed: {e}")
+        return {
+            "status": "error",
+            "summary": f"Failed to save lesson: {e}",
+            "next_actions": ["Do not retry — report the error"],
+        }

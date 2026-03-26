@@ -1,5 +1,7 @@
 'use client'
-import { DOG_GOLDEN, DOG_TOGETHER } from '@/lib/constants'
+import { useState } from 'react'
+import Image from 'next/image'
+import { getRandomTogetherDogUrl, getRandomTeacherDogUrl } from '@/lib/constants'
 import type { WritingFeedback } from '@/types'
 
 interface Props {
@@ -8,8 +10,10 @@ interface Props {
 }
 
 export function FeedbackView({ feedback, onRetry }: Props) {
+  const [scoreCardUrl] = useState(getRandomTogetherDogUrl)
+  const [professorUrl] = useState(getRandomTeacherDogUrl)
   return (
-    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-5 pb-24">
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-5 pb-[calc(var(--mobile-nav-height)+24px)] md:pb-8">
       {/* Score card */}
       <div className="signature-gradient rounded-lg p-7 text-white shadow-xl relative overflow-hidden">
         <div className="absolute -top-8 -right-8 opacity-10 pointer-events-none">
@@ -28,9 +32,10 @@ export function FeedbackView({ feedback, onRetry }: Props) {
             <div className="text-6xl font-black font-headline">{feedback.overall_score}</div>
             <div className="text-sm opacity-70 mt-1 font-label">/ 10</div>
           </div>
-          <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DOG_TOGETHER} className="w-full h-full object-cover" alt="完成" />
+          <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-white/30 flex-shrink-0">
+            {scoreCardUrl && (
+              <Image src={scoreCardUrl} fill sizes="64px" className="object-cover" alt="完成" />
+            )}
           </div>
         </div>
         {feedback.rewrite_suggestions.length > 0 && (
@@ -45,7 +50,7 @@ export function FeedbackView({ feedback, onRetry }: Props) {
 
       {/* Grammar errors */}
       {feedback.grammar_errors.length > 0 && (
-        <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_rgba(109,74,179,0.07)]">
+        <div className="bg-surface-container-lowest rounded-lg p-5 shadow-[0_4px_16px_color-mix(in_srgb,var(--primary)_7%,transparent)]">
           <div className="flex items-center gap-2 mb-4">
             <span
               className="material-symbols-outlined text-[19px] text-error"
@@ -58,8 +63,11 @@ export function FeedbackView({ feedback, onRetry }: Props) {
               {feedback.grammar_errors.length} 处
             </span>
           </div>
-          {feedback.grammar_errors.map((e, i) => (
-            <div key={i} className="bg-surface-container-low rounded-lg p-4 mb-3 last:mb-0">
+          {feedback.grammar_errors.map((e) => (
+            <div
+              key={`${e.original}-${e.correction}`}
+              className="bg-surface-container-low rounded-lg p-4 mb-3 last:mb-0"
+            >
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className="line-through text-error text-sm font-bold font-label">
                   &ldquo;{e.original}&rdquo;
@@ -71,7 +79,7 @@ export function FeedbackView({ feedback, onRetry }: Props) {
                   &ldquo;{e.correction}&rdquo;
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant">{e.explanation_zh}</p>
+              <p className="text-xs text-on-surface-variant break-words">{e.explanation_zh}</p>
             </div>
           ))}
         </div>
@@ -92,8 +100,11 @@ export function FeedbackView({ feedback, onRetry }: Props) {
               {feedback.chinglish_flags.length} 处
             </span>
           </div>
-          {feedback.chinglish_flags.map((f, i) => (
-            <div key={i} className="bg-surface-container-lowest rounded-lg p-4 mb-3 last:mb-0">
+          {feedback.chinglish_flags.map((f) => (
+            <div
+              key={`${f.original}-${f.native_alternative}`}
+              className="bg-surface-container-lowest rounded-lg p-4 mb-3 last:mb-0"
+            >
               <div className="flex items-center gap-2 flex-wrap mb-1">
                 <span className="line-through text-error text-sm font-bold font-label">
                   &ldquo;{f.original}&rdquo;
@@ -105,7 +116,7 @@ export function FeedbackView({ feedback, onRetry }: Props) {
                   &ldquo;{f.native_alternative}&rdquo;
                 </span>
               </div>
-              <p className="text-xs text-on-surface-variant">{f.explanation_zh}</p>
+              <p className="text-xs text-on-surface-variant break-words">{f.explanation_zh}</p>
               <p className="text-[10px] text-on-surface-variant/60 mt-1">已加入生词库，稍后复习</p>
             </div>
           ))}
@@ -115,15 +126,18 @@ export function FeedbackView({ feedback, onRetry }: Props) {
       {/* AI suggestion */}
       {feedback.rewrite_suggestions.length > 1 && (
         <div className="bg-tertiary-container/25 rounded-lg p-5 flex gap-3">
-          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={DOG_GOLDEN} className="w-full h-full object-cover" alt="tutor" />
+          <div className="relative w-10 h-10 rounded-full overflow-hidden flex-shrink-0 border-2 border-primary/20">
+            {professorUrl && (
+              <Image src={professorUrl} fill sizes="40px" className="object-cover" alt="tutor" />
+            )}
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">
               Professor 金毛建议
             </div>
-            <p className="text-sm text-on-surface leading-relaxed">{feedback.rewrite_suggestions[1]}</p>
+            <p className="text-sm text-on-surface leading-relaxed">
+              {feedback.rewrite_suggestions[1]}
+            </p>
           </div>
         </div>
       )}

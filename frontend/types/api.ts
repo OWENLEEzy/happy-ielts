@@ -21,7 +21,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/planner/run": {
+    "/api/planner/jobs": {
         parameters: {
             query?: never;
             header?: never;
@@ -31,7 +31,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Run Planner */
-        post: operations["run_planner_api_planner_run_post"];
+        post: operations["run_planner_api_planner_jobs_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -55,7 +55,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/onboarding/message": {
+    "/api/planner/jobs/next": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Prepare Next Lesson
+         * @description Prepare tomorrow's lesson. Called by Orchestrator (hot) or cron (cold).
+         */
+        post: operations["prepare_next_lesson_api_planner_jobs_next_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/onboarding/messages": {
         parameters: {
             query?: never;
             header?: never;
@@ -65,7 +85,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** Onboarding Message */
-        post: operations["onboarding_message_api_onboarding_message_post"];
+        post: operations["onboarding_message_api_onboarding_messages_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -98,15 +118,15 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Save Preferences */
-        post: operations["save_preferences_api_onboarding_preferences_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /** Save Preferences */
+        patch: operations["save_preferences_api_onboarding_preferences_patch"];
         trace?: never;
     };
-    "/api/lesson/today": {
+    "/api/lessons/today": {
         parameters: {
             query?: never;
             header?: never;
@@ -114,7 +134,7 @@ export interface paths {
             cookie?: never;
         };
         /** Get Today Lesson */
-        get: operations["get_today_lesson_api_lesson_today_get"];
+        get: operations["get_today_lesson_api_lessons_today_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -123,7 +143,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/lesson/action": {
+    "/api/lessons/today/actions": {
         parameters: {
             query?: never;
             header?: never;
@@ -133,14 +153,14 @@ export interface paths {
         get?: never;
         put?: never;
         /** Lesson Action */
-        post: operations["lesson_action_api_lesson_action_post"];
+        post: operations["lesson_action_api_lessons_today_actions_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/api/lesson/start": {
+    "/api/lessons/today/session": {
         parameters: {
             query?: never;
             header?: never;
@@ -153,7 +173,7 @@ export interface paths {
          * Start Lesson
          * @description Initialize or resume today's LangGraph session.
          */
-        post: operations["start_lesson_api_lesson_start_post"];
+        post: operations["start_lesson_api_lessons_today_session_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -195,14 +215,265 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/learn/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** General Onboarding Start */
+        post: operations["general_onboarding_start_api_learn_projects_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** General Onboarding Message */
+        post: operations["general_onboarding_message_api_learn_projects__project_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get General Project */
+        get: operations["get_general_project_api_learn_projects__project_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** General Onboarding Confirm */
+        patch: operations["general_onboarding_confirm_api_learn_projects__project_id__patch"];
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get General Dashboard */
+        get: operations["get_general_dashboard_api_learn_projects__project_id__dashboard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/lessons/{lesson_id}/reextract": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * General Lesson Reextract
+         * @description Re-extract study guide / quiz / flashcards for a single lesson.
+         *
+         *     Useful when a lesson has degraded (fallback) content from a failed extraction.
+         *     Runs asynchronously in the background; returns immediately.
+         */
+        post: operations["general_lesson_reextract_api_learn_projects__project_id__lessons__lesson_id__reextract_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/lessons/{lesson_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** General Lesson Start */
+        post: operations["general_lesson_start_api_learn_projects__project_id__lessons__lesson_id__sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/lessons/{lesson_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** General Lesson Action */
+        post: operations["general_lesson_action_api_learn_projects__project_id__lessons__lesson_id__actions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ChapterItem */
+        ChapterItem: {
+            /** Title */
+            title: string;
+            /** Lessons */
+            lessons: components["schemas"]["LessonStatusItem"][];
+        };
+        /** DimensionState */
+        DimensionState: {
+            /** Mastery */
+            mastery: number;
+            /**
+             * Sessions
+             * @default 0
+             */
+            sessions: number;
+            /** Last Reviewed */
+            last_reviewed: string;
+            /**
+             * Trend
+             * @default stable
+             * @enum {string}
+             */
+            trend: "improving" | "stable" | "worsening";
+        };
+        /** GeneralLessonActionRequest */
+        GeneralLessonActionRequest: {
+            /** Type */
+            type: string;
+            /** Answer */
+            answer?: string | null;
+            /** Answers */
+            answers?: (number | string)[] | null;
+            /** Question */
+            question?: string | null;
+        };
+        /** GeneralOnboardingConfirmRequest */
+        GeneralOnboardingConfirmRequest: {
+            goal_profile: components["schemas"]["UserGoalProfile"];
+            learning_map: components["schemas"]["LearningMap-Input"];
+        };
+        /** GeneralOnboardingMessageRequest */
+        GeneralOnboardingMessageRequest: {
+            /** Message */
+            message: string;
+        };
+        /** GeneralOnboardingStartRequest */
+        GeneralOnboardingStartRequest: {
+            /** Topic */
+            topic: string;
+            /**
+             * Tier
+             * @default free
+             */
+            tier: string;
+        };
+        /** GeneralOnboardingStartResponse */
+        GeneralOnboardingStartResponse: {
+            /** Project Id */
+            project_id: number;
+        };
+        /** GeneralProject */
+        GeneralProject: {
+            /** Id */
+            id: number;
+            /** User Topic */
+            user_topic: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "onboarding" | "researching" | "extracting" | "active" | "complete" | "error";
+            goal_profile?: components["schemas"]["UserGoalProfile"] | null;
+            learning_map?: components["schemas"]["LearningMap-Output"] | null;
+            /** Notebook Id */
+            notebook_id?: string | null;
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /**
+             * Budget Used
+             * @default 0
+             */
+            budget_used: number;
+            /** Created At */
+            created_at: string;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** LearningChapter */
+        LearningChapter: {
+            /** Title */
+            title: string;
+            /** Lessons */
+            lessons: components["schemas"]["LearningLesson"][];
+        };
+        /** LearningLesson */
+        LearningLesson: {
+            /** Title */
+            title: string;
+            /**
+             * Objectives
+             * @default []
+             */
+            objectives: string[];
+        };
+        /** LearningMap */
+        "LearningMap-Input": {
+            /** Topic */
+            topic: string;
+            /** Total Weeks */
+            total_weeks: number;
+            /** Chapters */
+            chapters: components["schemas"]["LearningChapter"][];
+        };
+        /** LearningMap */
+        "LearningMap-Output": {
+            /** Topic */
+            topic: string;
+            /** Total Weeks */
+            total_weeks: number;
+            /** Chapters */
+            chapters: components["schemas"]["LearningChapter"][];
         };
         /** LessonActionRequest */
         LessonActionRequest: {
@@ -221,6 +492,23 @@ export interface components {
             /** Response Seconds */
             response_seconds?: number | null;
         };
+        /** LessonStatusItem */
+        LessonStatusItem: {
+            /** Id */
+            id: number;
+            /** Chapter */
+            chapter: number;
+            /** Lesson */
+            lesson: number;
+            /** Title */
+            title: string;
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status: "pending" | "ready";
+        };
         /** OnboardingMessageRequest */
         OnboardingMessageRequest: {
             /** Message */
@@ -230,6 +518,51 @@ export interface components {
              * @default onboarding
              */
             thread_id: string;
+        };
+        /** PlannerStatusResponse */
+        PlannerStatusResponse: {
+            /** Ready */
+            ready: boolean;
+            /** Ready For Tomorrow */
+            ready_for_tomorrow: boolean;
+            /** Status */
+            status: string;
+            /** Error */
+            error?: string | null;
+            /** Status Tomorrow */
+            status_tomorrow: string;
+            /** Error Tomorrow */
+            error_tomorrow?: string | null;
+        };
+        /** ProjectDashboardResponse */
+        ProjectDashboardResponse: {
+            /** Id */
+            id: number;
+            /** User Topic */
+            user_topic: string;
+            /** Goal Outcome */
+            goal_outcome: string;
+            /** Goal Progress */
+            goal_progress: number;
+            /** Dimensions */
+            dimensions: {
+                [key: string]: components["schemas"]["DimensionState"];
+            };
+            /** Chapters */
+            chapters: components["schemas"]["ChapterItem"][];
+            /**
+             * Tier
+             * @default free
+             * @enum {string}
+             */
+            tier: "free" | "paid";
+            /** Budget Used */
+            budget_used: number;
+        };
+        /** ReadyStatusResponse */
+        ReadyStatusResponse: {
+            /** Ready */
+            ready: boolean;
         };
         /** SavePreferencesRequest */
         SavePreferencesRequest: {
@@ -249,6 +582,33 @@ export interface components {
         UpdateProfileRequest: {
             /** Interests Update */
             interests_update: string;
+        };
+        /** UserGoalProfile */
+        UserGoalProfile: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "english" | "skill";
+            /** Topic */
+            topic: string;
+            /** Motivation */
+            motivation: string;
+            /** Goal Outcome */
+            goal_outcome: string;
+            /** Context */
+            context: string;
+            /** Current Level */
+            current_level: string;
+            /** Time Per Week */
+            time_per_week: number;
+            /** Duration Weeks */
+            duration_weeks: number;
+            /**
+             * Constraints
+             * @default []
+             */
+            constraints: string[];
         };
         /** ValidationError */
         ValidationError: {
@@ -292,7 +652,7 @@ export interface operations {
             };
         };
     };
-    run_planner_api_planner_run_post: {
+    run_planner_api_planner_jobs_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -327,12 +687,32 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    "application/json": components["schemas"]["PlannerStatusResponse"];
+                };
+            };
+        };
+    };
+    prepare_next_lesson_api_planner_jobs_next_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
                     "application/json": unknown;
                 };
             };
         };
     };
-    onboarding_message_api_onboarding_message_post: {
+    onboarding_message_api_onboarding_messages_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -380,12 +760,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["ReadyStatusResponse"];
                 };
             };
         };
     };
-    save_preferences_api_onboarding_preferences_post: {
+    save_preferences_api_onboarding_preferences_patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -418,7 +798,7 @@ export interface operations {
             };
         };
     };
-    get_today_lesson_api_lesson_today_get: {
+    get_today_lesson_api_lessons_today_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -438,7 +818,7 @@ export interface operations {
             };
         };
     };
-    lesson_action_api_lesson_action_post: {
+    lesson_action_api_lessons_today_actions_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -471,7 +851,7 @@ export interface operations {
             };
         };
     };
-    start_lesson_api_lesson_start_post: {
+    start_lesson_api_lessons_today_session_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -560,6 +940,271 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    general_onboarding_start_api_learn_projects_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneralOnboardingStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneralOnboardingStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    general_onboarding_message_api_learn_projects__project_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneralOnboardingMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_general_project_api_learn_projects__project_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneralProject"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    general_onboarding_confirm_api_learn_projects__project_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneralOnboardingConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_general_dashboard_api_learn_projects__project_id__dashboard_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectDashboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    general_lesson_reextract_api_learn_projects__project_id__lessons__lesson_id__reextract_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                lesson_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    general_lesson_start_api_learn_projects__project_id__lessons__lesson_id__sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                lesson_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    general_lesson_action_api_learn_projects__project_id__lessons__lesson_id__actions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+                lesson_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneralLessonActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
