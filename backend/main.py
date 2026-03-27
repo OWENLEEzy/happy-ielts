@@ -586,6 +586,7 @@ class GeneralLessonActionRequest(BaseModel):
     answer: str | None = None
     answers: list[int | str] | None = None
     question: str | None = None
+    explanation: str | None = None  # metacog_session: student's self-explanation
 
 
 class FsrsReviewItem(BaseModel):
@@ -759,6 +760,8 @@ async def general_lesson_action(project_id: int, lesson_id: int, req: GeneralLes
         action_payload["answers"] = req.answers
     if req.question:
         action_payload["question"] = req.question
+    if req.explanation is not None:
+        action_payload["explanation"] = req.explanation
 
     async def stream():
         try:

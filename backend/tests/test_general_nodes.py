@@ -872,7 +872,7 @@ async def test_metacog_session_emits_prompt_and_feedback():
             "backend.general.nodes.interrupt",
             side_effect=lambda _d: {"explanation": "Because A is right"},
         ),
-        patch("backend.general.nodes.get_llm", return_value=mock_llm),
+        patch("backend.llm.get_llm", return_value=mock_llm),
     ):
         result = await metacog_session(state)
 

@@ -9,7 +9,6 @@ from langgraph.types import Command, interrupt
 from backend.database import Database, get_db
 from backend.fsrs_engine import new_card_state, update_card
 from backend.general.notebooklm import get_nlm_client
-from backend.llm import get_llm  # noqa: F401 — used in metacog_session
 from backend.models import GeneralLesson
 
 _logger = logging.getLogger(__name__)
@@ -46,17 +45,26 @@ def _get_review_questions(fsrs_due: list[dict], db: Database, max_count: int = 3
     ]
 
     result: list[dict] = []
+    seen_keys: set[tuple] = set()  # deduplicate by (lesson_id, question_text)
+    lesson_cache: dict[int, GeneralLesson | None] = {}
     for item in due_items[:max_count]:
         lesson_id = item.get("lesson_id")
         question_text = item.get("q", "")
         if not lesson_id or not question_text:
             continue
-        lesson = db.get_general_lesson(lesson_id)
+        dedup_key = (lesson_id, question_text)
+        if dedup_key in seen_keys:
+            continue
+        if lesson_id not in lesson_cache:
+            fetched = db.get_general_lesson(lesson_id)
+            lesson_cache[lesson_id] = fetched
+        lesson = lesson_cache[lesson_id]
         if not lesson or not lesson.quiz_json:
             continue
         for q in lesson.quiz_json:
             if q.get("question") == question_text:
                 result.append({**q, "_is_review": True, "_fsrs_item": item})
+                seen_keys.add(dedup_key)
                 break
     return result
 
@@ -438,8 +446,6 @@ _GROWTH_MINDSET_MESSAGES = [
 
 def scaffold_quiz(state: dict) -> dict:
     """Quiz for scaffold mode (score < 46%): hints visible + growth mindset on low score."""
-    import random as _rnd
-
     lesson: GeneralLesson = state["lesson"]
     quiz = lesson.quiz_json or []
     reshuffled = _get_valid_reshuffled_quiz(quiz, lesson.id)
@@ -448,7 +454,13 @@ def scaffold_quiz(state: dict) -> dict:
         _logger.warning("scaffold_quiz: no valid questions for lesson %d", lesson.id)
         writer = get_stream_writer()
         writer({"type": "quiz_skipped", "reason": "content_updating", "lesson_id": lesson.id})
-        return {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa", "fsrs_wrong_items": []}
+        return {
+            "quiz_answers": [],
+            "quiz_score": 0,
+            "phase": "free_qa",
+            "fsrs_wrong_items": [],
+            "fsrs_review_updates": [],
+        }
 
     # -- interrupt: all code above is idempotent --
     interrupt_data = {
@@ -466,7 +478,7 @@ def scaffold_quiz(state: dict) -> dict:
         reshuffled, answers
     )
 
-    growth_message = _rnd.choice(_GROWTH_MINDSET_MESSAGES) if lesson_score < 46 else None
+    growth_message = random.choice(_GROWTH_MINDSET_MESSAGES) if lesson_score < 46 else None
 
     writer = get_stream_writer()
     writer(
@@ -485,6 +497,7 @@ def scaffold_quiz(state: dict) -> dict:
         "quiz_score": lesson_score,  # [P0#3] lesson-only score for routing
         "phase": "free_qa",
         "fsrs_wrong_items": fsrs_wrong_items,
+        "fsrs_review_updates": [],
     }
 
 
@@ -535,7 +548,7 @@ def challenge_quiz(state: dict) -> dict:
         return {
             "quiz_answers": [],
             "quiz_score": 0,
-            "phase": "metacog",
+            "phase": "free_qa",
             "fsrs_wrong_items": [],
             "metacog_question": None,
             "review_questions_cache": [],
@@ -643,6 +656,8 @@ async def metacog_session(state: dict) -> dict:
     feedback = ""
     if explanation:
         from langchain_core.messages import HumanMessage, SystemMessage
+
+        from backend.llm import get_llm
 
         llm = get_llm()
         messages = [
