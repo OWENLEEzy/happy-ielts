@@ -64,7 +64,9 @@ async def _make_checkpointer(max_size: int = 5):
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
         from psycopg_pool import AsyncConnectionPool
 
-        async with AsyncConnectionPool(conninfo=database_url, max_size=max_size, open=True) as pool:
+        async with AsyncConnectionPool(
+            conninfo=database_url, max_size=max_size, open=True, kwargs={"autocommit": True}
+        ) as pool:
             saver = AsyncPostgresSaver(pool)
             await saver.setup()
             yield saver

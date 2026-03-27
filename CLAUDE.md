@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Language
+
+Reply in the same language the user writes in. Default to Chinese (中文) for this project.
+
 ## Project
 
 **DynamicLingo** — 本地 AI 英语读写飞轮。每日自动抓取文章 → 深读高亮 → 写作任务 → 间隔复习生词。
