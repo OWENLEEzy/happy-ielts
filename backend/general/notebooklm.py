@@ -91,14 +91,29 @@ class NotebookLMWrapper:
                         new_sources = [
                             s for s in sources if (s.get("title") or "") not in existing_titles
                         ]
-                        if new_sources:
-                            await c.research.import_sources(notebook_id, task_id, new_sources)
                         skipped = len(sources) - len(new_sources)
                         if skipped:
                             _logger.info(
                                 "add_research: skipped %d already-present sources", skipped
                             )
-                        return len(new_sources)
+                        if new_sources:
+                            # Batch import to avoid RPC timeout on large source lists
+                            _BATCH = 5
+                            imported = 0
+                            for i in range(0, len(new_sources), _BATCH):
+                                batch = new_sources[i : i + _BATCH]
+                                try:
+                                    await c.research.import_sources(notebook_id, task_id, batch)
+                                    imported += len(batch)
+                                except Exception as imp_exc:
+                                    _logger.warning(
+                                        "add_research: batch %d import failed: %s",
+                                        i // _BATCH,
+                                        imp_exc,
+                                    )
+                                if i + _BATCH < len(new_sources):
+                                    await asyncio.sleep(3)
+                            return imported
                     return 0
                 if status not in ("in_progress", "pending"):
                     _logger.warning(

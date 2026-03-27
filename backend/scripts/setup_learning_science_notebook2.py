@@ -1,14 +1,8 @@
 """
-创建「学习的本质」NotebookLM 研究笔记本。
-
-特性：
-- 断点续传：从 docs/learning_science_notebook.txt 读取已有 notebook_id
-- 跳过已成功的方向（sources_added > 0）
-- 查询间 90 秒降速，避免 rate limit
-- 每个方向最多 2 次重试（first: deep，retry: fast）
+创建「学习的本质 Part 2」NotebookLM 研究笔记本（第二个，覆盖剩余 4 个方向）。
 
 用法：
-    uv run python backend/scripts/setup_learning_science_notebook.py
+    uv run python backend/scripts/setup_learning_science_notebook2.py
 """
 
 import asyncio
@@ -30,20 +24,14 @@ if _env_path.exists():
 
 from general.notebooklm import NotebookLMWrapper  # noqa: E402
 
-NOTEBOOK_TITLE = "学习的本质 — AI Agent 设计参考"
+NOTEBOOK_TITLE = "学习的本质 Part 2 — AI Agent 设计参考"
 DOCS_DIR = _REPO_ROOT / "docs"
-OUTPUT_FILE = DOCS_DIR / "learning_science_notebook.txt"
+OUTPUT_FILE = DOCS_DIR / "learning_science_notebook2.txt"
 
-# 查询间等待秒数（避免 rate limit）
 INTER_QUERY_DELAY = 90
-# 重试前等待秒数
 RETRY_DELAY = 180
 
 RESEARCH_QUERIES: list[tuple[str, str]] = [
-    ("间隔重复与检索练习", "spaced repetition retrieval practice learning science evidence"),
-    ("认知负荷理论", "cognitive load theory worked examples learning efficiency"),
-    ("交错效应与可取困难", "interleaving effect desirable difficulties Bjork learning"),
-    ("元认知与自主学习", "metacognition self-regulated learning strategies"),
     ("刻意练习与专家表现", "deliberate practice expert performance Ericsson"),
     ("反馈时机与形成性评估", "feedback timing formative assessment learning"),
     ("主动回忆与遗忘曲线", "active recall vs passive review forgetting curve Ebbinghaus"),
@@ -52,7 +40,6 @@ RESEARCH_QUERIES: list[tuple[str, str]] = [
 
 
 def _load_existing() -> tuple[str | None, dict[str, int]]:
-    """Load notebook_id and already-succeeded labels from output file."""
     if not OUTPUT_FILE.exists():
         return None, {}
     notebook_id = None
@@ -85,10 +72,7 @@ def _save_results(notebook_id: str, results: list[dict]) -> None:
             f.write(f"    status: {r['status']}\n")
 
 
-async def _add_with_retry(
-    nlm: NotebookLMWrapper, notebook_id: str, label: str, query: str
-) -> tuple[int, str]:
-    """Try deep first, then fast on failure. Returns (count, status)."""
+async def _add_with_retry(nlm: NotebookLMWrapper, notebook_id: str, query: str) -> tuple[int, str]:
     for attempt, mode in enumerate(["deep", "fast"], 1):
         try:
             print(f"  attempt {attempt} (mode={mode}) …")
@@ -119,7 +103,6 @@ async def main() -> None:
         print(f"创建成功：{notebook_id}\n")
         already_done = {}
 
-    # Build results from existing data first
     results: list[dict] = []
     for label, query in RESEARCH_QUERIES:
         if label in already_done:
@@ -138,19 +121,16 @@ async def main() -> None:
     for idx, (label, query) in enumerate(pending):
         print(f"[{label}]")
         print(f"  query: {query!r}")
-        count, status = await _add_with_retry(nlm, notebook_id, label, query)
+        count, status = await _add_with_retry(nlm, notebook_id, query)
         results.append({"label": label, "query": query, "sources": count, "status": status})
         print(f"  => sources: {count}  [{status}]")
 
-        # Save after every query (断点保护)
         _save_results(notebook_id, results)
 
-        # Rate limiting: wait between queries (skip after last)
         if idx < len(pending) - 1:
             print(f"  降速等待 {INTER_QUERY_DELAY}s …\n")
             await asyncio.sleep(INTER_QUERY_DELAY)
 
-    # Final summary
     total = sum(r["sources"] for r in results)
     successful = sum(1 for r in results if r["sources"] > 0)
     print("\n========== 最终汇总 ==========")
@@ -161,12 +141,7 @@ async def main() -> None:
         mark = "✓" if r["sources"] > 0 else "✗"
         print(f"  {mark} [{r['label']}] sources={r['sources']}  {r['status']}")
     print("==============================")
-
-    if successful < 4:
-        print("\n⚠️  成功方向不足 4 个，建议检查网络/代理后重新运行（脚本支持断点续传）。")
-        sys.exit(1)
-    else:
-        print(f"\n完成。notebook_id 已保存至 {OUTPUT_FILE}")
+    print(f"\n完成。notebook_id 已保存至 {OUTPUT_FILE}")
 
 
 if __name__ == "__main__":

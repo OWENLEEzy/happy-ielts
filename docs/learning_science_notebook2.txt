@@ -1,0 +1,20 @@
+notebook_id: c55513e3-24f0-4656-b640-b00e38f46bf7
+title: 学习的本质 Part 2 — AI Agent 设计参考
+
+research_results:
+  - label: 刻意练习与专家表现
+    query: deliberate practice expert performance Ericsson
+    sources_added: 41
+    status: ok
+  - label: 反馈时机与形成性评估
+    query: feedback timing formative assessment learning
+    sources_added: 70
+    status: ok
+  - label: 主动回忆与遗忘曲线
+    query: active recall vs passive review forgetting curve Ebbinghaus
+    sources_added: 55
+    status: ok
+  - label: 成长型思维与学习坚持
+    query: growth mindset motivation learning persistence Dweck
+    sources_added: 46
+    status: ok

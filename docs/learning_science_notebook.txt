@@ -1,0 +1,36 @@
+notebook_id: a408b722-5221-434c-b180-48686749662b
+title: 学习的本质 — AI Agent 设计参考
+
+research_results:
+  - label: 间隔重复与检索练习
+    query: spaced repetition retrieval practice learning science evidence
+    sources_added: 51
+    status: ok
+  - label: 认知负荷理论
+    query: cognitive load theory worked examples learning efficiency
+    sources_added: 38
+    status: ok
+  - label: 交错效应与可取困难
+    query: interleaving effect desirable difficulties Bjork learning
+    sources_added: 38
+    status: ok
+  - label: 元认知与自主学习
+    query: metacognition self-regulated learning strategies
+    sources_added: 25
+    status: ok
+  - label: 刻意练习与专家表现
+    query: deliberate practice expert performance Ericsson
+    sources_added: 0
+    status: failed after 2 attempts
+  - label: 反馈时机与形成性评估
+    query: feedback timing formative assessment learning
+    sources_added: 0
+    status: failed after 2 attempts
+  - label: 主动回忆与遗忘曲线
+    query: active recall vs passive review forgetting curve Ebbinghaus
+    sources_added: 0
+    status: failed after 2 attempts
+  - label: 成长型思维与学习坚持
+    query: growth mindset motivation learning persistence Dweck
+    sources_added: 0
+    status: failed after 2 attempts
