@@ -423,6 +423,40 @@ async def save_results(state: dict) -> dict:
         except Exception as exc:
             _logger.error("save_results: failed to persist FSRS wrong items: %s", exc)
 
+    # [P2#11] Process deferred FSRS review updates from challenge_quiz
+    review_updates: list = state.get("fsrs_review_updates", [])
+    if review_updates:
+        try:
+            existing = db.get_general_student_model_full(state["project"]["id"])
+            if existing:
+                by_key = {
+                    (item["lesson_id"], item["q"]): item
+                    for item in existing.fsrs_due
+                    if isinstance(item, dict) and "lesson_id" in item and "q" in item
+                }
+                for fsrs_item, is_correct in review_updates:
+                    key = (fsrs_item.get("lesson_id"), fsrs_item.get("q"))
+                    if key in by_key:
+                        by_key[key] = {
+                            **by_key[key],
+                            "fsrs_state": update_card(
+                                by_key[key]["fsrs_state"],
+                                is_correct=is_correct,
+                                response_seconds=10.0,
+                            ),
+                        }
+                db.save_general_student_model(
+                    state["project"]["id"],
+                    existing.model_copy(
+                        update={
+                            "fsrs_due": list(by_key.values()),
+                            "updated": date.today().isoformat(),
+                        }
+                    ),
+                )
+        except Exception:
+            _logger.warning("save_results: FSRS review update failed", exc_info=True)
+
     writer = get_stream_writer()
     writer({"type": "done", "project_id": state["project"]["id"]})
     return {"phase": "done"}

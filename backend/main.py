@@ -702,7 +702,18 @@ async def general_lesson_start(project_id: int, lesson_id: int):
     async def stream():
         try:
             async for chunk in graph.astream(
-                {"project": project_dict, "lesson": lesson, "phase": "start", "messages": []},
+                {
+                    "project": project_dict,
+                    "lesson": lesson,
+                    "phase": "start",
+                    "messages": [],
+                    # [P1#9] Explicit defaults for all new adaptive-learning fields
+                    "session_mode": "normal",
+                    "metacog_question": None,
+                    "metacog_feedback": "",
+                    "review_questions_cache": [],
+                    "fsrs_review_updates": [],
+                },
                 config=config,
                 stream_mode="custom",
             ):
