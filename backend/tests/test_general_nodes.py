@@ -277,7 +277,9 @@ def _make_quiz_with_correct_at(correct_idx: int) -> list[dict]:
 
 
 def test_route_start_no_prior_returns_empty_hint():
-    """No prior session → retry_hint is []."""
+    """No prior session → retry_hint is [], normal mode, goto reading."""
+    from langgraph.types import Command
+
     from backend.general.nodes import route_start
 
     lesson = _make_lesson(lesson_id=1)
@@ -287,25 +289,77 @@ def test_route_start_no_prior_returns_empty_hint():
     with patch("backend.general.nodes.get_db", return_value=mock_db):
         result = route_start({"lesson": lesson, "project": {"id": 1}})
 
-    assert result["retry_hint"] == []
-    assert result["phase"] == "reading"
+    assert isinstance(result, Command)
+    assert result.update is not None
+    assert result.update["retry_hint"] == []
+    assert result.update["phase"] == "reading"
+    assert result.update["session_mode"] == "normal"
+    assert result.goto == "reading"
+    # [P1#4] new fields initialized
+    assert result.update["metacog_question"] is None
+    assert result.update["metacog_feedback"] == ""
+    assert result.update["review_questions_cache"] == []
+    assert result.update["fsrs_review_updates"] == []
 
 
-def test_route_start_high_score_returns_empty_hint():
-    """Prior session score >= 60 → retry_hint is []."""
+def test_route_start_score_below_46_scaffold_mode():
+    """Score < 46 → scaffold mode, goto reading."""
+    from langgraph.types import Command
+
     from backend.general.nodes import route_start
 
     lesson = _make_lesson(lesson_id=1, quiz=_make_quiz_with_correct_at(0))
     mock_db = MagicMock()
     mock_db.get_last_session_for_lesson.return_value = {
-        "quiz_score": 80,
+        "quiz_score": 30,
+        "quiz_answers": [1, 1, 1],
+    }
+
+    with patch("backend.general.nodes.get_db", return_value=mock_db):
+        result = route_start({"lesson": lesson, "project": {"id": 1}})
+
+    assert isinstance(result, Command)
+    assert result.update is not None
+    assert result.update["session_mode"] == "scaffold"
+    assert result.goto == "reading"
+
+
+def test_route_start_score_46_to_81_normal_mode():
+    """Score 46-81 → normal mode, goto reading."""
+    from backend.general.nodes import route_start
+
+    lesson = _make_lesson(lesson_id=1, quiz=_make_quiz_with_correct_at(0))
+    mock_db = MagicMock()
+    mock_db.get_last_session_for_lesson.return_value = {
+        "quiz_score": 60,
         "quiz_answers": [0, 0, 0],
     }
 
     with patch("backend.general.nodes.get_db", return_value=mock_db):
         result = route_start({"lesson": lesson, "project": {"id": 1}})
 
-    assert result["retry_hint"] == []
+    assert result.update is not None
+    assert result.update["session_mode"] == "normal"
+    assert result.goto == "reading"
+
+
+def test_route_start_score_above_81_challenge_mode():
+    """Score > 81 → challenge mode, goto challenge_quiz."""
+    from backend.general.nodes import route_start
+
+    lesson = _make_lesson(lesson_id=1, quiz=_make_quiz_with_correct_at(0))
+    mock_db = MagicMock()
+    mock_db.get_last_session_for_lesson.return_value = {
+        "quiz_score": 85,
+        "quiz_answers": [0, 0, 0],
+    }
+
+    with patch("backend.general.nodes.get_db", return_value=mock_db):
+        result = route_start({"lesson": lesson, "project": {"id": 1}})
+
+    assert result.update is not None
+    assert result.update["session_mode"] == "challenge"
+    assert result.goto == "challenge_quiz"
 
 
 def test_route_start_low_score_returns_wrong_questions():
@@ -314,7 +368,6 @@ def test_route_start_low_score_returns_wrong_questions():
 
     # Use a quiz with predictable shuffle: all questions have correct at idx 0.
     lesson = _make_lesson(lesson_id=1, quiz=_make_quiz_with_correct_at(0))
-    # Wrong answer: student answered idx 1 (wrong) for all 3 questions.
     mock_db = MagicMock()
     mock_db.get_last_session_for_lesson.return_value = {
         "quiz_score": 20,
@@ -324,8 +377,8 @@ def test_route_start_low_score_returns_wrong_questions():
     with patch("backend.general.nodes.get_db", return_value=mock_db):
         result = route_start({"lesson": lesson, "project": {"id": 1}})
 
-    hint = result["retry_hint"]
-    # All 3 questions should appear in hint (all answered wrong).
+    assert result.update is not None
+    hint = result.update["retry_hint"]
     assert len(hint) > 0
     for item in hint:
         assert "question" in item
@@ -333,7 +386,7 @@ def test_route_start_low_score_returns_wrong_questions():
 
 
 def test_route_start_db_error_degrades_gracefully():
-    """DB error in route_start → retry_hint is [] (graceful degradation)."""
+    """DB error in route_start → normal mode, retry_hint is []."""
     from backend.general.nodes import route_start
 
     lesson = _make_lesson(lesson_id=1)
@@ -343,8 +396,10 @@ def test_route_start_db_error_degrades_gracefully():
     with patch("backend.general.nodes.get_db", return_value=mock_db):
         result = route_start({"lesson": lesson, "project": {"id": 1}})
 
-    assert result["retry_hint"] == []
-    assert result["phase"] == "reading"
+    assert result.update is not None
+    assert result.update["retry_hint"] == []
+    assert result.update["session_mode"] == "normal"
+    assert result.goto == "reading"
 
 
 # ---------------------------------------------------------------------------
@@ -495,3 +550,73 @@ def test_quiz_session_total_matches_valid_count():
     result_event = next((e for e in events if e.get("type") == "quiz_result"), None)
     assert result_event is not None
     assert result_event["total"] == 2  # not 3
+
+
+# ---------------------------------------------------------------------------
+# _grade_and_build_details (Task 5.5)
+# ---------------------------------------------------------------------------
+
+
+def _make_quiz_q(correct_idx: int = 0, n_opts: int = 3, hint: str = "hint text") -> dict:
+    """Factory for a single MCQ question dict."""
+    return {
+        "question": "Q?",
+        "hint": hint,
+        "answerOptions": [
+            {"text": f"opt_{i}", "isCorrect": i == correct_idx, "rationale": "r"}
+            for i in range(n_opts)
+        ],
+    }
+
+
+def test_grade_perfect_score():
+    from backend.general.nodes import _grade_and_build_details
+
+    qs = [_make_quiz_q(correct_idx=0)]
+    lesson_score, display_score, details, wrong, reviews = _grade_and_build_details(qs, [0])
+    assert lesson_score == 100
+    assert display_score == 100
+    assert len(wrong) == 0
+    assert details[0]["is_correct"] is True
+
+
+def test_grade_zero_score():
+    from backend.general.nodes import _grade_and_build_details
+
+    qs = [_make_quiz_q(correct_idx=0)]
+    lesson_score, display_score, details, wrong, reviews = _grade_and_build_details(qs, [1])
+    assert lesson_score == 0
+    assert len(wrong) == 1
+
+
+def test_grade_excludes_review_from_lesson_score():
+    """[P0#3] Review questions must NOT affect lesson_score used for routing."""
+    from backend.general.nodes import _grade_and_build_details
+
+    lesson_q = _make_quiz_q(correct_idx=0)
+    review_q = {
+        **_make_quiz_q(correct_idx=0),
+        "_is_review": True,
+        "_fsrs_item": {"lesson_id": 99, "q": "Q?"},
+    }
+    # Student gets lesson Q right (idx=0), review Q wrong (idx=1)
+    lesson_score, display_score, details, wrong, reviews = _grade_and_build_details(
+        [lesson_q, review_q], [0, 1]
+    )
+    assert lesson_score == 100  # only lesson Q counts
+    assert display_score == 50  # both count for display
+    assert len(reviews) == 1  # review FSRS update tracked
+    assert len(wrong) == 0  # review wrong NOT in fsrs_wrong_items
+
+
+def test_grade_review_correct_tracks_fsrs_update():
+    from backend.general.nodes import _grade_and_build_details
+
+    review_q = {
+        **_make_quiz_q(correct_idx=0),
+        "_is_review": True,
+        "_fsrs_item": {"lesson_id": 5, "q": "Q?"},
+    }
+    _, _, _, _, reviews = _grade_and_build_details([review_q], [0])
+    assert len(reviews) == 1
+    assert reviews[0][1] is True  # is_correct=True

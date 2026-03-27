@@ -1,9 +1,10 @@
 import logging
 import random
 from datetime import date
+from typing import Literal
 
 from langgraph.config import get_stream_writer
-from langgraph.types import interrupt
+from langgraph.types import Command, interrupt
 
 from backend.database import Database, get_db
 from backend.fsrs_engine import new_card_state, update_card
@@ -59,28 +60,124 @@ def _get_review_questions(fsrs_due: list[dict], db: Database, max_count: int = 3
     return result
 
 
-def route_start(state: dict) -> dict:
+def _grade_and_build_details(
+    reshuffled: list[dict], answers: list
+) -> tuple[int, int, list[dict], list[dict], list[tuple[dict, bool]]]:
+    """Shared quiz grading logic. [P2#10] Eliminates code duplication across quiz variants.
+
+    Returns:
+        lesson_score: Percentage excluding review questions (for session_mode routing).
+        display_score: Percentage including all questions (for student display).
+        result_details: Per-question breakdown for SSE quiz_result event.
+        fsrs_wrong_items: New wrong items for FSRS tracking (non-review only).
+        fsrs_review_updates: (fsrs_item, is_correct) pairs for deferred FSRS update.
+    """
+    lesson_correct = lesson_total = all_correct = 0
+    result_details: list[dict] = []
+    fsrs_wrong_items: list[dict] = []
+    fsrs_review_updates: list[tuple[dict, bool]] = []
+
+    for i, q in enumerate(reshuffled):
+        opts = q.get("answerOptions", [])
+        student_idx = answers[i] if i < len(answers) else None
+        correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
+        is_correct = student_idx == correct_idx
+        is_review = bool(q.get("_is_review"))
+
+        all_correct += int(is_correct)
+        if not is_review:
+            lesson_total += 1
+            lesson_correct += int(is_correct)
+
+        result_details.append(
+            {
+                "question": q.get("question", ""),
+                "hint": q.get("hint", ""),
+                "student_answer_index": student_idx,
+                "correct_answer_index": correct_idx,
+                "is_correct": is_correct,
+                "is_review": is_review,
+                "options": [
+                    {
+                        "index": j,
+                        "text": o.get("text", ""),
+                        "is_correct": bool(o.get("isCorrect")),
+                        "rationale": o.get("rationale", ""),
+                    }
+                    for j, o in enumerate(opts)
+                ],
+            }
+        )
+
+        # [P2#11] Track FSRS review updates (deferred to save_results)
+        if is_review and q.get("_fsrs_item"):
+            fsrs_review_updates.append((q["_fsrs_item"], is_correct))
+        # Track new wrong items (non-review only, avoids lesson_id misattribution)
+        elif not is_correct and correct_idx is not None:
+            fsrs_wrong_items.append(
+                {
+                    "q": q.get("question", ""),
+                    "correct": opts[correct_idx].get("text", ""),
+                    "fsrs_state": new_card_state(),
+                }
+            )
+
+    lesson_score = round(lesson_correct / lesson_total * 100) if lesson_total else 0
+    display_score = round(all_correct / len(reshuffled) * 100) if reshuffled else 0
+    return lesson_score, display_score, result_details, fsrs_wrong_items, fsrs_review_updates
+
+
+def route_start(state: dict) -> Command[Literal["reading", "challenge_quiz"]]:
+    """Score-gated session routing: scaffold (<46%) / normal (46-81%) / challenge (>81%)."""
     lesson: GeneralLesson = state["lesson"]
     retry_hint: list = []
+    session_mode = "normal"
+
     try:
         prior = get_db().get_last_session_for_lesson(state["project"]["id"], lesson.id)
-        if prior and prior.get("quiz_score", 100) < 60:
-            reshuffled = _get_valid_reshuffled_quiz(lesson.quiz_json or [], lesson.id)
-            saved = prior.get("quiz_answers", [])
-            for i, q in enumerate(reshuffled):
-                opts = q.get("answerOptions", [])
-                student_idx = saved[i] if i < len(saved) else None
-                correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
-                if student_idx != correct_idx and correct_idx is not None:
-                    retry_hint.append(
-                        {
-                            "question": q.get("question", ""),
-                            "correct_answer": opts[correct_idx].get("text", ""),
-                        }
-                    )
+        if prior:
+            score = prior.get("quiz_score", 50)
+            if score < 46:
+                session_mode = "scaffold"
+            elif score > 81:
+                session_mode = "challenge"
+            else:
+                session_mode = "normal"
+
+            # Compute retry_hint for scaffold/normal modes
+            if session_mode != "challenge" and score < 60:
+                reshuffled = _get_valid_reshuffled_quiz(lesson.quiz_json or [], lesson.id)
+                saved = prior.get("quiz_answers", [])
+                for i, q in enumerate(reshuffled):
+                    opts = q.get("answerOptions", [])
+                    student_idx = saved[i] if i < len(saved) else None
+                    correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
+                    if student_idx != correct_idx and correct_idx is not None:
+                        retry_hint.append(
+                            {
+                                "question": q.get("question", ""),
+                                "correct_answer": opts[correct_idx].get("text", ""),
+                            }
+                        )
     except Exception:
         _logger.warning("route_start: failed to load prior session", exc_info=True)
-    return {"phase": "reading", "retry_hint": retry_hint}
+
+    goto: Literal["reading", "challenge_quiz"] = (
+        "challenge_quiz" if session_mode == "challenge" else "reading"
+    )
+    return Command(
+        goto=goto,
+        update={
+            "phase": "reading",
+            "session_mode": session_mode,
+            "retry_hint": retry_hint,
+            # [P1#4] Initialize ALL new state fields
+            "metacog_question": None,
+            "metacog_feedback": "",
+            "review_questions_cache": [],
+            "fsrs_review_updates": [],
+        },
+    )
 
 
 def reading_session(state: dict) -> dict:
