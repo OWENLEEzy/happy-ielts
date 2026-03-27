@@ -1,4 +1,5 @@
 import threading
+from datetime import UTC
 
 from fsrs import Card, Rating, Scheduler
 
@@ -40,3 +41,17 @@ def serialize_card(card: Card) -> dict:
 
 def deserialize_card(data: dict) -> Card:
     return Card.from_dict(data)  # type: ignore[arg-type]
+
+
+def is_due(fsrs_state: dict) -> bool:
+    """Return True if the card is due for review (or has no scheduled date)."""
+    from datetime import datetime
+
+    due_str = fsrs_state.get("due", "")
+    if not due_str:
+        return True
+    try:
+        due_dt = datetime.fromisoformat(due_str)
+        return due_dt <= datetime.now(UTC)
+    except (ValueError, TypeError):
+        return True

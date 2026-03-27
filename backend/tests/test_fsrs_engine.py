@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 
 from backend.fsrs_engine import (
     map_answer_to_rating,
@@ -45,3 +45,38 @@ def test_map_answer_to_rating():
     assert map_answer_to_rating(True, 20.0) == Rating.Hard
     assert map_answer_to_rating(True, 10.0) == Rating.Good
     assert map_answer_to_rating(True, 2.0) == Rating.Easy
+
+
+# ---------------------------------------------------------------------------
+# is_due
+# ---------------------------------------------------------------------------
+
+
+def test_is_due_past_due_date():
+    from datetime import datetime
+
+    from backend.fsrs_engine import is_due
+
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    assert is_due({"due": past}) is True
+
+
+def test_is_due_future_date():
+    from datetime import datetime
+
+    from backend.fsrs_engine import is_due
+
+    future = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    assert is_due({"due": future}) is False
+
+
+def test_is_due_no_due_field():
+    from backend.fsrs_engine import is_due
+
+    assert is_due({}) is True
+
+
+def test_is_due_invalid_date():
+    from backend.fsrs_engine import is_due
+
+    assert is_due({"due": "not-a-date"}) is True
