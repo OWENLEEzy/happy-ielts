@@ -233,6 +233,7 @@ def test_quiz_session_skips_all_legacy_quiz():
         "quiz_score": 0,
         "phase": "free_qa",
         "fsrs_wrong_items": [],
+        "fsrs_review_updates": [],
     }
     types = [e.get("type") for e in events]
     assert "quiz_skipped" in types

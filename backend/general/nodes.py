@@ -228,7 +228,13 @@ def quiz_session(state: dict) -> dict:
         _logger.warning("quiz_session: no valid questions for lesson %d — skipping quiz", lesson.id)
         writer = get_stream_writer()
         writer({"type": "quiz_skipped", "reason": "content_updating", "lesson_id": lesson.id})
-        return {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa", "fsrs_wrong_items": []}
+        return {
+            "quiz_answers": [],
+            "quiz_score": 0,
+            "phase": "free_qa",
+            "fsrs_wrong_items": [],
+            "fsrs_review_updates": [],
+        }
 
     # answer_format documents the expected shape of the resume payload:
     #   {"type": "answers", "answers": [<int index 0-based>, ...]}
@@ -242,60 +248,27 @@ def quiz_session(state: dict) -> dict:
     action = interrupt(interrupt_data)
 
     answers = action.get("answers", [])
-    # Grade against reshuffled — answers are indices into the per-session layout.
-    score = _auto_grade(reshuffled, answers)
-
-    # Push result immediately so the student sees score + per-question feedback.
-    # Each detail includes rationale for ALL options so students understand why
-    # wrong answers are wrong — not just which answer was correct.
-    result_details = []
-    for i, q in enumerate(reshuffled):
-        opts = q.get("answerOptions", [])
-        student_idx = answers[i] if i < len(answers) else None
-        correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
-        result_details.append(
-            {
-                "question": q.get("question", ""),
-                "hint": q.get("hint", ""),
-                "student_answer_index": student_idx,
-                "correct_answer_index": correct_idx,
-                "is_correct": student_idx == correct_idx,
-                "options": [
-                    {
-                        "index": j,
-                        "text": o.get("text", ""),
-                        "is_correct": bool(o.get("isCorrect")),
-                        "rationale": o.get("rationale", ""),
-                    }
-                    for j, o in enumerate(opts)
-                ],
-            }
-        )
-    writer = get_stream_writer()
-    writer(
-        {"type": "quiz_result", "score": score, "total": len(reshuffled), "details": result_details}
+    lesson_score, display_score, result_details, fsrs_wrong_items, _ = _grade_and_build_details(
+        reshuffled, answers
     )
 
-    # Track wrong answers for FSRS spaced-repetition.
-    fsrs_wrong_items: list = []
-    for i, q in enumerate(reshuffled):
-        opts = q.get("answerOptions", [])
-        student_idx = answers[i] if i < len(answers) else None
-        correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
-        if student_idx != correct_idx and correct_idx is not None:
-            fsrs_wrong_items.append(
-                {
-                    "q": q.get("question", ""),
-                    "correct": opts[correct_idx].get("text", ""),
-                    "fsrs_state": new_card_state(),
-                }
-            )
+    writer = get_stream_writer()
+    writer(
+        {
+            "type": "quiz_result",
+            "lesson_score": lesson_score,
+            "display_score": display_score,
+            "total": len(reshuffled),
+            "details": result_details,
+        }
+    )
 
     return {
         "quiz_answers": answers,
-        "quiz_score": score,
+        "quiz_score": lesson_score,  # [P0#3] lesson-only score for routing
         "phase": "free_qa",
         "fsrs_wrong_items": fsrs_wrong_items,
+        "fsrs_review_updates": [],
     }
 
 
@@ -387,9 +360,13 @@ async def save_results(state: dict) -> dict:
     except Exception as exc:
         _logger.error("save_results: failed to save general session: %s", exc)
 
-    # Persist FSRS states for wrong quiz answers.
+    # Persist FSRS state changes in a single read-modify-write.
+    # Combining wrong items (new cards) and review updates (existing cards) avoids
+    # a stale-read bug: if done in two separate writes, the second read sees pre-first-write
+    # state and overwrites the first write's new wrong items.
     wrong = state.get("fsrs_wrong_items", [])
-    if wrong:
+    review_updates: list = state.get("fsrs_review_updates", [])
+    if wrong or review_updates:
         try:
             existing = db.get_general_student_model_full(state["project"]["id"])
             if existing:
@@ -411,29 +388,7 @@ async def save_results(state: dict) -> dict:
                         }
                     else:
                         by_key[key] = {"lesson_id": lesson_id, **w}
-                db.save_general_student_model(
-                    state["project"]["id"],
-                    existing.model_copy(
-                        update={
-                            "fsrs_due": list(by_key.values()),
-                            "updated": date.today().isoformat(),
-                        }
-                    ),
-                )
-        except Exception as exc:
-            _logger.error("save_results: failed to persist FSRS wrong items: %s", exc)
-
-    # [P2#11] Process deferred FSRS review updates from challenge_quiz
-    review_updates: list = state.get("fsrs_review_updates", [])
-    if review_updates:
-        try:
-            existing = db.get_general_student_model_full(state["project"]["id"])
-            if existing:
-                by_key = {
-                    (item["lesson_id"], item["q"]): item
-                    for item in existing.fsrs_due
-                    if isinstance(item, dict) and "lesson_id" in item and "q" in item
-                }
+                # [P2#11] Apply deferred FSRS review updates from challenge_quiz
                 for fsrs_item, is_correct in review_updates:
                     key = (fsrs_item.get("lesson_id"), fsrs_item.get("q"))
                     if key in by_key:
@@ -454,8 +409,8 @@ async def save_results(state: dict) -> dict:
                         }
                     ),
                 )
-        except Exception:
-            _logger.warning("save_results: FSRS review update failed", exc_info=True)
+        except Exception as exc:
+            _logger.error("save_results: failed to persist FSRS items: %s", exc)
 
     writer = get_stream_writer()
     writer({"type": "done", "project_id": state["project"]["id"]})

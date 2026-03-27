@@ -56,16 +56,35 @@ class UpdateProfileRequest(BaseModel):
 
 
 @asynccontextmanager
+async def _make_checkpointer(max_size: int = 5):
+    """Yield a LangGraph checkpointer. Uses AsyncPostgresSaver when DATABASE_URL is set,
+    falls back to AsyncSqliteSaver otherwise (state lost on process restart)."""
+    database_url = os.environ.get("DATABASE_URL", "")
+    if database_url:
+        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+        from psycopg_pool import AsyncConnectionPool
+
+        async with AsyncConnectionPool(conninfo=database_url, max_size=max_size, open=True) as pool:
+            saver = AsyncPostgresSaver(pool)
+            await saver.setup()
+            yield saver
+    else:
+        _logger.warning(
+            "DATABASE_URL not set — using SQLite checkpointer (state lost on restart). "
+            "Set DATABASE_URL on Render to enable persistent PostgreSQL checkpoints."
+        )
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+        async with AsyncSqliteSaver.from_conn_string("checkpoints.sqlite3") as saver:
+            yield saver
+
+
+@asynccontextmanager
 async def lifespan(app: FastAPI):
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
-    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-    from psycopg_pool import AsyncConnectionPool
 
-    database_url = os.environ.get("DATABASE_URL", "")
-    async with AsyncConnectionPool(conninfo=database_url, max_size=5, open=True) as pool:
-        cp = AsyncPostgresSaver(pool)
-        await cp.setup()
+    async with _make_checkpointer(max_size=5) as cp:
         app.state.checkpointer = cp
 
         scheduler = AsyncIOScheduler()
@@ -158,15 +177,9 @@ async def run_planner():
         _planner_state[today] = {"status": "running", "error": None}
 
     async def _run_planner() -> None:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        from psycopg_pool import AsyncConnectionPool
-
         from backend.planner.agent import get_planner, get_planner_config
 
-        database_url = os.environ.get("DATABASE_URL", "")
-        async with AsyncConnectionPool(conninfo=database_url, max_size=2, open=True) as pool:
-            cp = AsyncPostgresSaver(pool)
-            await cp.setup()
+        async with _make_checkpointer(max_size=2) as cp:
             planner = get_planner(cp)
             config = get_planner_config(thread_suffix)
             await planner.ainvoke(  # type: ignore[attr-defined]
