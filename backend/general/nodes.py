@@ -326,3 +326,23 @@ async def save_results(state: dict) -> dict:
     writer = get_stream_writer()
     writer({"type": "done", "project_id": state["project"]["id"]})
     return {"phase": "done"}
+
+
+# ---------------------------------------------------------------------------
+# Adaptive nodes (stubs — implemented in Tasks 6-8)
+# ---------------------------------------------------------------------------
+
+
+def scaffold_quiz(state: dict) -> dict:
+    """Quiz for scaffold mode — stub, replaced in Task 6."""
+    raise NotImplementedError("scaffold_quiz not yet implemented")
+
+
+def challenge_quiz(state: dict) -> dict:
+    """Quiz for challenge mode — stub, replaced in Task 7."""
+    raise NotImplementedError("challenge_quiz not yet implemented")
+
+
+async def metacog_session(state: dict) -> dict:
+    """Metacognitive follow-up — stub, replaced in Task 8."""
+    raise NotImplementedError("metacog_session not yet implemented")
