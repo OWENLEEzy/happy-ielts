@@ -5,7 +5,7 @@ from datetime import date
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 
-from backend.database import get_db
+from backend.database import Database, get_db
 from backend.fsrs_engine import new_card_state, update_card
 from backend.general.notebooklm import get_nlm_client
 from backend.models import GeneralLesson
@@ -28,6 +28,34 @@ def _get_valid_reshuffled_quiz(quiz: list[dict], lesson_id: int) -> list[dict]:
         opts = list(q.get("answerOptions", []))
         rng.shuffle(opts)
         result.append({**q, "answerOptions": opts})
+    return result
+
+
+def _get_review_questions(fsrs_due: list[dict], db: Database, max_count: int = 3) -> list[dict]:
+    """Load FSRS-due items and reconstruct full MCQ question dicts.
+
+    Returns questions with _is_review=True and _fsrs_item=<original item>
+    so challenge_quiz can track FSRS state updates after grading.
+    """
+    from backend.fsrs_engine import is_due
+
+    due_items = [
+        item for item in fsrs_due if isinstance(item, dict) and is_due(item.get("fsrs_state", {}))
+    ]
+
+    result: list[dict] = []
+    for item in due_items[:max_count]:
+        lesson_id = item.get("lesson_id")
+        question_text = item.get("q", "")
+        if not lesson_id or not question_text:
+            continue
+        lesson = db.get_general_lesson(lesson_id)
+        if not lesson or not lesson.quiz_json:
+            continue
+        for q in lesson.quiz_json:
+            if q.get("question") == question_text:
+                result.append({**q, "_is_review": True, "_fsrs_item": item})
+                break
     return result
 
 

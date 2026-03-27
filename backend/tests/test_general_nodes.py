@@ -1,6 +1,7 @@
 """Tests for backend/general/nodes.py — _auto_grade and quiz_session logic."""
 
 import random
+from datetime import UTC, timedelta
 from unittest.mock import MagicMock, patch
 
 from backend.general.nodes import _auto_grade
@@ -403,6 +404,64 @@ def test_quiz_session_empty_items_on_perfect_score():
     ]
     result = _run_quiz_session_with_answers(lesson_id=7, quiz=single_opt_quiz, answers=[0])
     assert result.get("fsrs_wrong_items") == []
+
+
+# ---------------------------------------------------------------------------
+# _get_review_questions
+# ---------------------------------------------------------------------------
+
+
+def test_get_review_questions_returns_due_items():
+    from datetime import datetime
+
+    from backend.general.nodes import _get_review_questions
+
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    quiz_json = [_make_question(0, question="Q1?")]
+    lesson_mock = MagicMock()
+    lesson_mock.quiz_json = quiz_json
+    db_mock = MagicMock()
+    db_mock.get_general_lesson.return_value = lesson_mock
+
+    fsrs_due = [{"lesson_id": 1, "q": "Q1?", "correct": "opt_0", "fsrs_state": {"due": past}}]
+    result = _get_review_questions(fsrs_due, db_mock, max_count=3)
+    assert len(result) == 1
+    assert result[0]["question"] == "Q1?"
+    assert result[0].get("_is_review") is True
+    assert result[0].get("_fsrs_item") is not None
+
+
+def test_get_review_questions_skips_future_items():
+    from datetime import datetime
+
+    from backend.general.nodes import _get_review_questions
+
+    future = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+    db_mock = MagicMock()
+    fsrs_due = [{"lesson_id": 1, "q": "Q1?", "correct": "A", "fsrs_state": {"due": future}}]
+    result = _get_review_questions(fsrs_due, db_mock, max_count=3)
+    assert result == []
+
+
+def test_get_review_questions_respects_max_count():
+    from datetime import datetime
+
+    from backend.general.nodes import _get_review_questions
+
+    past = (datetime.now(UTC) - timedelta(days=1)).isoformat()
+    quiz_json = [_make_question(0, question="Q1?")]
+    lesson_mock = MagicMock()
+    lesson_mock.quiz_json = quiz_json
+    db_mock = MagicMock()
+    db_mock.get_general_lesson.return_value = lesson_mock
+
+    fsrs_due = [
+        {"lesson_id": 1, "q": "Q1?", "correct": "A", "fsrs_state": {"due": past}},
+        {"lesson_id": 1, "q": "Q1?", "correct": "A", "fsrs_state": {"due": past}},
+        {"lesson_id": 1, "q": "Q1?", "correct": "A", "fsrs_state": {"due": past}},
+    ]
+    result = _get_review_questions(fsrs_due, db_mock, max_count=2)
+    assert len(result) <= 2
 
 
 def test_quiz_session_total_matches_valid_count():
