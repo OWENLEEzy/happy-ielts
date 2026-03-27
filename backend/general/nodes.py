@@ -9,6 +9,7 @@ from langgraph.types import Command, interrupt
 from backend.database import Database, get_db
 from backend.fsrs_engine import new_card_state, update_card
 from backend.general.notebooklm import get_nlm_client
+from backend.llm import get_llm  # noqa: F401 — used in metacog_session
 from backend.models import GeneralLesson
 
 _logger = logging.getLogger(__name__)
@@ -180,7 +181,7 @@ def route_start(state: dict) -> Command[Literal["reading", "challenge_quiz"]]:
     )
 
 
-def reading_session(state: dict) -> dict:
+def reading_session(state: dict) -> Command[Literal["scaffold_quiz", "quiz"]]:
     lesson: GeneralLesson = state["lesson"]
     while True:
         # NOTE (HITL re-execution): on every resume this node re-runs from
@@ -198,7 +199,9 @@ def reading_session(state: dict) -> dict:
         action = interrupt(interrupt_data)
         if action.get("type") == "next":
             break
-    return {"phase": "quiz"}
+    mode = state.get("session_mode", "normal")
+    goto: Literal["scaffold_quiz", "quiz"] = "scaffold_quiz" if mode == "scaffold" else "quiz"
+    return Command(goto=goto, update={"phase": "quiz"})
 
 
 def quiz_session(state: dict) -> dict:
@@ -426,20 +429,259 @@ async def save_results(state: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Adaptive nodes (stubs — implemented in Tasks 6-8)
+# scaffold_quiz (Task 6)
 # ---------------------------------------------------------------------------
+
+# [P2#14] 10 growth mindset messages for variety
+_GROWTH_MINDSET_MESSAGES = [
+    "感到困难是正常的——你的大脑正在建立新的神经连接，下次一定比这次强！",
+    "每道答错的题都告诉你下次该加强哪里，这是最有价值的信息。",
+    "你只是还没掌握这部分内容。我们来看看哪里可以突破。",
+    "挣扎感说明你在真正学习，而不只是复习已知的东西。坚持住！",
+    "学习就像锻炼肌肉——感到吃力恰恰意味着你在变强。",
+    "犯错是大脑构建新连接的方式。每一次错误都让你离掌握更近一步。",
+    "进步不总是线性的。今天的困难是明天突破的基础。",
+    "最优秀的学习者不是不犯错的人，而是从错误中学到最多的人。",
+    "你选择了挑战自己，这本身就值得肯定。让我们一起找到突破口。",
+    "研究表明：感到「刚好有点难」的学习效果最好。你正在最佳学习区间里。",
+]
 
 
 def scaffold_quiz(state: dict) -> dict:
-    """Quiz for scaffold mode — stub, replaced in Task 6."""
-    raise NotImplementedError("scaffold_quiz not yet implemented")
+    """Quiz for scaffold mode (score < 46%): hints visible + growth mindset on low score."""
+    import random as _rnd
+
+    lesson: GeneralLesson = state["lesson"]
+    quiz = lesson.quiz_json or []
+    reshuffled = _get_valid_reshuffled_quiz(quiz, lesson.id)
+
+    if not reshuffled:
+        _logger.warning("scaffold_quiz: no valid questions for lesson %d", lesson.id)
+        writer = get_stream_writer()
+        writer({"type": "quiz_skipped", "reason": "content_updating", "lesson_id": lesson.id})
+        return {"quiz_answers": [], "quiz_score": 0, "phase": "free_qa", "fsrs_wrong_items": []}
+
+    # -- interrupt: all code above is idempotent --
+    interrupt_data = {
+        "type": "quiz",
+        "questions": reshuffled,
+        "answer_format": "option_index",
+        "hints_visible": True,  # scaffold: show hints
+    }
+    writer = get_stream_writer()
+    writer(interrupt_data)
+    action = interrupt(interrupt_data)
+
+    answers = action.get("answers", [])
+    lesson_score, display_score, result_details, fsrs_wrong_items, _ = _grade_and_build_details(
+        reshuffled, answers
+    )
+
+    growth_message = _rnd.choice(_GROWTH_MINDSET_MESSAGES) if lesson_score < 46 else None
+
+    writer = get_stream_writer()
+    writer(
+        {
+            "type": "quiz_result",
+            "lesson_score": lesson_score,
+            "display_score": display_score,
+            "total": len(reshuffled),
+            "details": result_details,
+            "growth_mindset_message": growth_message,
+        }
+    )
+
+    return {
+        "quiz_answers": answers,
+        "quiz_score": lesson_score,  # [P0#3] lesson-only score for routing
+        "phase": "free_qa",
+        "fsrs_wrong_items": fsrs_wrong_items,
+    }
+
+
+# ---------------------------------------------------------------------------
+# challenge_quiz (Task 7)
+# ---------------------------------------------------------------------------
 
 
 def challenge_quiz(state: dict) -> dict:
-    """Quiz for challenge mode — stub, replaced in Task 7."""
-    raise NotImplementedError("challenge_quiz not yet implemented")
+    """Quiz for challenge mode (score > 81%): no hints, FSRS interleaving, metacog follow-up.
+
+    [P0#1] Uses review_questions_cache for HITL idempotency. On first run, loads
+    review questions from DB and returns them in state for checkpoint persistence.
+    On resume (re-execution), reads from cache instead of re-querying.
+    """
+    lesson: GeneralLesson = state["lesson"]
+    quiz = lesson.quiz_json or []
+    reshuffled = _get_valid_reshuffled_quiz(quiz, lesson.id)
+
+    # [P0#1] HITL-safe: use cached review questions if available
+    review_qs: list[dict] = state.get("review_questions_cache") or []
+    if not review_qs:
+        try:
+            db = get_db()  # [P2#17] single db reference
+            existing = db.get_general_student_model_full(state["project"]["id"])
+            fsrs_due = existing.fsrs_due if existing else []
+            review_qs = _get_review_questions(fsrs_due, db, max_count=3)
+        except Exception:
+            _logger.warning("challenge_quiz: failed to load FSRS review questions", exc_info=True)
+
+    # Interleave review questions evenly (every 3rd question)
+    combined: list[dict] = []
+    review_iter = iter(review_qs)
+    for i, q in enumerate(reshuffled):
+        combined.append(q)
+        if (i + 1) % 3 == 0:
+            review_q = next(review_iter, None)
+            if review_q:
+                combined.append(review_q)
+    for review_q in review_iter:
+        combined.append(review_q)
+    reshuffled = combined
+
+    if not reshuffled:
+        _logger.warning("challenge_quiz: no questions for lesson %d", lesson.id)
+        writer = get_stream_writer()
+        writer({"type": "quiz_skipped", "reason": "content_updating", "lesson_id": lesson.id})
+        return {
+            "quiz_answers": [],
+            "quiz_score": 0,
+            "phase": "metacog",
+            "fsrs_wrong_items": [],
+            "metacog_question": None,
+            "review_questions_cache": [],
+            "fsrs_review_updates": [],
+        }
+
+    # [P0#2] Strip internal fields before sending to frontend
+    clean_questions = [{k: v for k, v in q.items() if not k.startswith("_")} for q in reshuffled]
+
+    # -- interrupt: deterministic shuffle + cached review Qs = idempotent --
+    interrupt_data = {
+        "type": "quiz",
+        "questions": clean_questions,  # [P0#2] no _is_review/_fsrs_item leak
+        "answer_format": "option_index",
+        "hints_visible": False,  # challenge: hide hints
+    }
+    writer = get_stream_writer()
+    writer(interrupt_data)
+    action = interrupt(interrupt_data)
+
+    answers = action.get("answers", [])
+    lesson_score, display_score, result_details, fsrs_wrong_items, fsrs_review_updates = (
+        _grade_and_build_details(reshuffled, answers)
+    )
+
+    # Pick first correct non-review answer for metacog follow-up
+    metacog_question: dict | None = None
+    for i, q in enumerate(reshuffled):
+        if not q.get("_is_review"):
+            opts = q.get("answerOptions", [])
+            student_idx = answers[i] if i < len(answers) else None
+            correct_idx = next((j for j, o in enumerate(opts) if o.get("isCorrect")), None)
+            if student_idx == correct_idx and correct_idx is not None:
+                metacog_question = {
+                    "question": q.get("question", ""),
+                    "correct_answer": opts[correct_idx].get("text", ""),
+                }
+                break
+
+    writer = get_stream_writer()
+    writer(
+        {
+            "type": "quiz_result",
+            "lesson_score": lesson_score,
+            "display_score": display_score,
+            "total": len(reshuffled),
+            "details": result_details,
+        }
+    )
+
+    return {
+        "quiz_answers": answers,
+        "quiz_score": lesson_score,  # [P0#3] lesson-only for routing
+        "phase": "metacog",
+        "fsrs_wrong_items": fsrs_wrong_items,
+        "metacog_question": metacog_question,
+        "metacog_feedback": "",  # reset for metacog_session
+        "review_questions_cache": review_qs,  # [P0#1] persist for HITL checkpoint
+        "fsrs_review_updates": fsrs_review_updates,  # [P2#11] deferred to save_results
+    }
+
+
+# ---------------------------------------------------------------------------
+# metacog_session (Task 8)
+# ---------------------------------------------------------------------------
 
 
 async def metacog_session(state: dict) -> dict:
-    """Metacognitive follow-up — stub, replaced in Task 8."""
-    raise NotImplementedError("metacog_session not yet implemented")
+    """Challenge mode metacognitive follow-up: ask student to explain a correct answer.
+
+    [P1#6] Uses metacog_feedback (not metacog_answered) as idempotency guard.
+    If metacog_feedback already has a value, the node was already completed in a
+    prior execution and we skip. This works because the feedback string is persisted
+    in the checkpoint after the node returns.
+
+    Note: uses raw llm.ainvoke() intentionally — output is free-form feedback text,
+    not structured data. with_structured_output() would add unnecessary constraint.
+    """
+    # [P1#6] Real idempotency guard: skip if feedback already generated
+    existing_feedback = state.get("metacog_feedback", "")
+    if existing_feedback:
+        return {"metacog_feedback": existing_feedback}
+
+    metacog_question = state.get("metacog_question")
+    if not metacog_question:
+        return {"metacog_feedback": ""}
+
+    writer = get_stream_writer()
+    writer(
+        {
+            "type": "metacog_prompt",
+            "question": metacog_question["question"],
+            "correct_answer": metacog_question["correct_answer"],
+            "prompt": (
+                f"你刚才正确回答了这道题：「{metacog_question['question']}」\n"
+                f"正确答案是：「{metacog_question['correct_answer']}」\n"
+                "请用自己的话解释一下，为什么这个答案是正确的？"
+            ),
+        }
+    )
+
+    action = interrupt({"type": "metacog_prompt"})
+    explanation = action.get("explanation", "")
+
+    feedback = ""
+    if explanation:
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        llm = get_llm()
+        messages = [
+            SystemMessage(
+                content=(
+                    "你是一位鼓励型学习教练。学生刚答对了一道测验题，"
+                    "现在解释了为什么答案正确。"
+                    "给出2-3句话的反馈：确认理解正确的部分，补充他们可能遗漏的关键点。"
+                    "语气积极温暖，使用中文。不要超过3句话。"
+                )
+            ),
+            HumanMessage(
+                content=(
+                    f"题目：{metacog_question['question']}\n"
+                    f"正确答案：{metacog_question['correct_answer']}\n"
+                    f"学生的解释：{explanation}"
+                )
+            ),
+        ]
+        try:
+            response = await llm.ainvoke(messages)
+            feedback = str(response.content)
+        except Exception as exc:
+            _logger.warning("metacog_session: LLM call failed: %s", exc)
+            # [P2#15] Neutral fallback — don't give false positive when LLM unavailable
+            feedback = "反馈生成暂时不可用，你的解释已记录。继续加油！"
+
+    writer = get_stream_writer()
+    writer({"type": "metacog_feedback", "feedback": feedback, "explanation": explanation})
+
+    return {"metacog_feedback": feedback}

@@ -466,6 +466,51 @@ def test_quiz_session_empty_items_on_perfect_score():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# reading_session Command routing (Task 5)
+# ---------------------------------------------------------------------------
+
+
+def test_reading_routes_to_scaffold_quiz_in_scaffold_mode():
+    from langgraph.types import Command
+
+    from backend.general.nodes import reading_session
+
+    lesson = _make_lesson()
+    lesson.study_guide = "guide"
+    lesson.title = "T"
+    state = {"lesson": lesson, "session_mode": "scaffold", "retry_hint": []}
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=MagicMock()),
+        patch("backend.general.nodes.interrupt", return_value={"type": "next"}),
+    ):
+        result = reading_session(state)
+
+    assert isinstance(result, Command)
+    assert result.goto == "scaffold_quiz"
+
+
+def test_reading_routes_to_quiz_in_normal_mode():
+    from langgraph.types import Command
+
+    from backend.general.nodes import reading_session
+
+    lesson = _make_lesson()
+    lesson.study_guide = "guide"
+    lesson.title = "T"
+    state = {"lesson": lesson, "session_mode": "normal", "retry_hint": []}
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=MagicMock()),
+        patch("backend.general.nodes.interrupt", return_value={"type": "next"}),
+    ):
+        result = reading_session(state)
+
+    assert isinstance(result, Command)
+    assert result.goto == "quiz"
+
+
 def test_get_review_questions_returns_due_items():
     from datetime import datetime
 
@@ -620,3 +665,219 @@ def test_grade_review_correct_tracks_fsrs_update():
     _, _, _, _, reviews = _grade_and_build_details([review_q], [0])
     assert len(reviews) == 1
     assert reviews[0][1] is True  # is_correct=True
+
+
+# ---------------------------------------------------------------------------
+# scaffold_quiz (Task 6)
+# ---------------------------------------------------------------------------
+
+
+def _run_scaffold_quiz(lesson_id: int, quiz: list, answers: list) -> tuple[list, dict]:
+    """Run scaffold_quiz with given answers; returns (events, result)."""
+    lesson = _make_lesson(lesson_id=lesson_id, quiz=quiz)
+    state = {"lesson": lesson}
+    emitted: list = []
+    mock_writer = MagicMock(side_effect=lambda d: emitted.append(d))
+
+    def fake_interrupt(_data):
+        return {"type": "answers", "answers": answers}
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=mock_writer),
+        patch("backend.general.nodes.interrupt", side_effect=fake_interrupt),
+    ):
+        from backend.general import nodes
+
+        result = nodes.scaffold_quiz(state)
+
+    return emitted, result
+
+
+def test_scaffold_quiz_emits_hints_visible_flag():
+    """scaffold_quiz sends hints_visible=True in the quiz SSE event."""
+    quiz = [_make_quiz_q(correct_idx=0)]
+    emitted, _ = _run_scaffold_quiz(lesson_id=1, quiz=quiz, answers=[0])
+    quiz_event = next((e for e in emitted if e.get("type") == "quiz"), None)
+    assert quiz_event is not None
+    assert quiz_event.get("hints_visible") is True
+
+
+def test_scaffold_quiz_injects_growth_mindset_on_low_score():
+    """scaffold_quiz adds growth_mindset_message when lesson_score < 46."""
+    quiz = [_make_quiz_q(correct_idx=0) for _ in range(3)]
+    # Empty answers → all unanswered → all wrong → score = 0 < 46
+    emitted, _ = _run_scaffold_quiz(lesson_id=1, quiz=quiz, answers=[])
+    result_event = next((e for e in emitted if e.get("type") == "quiz_result"), None)
+    assert result_event is not None
+    assert result_event.get("growth_mindset_message") is not None
+    assert result_event.get("lesson_score", 100) < 46
+
+
+# ---------------------------------------------------------------------------
+# challenge_quiz (Task 7)
+# ---------------------------------------------------------------------------
+
+
+def _run_challenge_quiz(
+    lesson_id: int,
+    quiz: list,
+    answers: list,
+    review_cache: list | None = None,
+    project_id: int = 1,
+) -> tuple[list, dict]:
+    """Run challenge_quiz with given answers; returns (events, result)."""
+    lesson = _make_lesson(lesson_id=lesson_id, quiz=quiz)
+    state = {
+        "lesson": lesson,
+        "project": {"id": project_id},
+        "review_questions_cache": review_cache if review_cache is not None else [],
+    }
+    emitted: list = []
+    mock_writer = MagicMock(side_effect=lambda d: emitted.append(d))
+
+    def fake_interrupt(_data):
+        return {"type": "answers", "answers": answers}
+
+    mock_db = MagicMock()
+    mock_db.get_general_student_model_full.return_value = None
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=mock_writer),
+        patch("backend.general.nodes.interrupt", side_effect=fake_interrupt),
+        patch("backend.general.nodes.get_db", return_value=mock_db),
+    ):
+        from backend.general import nodes
+
+        result = nodes.challenge_quiz(state)
+
+    return emitted, result
+
+
+def test_challenge_quiz_hides_hints():
+    """challenge_quiz sends hints_visible=False in the quiz SSE event."""
+    quiz = [_make_quiz_q(correct_idx=0)]
+    emitted, _ = _run_challenge_quiz(lesson_id=1, quiz=quiz, answers=[0])
+    quiz_event = next((e for e in emitted if e.get("type") == "quiz"), None)
+    assert quiz_event is not None
+    assert quiz_event.get("hints_visible") is False
+
+
+def test_challenge_quiz_strips_internal_fields_from_sse():
+    """[P0#2] _is_review and _fsrs_item must not leak to frontend via SSE."""
+    review_q = {**_make_quiz_q(0), "_is_review": True, "_fsrs_item": {"lesson_id": 99}}
+    quiz = [_make_quiz_q(correct_idx=0)]
+    emitted, _ = _run_challenge_quiz(
+        lesson_id=1, quiz=quiz, answers=[0, 0], review_cache=[review_q]
+    )
+    quiz_event = next((e for e in emitted if e.get("type") == "quiz"), None)
+    assert quiz_event is not None
+    for q in quiz_event.get("questions", []):
+        assert "_is_review" not in q
+        assert "_fsrs_item" not in q
+
+
+def test_challenge_quiz_sets_metacog_question_on_correct_answer():
+    """challenge_quiz picks metacog_question from first correct non-review answer."""
+    # Single-option quiz: idx=0 is always correct regardless of shuffle
+    single_opt = [
+        {"question": "Why?", "hint": "", "answerOptions": [{"text": "A", "isCorrect": True}]}
+    ]
+    _, result = _run_challenge_quiz(lesson_id=1, quiz=single_opt, answers=[0])
+    assert result.get("metacog_question") is not None
+    assert result["metacog_question"]["question"] == "Why?"
+    assert result["metacog_question"]["correct_answer"] == "A"
+
+
+def test_challenge_quiz_no_metacog_when_all_wrong():
+    """challenge_quiz sets metacog_question=None when all answers are wrong."""
+    quiz = [_make_quiz_q(correct_idx=0)]
+    # Empty answers → all unanswered → all wrong → no correct answer → no metacog
+    _, result = _run_challenge_quiz(lesson_id=1, quiz=quiz, answers=[])
+    assert result.get("metacog_question") is None
+
+
+def test_challenge_quiz_uses_cached_review_questions():
+    """[P0#1] When review_questions_cache is non-empty, DB must NOT be queried."""
+    review_cache = [
+        {**_make_quiz_q(0), "_is_review": True, "_fsrs_item": {"lesson_id": 5, "q": "Q?"}}
+    ]
+    quiz = [_make_quiz_q(correct_idx=0)]
+    lesson = _make_lesson(lesson_id=1, quiz=quiz)
+    state = {
+        "lesson": lesson,
+        "project": {"id": 1},
+        "review_questions_cache": review_cache,
+    }
+    emitted: list = []
+    mock_writer = MagicMock(side_effect=lambda d: emitted.append(d))
+    mock_db = MagicMock()
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=mock_writer),
+        patch("backend.general.nodes.interrupt", side_effect=lambda _d: {"answers": [0, 0]}),
+        patch("backend.general.nodes.get_db", return_value=mock_db),
+    ):
+        from backend.general import nodes
+
+        nodes.challenge_quiz(state)
+
+    mock_db.get_general_student_model_full.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# metacog_session (Task 8)
+# ---------------------------------------------------------------------------
+
+
+async def test_metacog_session_skips_when_no_question():
+    """metacog_session returns empty feedback when metacog_question is None."""
+    from backend.general.nodes import metacog_session
+
+    state = {"metacog_question": None, "metacog_feedback": ""}
+    result = await metacog_session(state)
+    assert result["metacog_feedback"] == ""
+
+
+async def test_metacog_session_skips_when_already_has_feedback():
+    """[P1#6] metacog_feedback is the idempotency guard — skip if already set."""
+    from backend.general.nodes import metacog_session
+
+    state = {
+        "metacog_question": {"question": "Q?", "correct_answer": "A"},
+        "metacog_feedback": "Already generated feedback",
+    }
+    result = await metacog_session(state)
+    assert result["metacog_feedback"] == "Already generated feedback"
+
+
+async def test_metacog_session_emits_prompt_and_feedback():
+    """metacog_session emits metacog_prompt then metacog_feedback events."""
+    from unittest.mock import AsyncMock
+
+    from backend.general.nodes import metacog_session
+
+    state = {
+        "metacog_question": {"question": "Q?", "correct_answer": "A"},
+        "metacog_feedback": "",
+    }
+    emitted: list = []
+    mock_writer = MagicMock(side_effect=lambda d: emitted.append(d))
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke.return_value = MagicMock(content="Good explanation!")
+
+    with (
+        patch("backend.general.nodes.get_stream_writer", return_value=mock_writer),
+        patch(
+            "backend.general.nodes.interrupt",
+            side_effect=lambda _d: {"explanation": "Because A is right"},
+        ),
+        patch("backend.general.nodes.get_llm", return_value=mock_llm),
+    ):
+        result = await metacog_session(state)
+
+    prompt_event = next((e for e in emitted if e.get("type") == "metacog_prompt"), None)
+    feedback_event = next((e for e in emitted if e.get("type") == "metacog_feedback"), None)
+    assert prompt_event is not None
+    assert feedback_event is not None
+    assert feedback_event["feedback"] == "Good explanation!"
+    assert result["metacog_feedback"] == "Good explanation!"
