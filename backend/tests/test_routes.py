@@ -158,7 +158,7 @@ def test_get_lesson_today_not_ready(client: TestClient):
     """Returns 404 when planner hasn't run yet."""
     mock_db = _mock_db(get_today_article=None, get_today_writing_task=None)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.get("/api/lesson/today")
+        r = client.get("/api/lessons/today")
     assert r.status_code == 404
 
 
@@ -166,7 +166,7 @@ def test_get_lesson_today_ready(client: TestClient):
     """Returns 200 with article and task when lesson is ready."""
     mock_db = _mock_db(get_today_article=SAMPLE_ARTICLE, get_today_writing_task=SAMPLE_TASK)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.get("/api/lesson/today")
+        r = client.get("/api/lessons/today")
     assert r.status_code == 200
     data = r.json()
     assert "article" in data
@@ -178,7 +178,7 @@ def test_get_lesson_today_article_without_task_returns_404(client: TestClient):
     """Returns 404 when article exists but task is missing."""
     mock_db = _mock_db(get_today_article=SAMPLE_ARTICLE, get_today_writing_task=None)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.get("/api/lesson/today")
+        r = client.get("/api/lessons/today")
     assert r.status_code == 404
 
 
@@ -189,7 +189,7 @@ def test_get_lesson_today_article_without_task_returns_404(client: TestClient):
 
 def test_onboarding_message_missing_message_field_returns_422(client: TestClient):
     """POST with body missing required 'message' field must return 422."""
-    r = client.post("/api/onboarding/message", json={})
+    r = client.post("/api/onboarding/messages", json={})
     assert r.status_code == 422
 
 
@@ -205,7 +205,7 @@ def test_onboarding_message_valid_body_accepted(client: TestClient):
     mock_agent.astream = _fake_astream
 
     with patch("backend.onboarding.agent.create_onboarding_agent", return_value=mock_agent):
-        r = client.post("/api/onboarding/message", json={"message": "Hello"})
+        r = client.post("/api/onboarding/messages", json={"message": "Hello"})
     assert r.status_code != 422
 
 
@@ -252,7 +252,7 @@ def test_planner_status_ready(client: TestClient):
 
 
 # ---------------------------------------------------------------------------
-# POST /api/onboarding/preferences
+# PATCH /api/onboarding/preferences
 # ---------------------------------------------------------------------------
 
 
@@ -260,7 +260,7 @@ def test_save_preferences_not_found(client: TestClient):
     """Returns 404 when no profile exists yet."""
     mock_db = _mock_db(get_user_profile=None)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.post(
+        r = client.patch(
             "/api/onboarding/preferences",
             json={"bandwidth_minutes": 30, "writing_mode": "professional"},
         )
@@ -271,7 +271,7 @@ def test_save_preferences_updates_profile(client: TestClient):
     """Returns 200 and calls upsert when profile exists."""
     mock_db = _mock_db(get_user_profile=SAMPLE_PROFILE)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.post(
+        r = client.patch(
             "/api/onboarding/preferences",
             json={"bandwidth_minutes": 45, "writing_mode": "ielts_task2"},
         )

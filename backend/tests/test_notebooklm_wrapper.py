@@ -11,7 +11,7 @@ def _make_client_ctx(
     *,
     notebook_id: str = "nb-abc",
     research_statuses: list[str] | None = None,
-    sources: list[str] | None = None,
+    sources: list[dict] | None = None,
     chat_answer: str = "test answer",
 ) -> MagicMock:
     """Build a mock async context-manager client."""
@@ -27,10 +27,13 @@ def _make_client_ctx(
 
     # research.poll → cycle through statuses
     statuses = research_statuses or ["completed"]
-    srcs = sources or ["http://example.com"]
+    srcs = sources or [{"title": "Example", "url": "http://example.com"}]
     poll_results = [{"status": s, "sources": srcs if s == "completed" else []} for s in statuses]
     c.research.poll = AsyncMock(side_effect=poll_results)
     c.research.import_sources = AsyncMock(return_value=None)
+
+    # sources.list → empty list by default (no pre-existing sources)
+    c.sources.list = AsyncMock(return_value=[])
 
     # chat.ask → object with .answer
     ans = MagicMock()
@@ -87,7 +90,7 @@ async def test_ask_save_as_note_logs_warning(caplog):
 async def test_add_research_completed_imports_sources():
     c = _make_client_ctx(
         research_statuses=["completed"],
-        sources=["http://a.com", "http://b.com"],
+        sources=[{"title": "A", "url": "http://a.com"}, {"title": "B", "url": "http://b.com"}],
     )
     with _patch_client(c):
         wrapper = NotebookLMWrapper()

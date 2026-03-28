@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import date
 from statistics import mean
@@ -77,5 +78,4 @@ async def run_reflect(project_id: int) -> None:
         _logger.info("Reflect: weak dimensions for project %d: %s", project_id, weak)
         from backend.general.researcher import run_targeted_research
 
-        for dim in weak:
-            await run_targeted_research(project_id, dim)
+        await asyncio.gather(*[run_targeted_research(project_id, dim) for dim in weak])

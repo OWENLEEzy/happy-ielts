@@ -1,13 +1,14 @@
 import json
 import os
-import sqlite3
 import threading
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
-from typing import Protocol
+from typing import Any, Protocol
 
 import psycopg2
+import psycopg2.extensions
 import psycopg2.extras
+import psycopg2.pool
 from pydantic import ValidationError
 
 from backend.models import (
@@ -26,10 +27,8 @@ from backend.models import (
     WritingTaskCreate,
 )
 
-_DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-
-def _safe_json(raw, fallback=None):
+def _safe_json(raw: "str | bytes | bytearray | None", fallback: Any = None) -> Any:
     """Decode a JSON string; return *fallback* on any parse error or empty input."""
     if not raw:
         return fallback
@@ -244,91 +243,50 @@ def get_db() -> "Database":
     return _instance
 
 
-class _SQLiteCursor:
-    """Thin wrapper that adapts a sqlite3 cursor to behave like a psycopg2 RealDictCursor.
-
-    Converts ``%s`` placeholders to ``?``, strips ``RETURNING id`` clauses (uses
-    ``lastrowid`` instead), and returns rows as plain ``dict`` objects.
-    """
-
-    def __init__(self, cur: sqlite3.Cursor) -> None:
-        self._cur = cur
-
-    def execute(self, sql: str, params: tuple = ()) -> "_SQLiteCursor":
-        sql = sql.replace("%s", "?")
-        self._had_returning = "RETURNING" in sql.upper()
-        sql = _strip_returning(sql)
-        self._cur.execute(sql, params)
-        return self
-
-    def fetchone(self) -> dict | None:
-        if getattr(self, "_had_returning", False):
-            return {"id": self._cur.lastrowid}
-        row = self._cur.fetchone()
-        return dict(row) if row else None
-
-    def fetchall(self) -> list[dict]:
-        return [dict(r) for r in self._cur.fetchall()]
-
-    @property
-    def lastrowid(self) -> int | None:
-        return self._cur.lastrowid
-
-    @property
-    def rowcount(self) -> int:
-        return self._cur.rowcount
-
-    def __getitem__(self, idx: int):  # type: ignore[return]
-        return self._cur.fetchall()[idx]
-
-
-def _strip_returning(sql: str) -> str:
-    """Remove ``RETURNING id`` from SQL for SQLite compatibility."""
-    import re
-
-    return re.sub(r"\s+RETURNING\s+\w+", "", sql, flags=re.IGNORECASE)
+def reset_db() -> None:
+    """Reset the singleton. For use in tests only."""
+    global _instance
+    _instance = None
 
 
 class Database:
-    def __init__(self, db_path: str | None = None) -> None:
-        self._lock = threading.Lock()
-        if db_path is not None:
-            # Test mode: SQLite in-memory or file
-            self._sqlite = True
-            self._conn_instance = sqlite3.connect(db_path, check_same_thread=False)
-            self._conn_instance.row_factory = sqlite3.Row
-        else:
-            self._sqlite = False
-            self._conn_instance = psycopg2.connect(_DATABASE_URL)
+    def __init__(self) -> None:
+        database_url = os.environ.get("DATABASE_URL", "")
+        if not database_url:
+            raise RuntimeError("DATABASE_URL environment variable is required")
+        self._pool = psycopg2.pool.ThreadedConnectionPool(1, 5, dsn=database_url)
         self._init_tables()
 
-    def _cur(self, conn):  # type: ignore[return]
-        if self._sqlite:
-            return _SQLiteCursor(conn.cursor())
-        return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    def _cur(self, conn: psycopg2.extensions.connection) -> psycopg2.extras.RealDictCursor:
+        return conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)  # type: ignore[return-value]
 
     @contextmanager
     def _conn(self):
-        with self._lock:
-            if self._sqlite:
-                yield self._conn_instance
-            else:
-                try:
-                    yield self._conn_instance
-                    self._conn_instance.commit()
-                except Exception:
-                    self._conn_instance.rollback()
-                    raise
+        conn = self._pool.getconn()
+        returned = False
+        try:
+            yield conn
+            conn.commit()
+        except psycopg2.OperationalError:
+            # Stale connection — discard so the pool creates a fresh one next time
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            self._pool.putconn(conn, close=True)
+            returned = True
+            raise
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            if not returned:
+                self._pool.putconn(conn)
 
     def _init_tables(self):
         with self._conn() as conn:
             cur = self._cur(conn)
-            create_sql = CREATE_TABLES
-            if self._sqlite:
-                create_sql = create_sql.replace(
-                    "SERIAL PRIMARY KEY", "INTEGER PRIMARY KEY AUTOINCREMENT"
-                )
-            for stmt in create_sql.split(";"):
+            for stmt in CREATE_TABLES.split(";"):
                 stmt = stmt.strip()
                 if stmt:
                     cur.execute(stmt)
@@ -637,7 +595,6 @@ class Database:
             )
             writing_scores = cur.fetchall()
 
-            # PostgreSQL JSON: unnest chinglish_flags array and extract issue field
             cur.execute(
                 """
                 SELECT elem->>'issue' as issue, COUNT(*) as cnt
@@ -652,7 +609,6 @@ class Database:
             cur.execute("SELECT COUNT(*) as cnt FROM vocab_items")
             vocab_total = cur.fetchone()["cnt"]  # type: ignore[index]
 
-            # PostgreSQL JSON: unnest topic_tags array
             cur.execute(
                 """
                 SELECT elem as topic, COUNT(*) as cnt

@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from backend.database import Database
 from backend.models import (
     DimensionState,
     GeneralStudentModel,
@@ -13,11 +12,6 @@ from backend.models import (
     LearningMap,
     UserGoalProfile,
 )
-
-
-@pytest.fixture
-def db(tmp_path):
-    return Database(str(tmp_path / "test.sqlite3"))
 
 
 def _make_profile() -> UserGoalProfile:
@@ -33,7 +27,7 @@ def _make_profile() -> UserGoalProfile:
     )
 
 
-def _setup_project(db: Database) -> tuple[int, int, int]:
+def _setup_project(db) -> tuple[int, int, int]:
     """Create project with 1-chapter map and two lessons. Returns (project_id, lid0, lid1)."""
     profile = _make_profile()
     lmap = LearningMap(
@@ -57,7 +51,7 @@ def _setup_project(db: Database) -> tuple[int, int, int]:
     return pid, lid0, lid1
 
 
-def _setup_two_chapter_project(db: Database) -> tuple[int, int, int]:
+def _setup_two_chapter_project(db) -> tuple[int, int, int]:
     """Create project with 2-chapter map and one lesson each. Returns (project_id, lid0, lid1)."""
     profile = _make_profile()
     lmap = LearningMap(

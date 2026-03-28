@@ -1,4 +1,5 @@
 import asyncio
+import hmac
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -25,6 +27,8 @@ from backend.models import (
     UserGoalProfile,
     WritingMode,
 )
+from backend.orchestrator import _planner_lock
+from backend.orchestrator import planner_state as _planner_state
 
 load_dotenv()
 
@@ -57,28 +61,20 @@ class UpdateProfileRequest(BaseModel):
 
 @asynccontextmanager
 async def _make_checkpointer(max_size: int = 5):
-    """Yield a LangGraph checkpointer. Uses AsyncPostgresSaver when DATABASE_URL is set,
-    falls back to AsyncSqliteSaver otherwise (state lost on process restart)."""
+    """Yield an AsyncPostgresSaver checkpointer backed by DATABASE_URL."""
     database_url = os.environ.get("DATABASE_URL", "")
-    if database_url:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        from psycopg_pool import AsyncConnectionPool
+    if not database_url:
+        raise RuntimeError("DATABASE_URL environment variable is required")
 
-        async with AsyncConnectionPool(
-            conninfo=database_url, max_size=max_size, open=True, kwargs={"autocommit": True}
-        ) as pool:
-            saver = AsyncPostgresSaver(pool)
-            await saver.setup()
-            yield saver
-    else:
-        _logger.warning(
-            "DATABASE_URL not set — using SQLite checkpointer (state lost on restart). "
-            "Set DATABASE_URL on Render to enable persistent PostgreSQL checkpoints."
-        )
-        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg_pool import AsyncConnectionPool
 
-        async with AsyncSqliteSaver.from_conn_string("checkpoints.sqlite3") as saver:
-            yield saver
+    async with AsyncConnectionPool(
+        conninfo=database_url, max_size=max_size, open=True, kwargs={"autocommit": True}
+    ) as pool:
+        saver = AsyncPostgresSaver(pool)
+        await saver.setup()
+        yield saver
 
 
 @asynccontextmanager
@@ -138,7 +134,7 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
         if not path.startswith("/api/") or path.startswith("/api/cron/"):
             return await call_next(request)
         key = request.headers.get("X-API-Key", "")
-        if key not in _API_KEYS:
+        if not any(hmac.compare_digest(key.encode(), v.encode()) for v in _API_KEYS):
             return JSONResponse({"detail": "Invalid API key"}, status_code=401)
         return await call_next(request)
 
@@ -146,8 +142,6 @@ class ApiKeyMiddleware(BaseHTTPMiddleware):
 app.add_middleware(ApiKeyMiddleware)
 
 # Shared planner state from orchestrator so both /run and orchestrator paths use same dict.
-from backend.orchestrator import _planner_lock  # noqa: E402
-from backend.orchestrator import planner_state as _planner_state  # noqa: E402
 
 # Hold strong references to fire-and-forget asyncio tasks to prevent GC before completion.
 _background_tasks: set[asyncio.Task] = set()
@@ -344,12 +338,12 @@ async def lesson_action(action: LessonActionRequest):
                 _background_tasks.add(task)
                 task.add_done_callback(_background_tasks.discard)
         except Exception:
-            pass  # Never block the SSE response for orchestrator errors
+            _logger.debug("Orchestrator task scheduling failed", exc_info=True)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 
 
-async def _trigger_orchestrator(_config, state_snapshot) -> None:
+async def _trigger_orchestrator(_config: RunnableConfig, state_snapshot: Any) -> None:
     """Build TutorHandoff from DB and fire Orchestrator."""
     from backend.database import get_db
     from backend.models import TutorHandoff
@@ -670,11 +664,11 @@ async def general_lesson_reextract(project_id: int, lesson_id: int):
     Useful when a lesson has degraded (fallback) content from a failed extraction.
     Runs asynchronously in the background; returns immediately.
     """
-    import asyncio as _asyncio
-
     from backend.general.extractor import reextract_lesson
 
-    _asyncio.create_task(reextract_lesson(project_id, lesson_id))
+    task = asyncio.create_task(reextract_lesson(project_id, lesson_id))
+    _background_tasks.add(task)
+    task.add_done_callback(_background_tasks.discard)
     return {"status": "reextract_started", "project_id": project_id, "lesson_id": lesson_id}
 
 
@@ -796,7 +790,7 @@ async def _run_reflect_background(project_id: int) -> None:
         _logger.error("Reflect failed for project %d: %s", project_id, e)
 
 
-async def _run_researcher(project_id: int, profile, learning_map):
+async def _run_researcher(project_id: int, profile: UserGoalProfile, learning_map: LearningMap):
     """Background task: researcher loop + extractor."""
     from backend.general.extractor import run_extractor
     from backend.general.researcher import run_researcher

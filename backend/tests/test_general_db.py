@@ -1,6 +1,5 @@
 import pytest
 
-from backend.database import Database
 from backend.models import (
     DimensionState,
     GeneralStudentModel,
@@ -9,11 +8,6 @@ from backend.models import (
     LearningMap,
     UserGoalProfile,
 )
-
-
-@pytest.fixture
-def db(tmp_path):
-    return Database(str(tmp_path / "test.sqlite3"))
 
 
 def test_create_and_get_project(db):

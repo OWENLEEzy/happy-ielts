@@ -1,10 +1,9 @@
 from datetime import date, datetime
 
-from backend.database import Database
 from backend.models import ArticleCreate, UserProfile, WritingSubmissionCreate, WritingTaskCreate
 
 
-def _seed_db(db: Database):
+def _seed_db(db):
     """Seed minimal data for stats queries."""
     db.upsert_user_profile(
         UserProfile(
@@ -48,8 +47,7 @@ def _seed_db(db: Database):
     return article_id
 
 
-def test_query_weekly_stats_returns_expected_keys(tmp_path):
-    db = Database(str(tmp_path / "test.sqlite3"))
+def test_query_weekly_stats_returns_expected_keys(db):
     _seed_db(db)
     stats = db.query_weekly_stats()
     assert "writing_scores" in stats
@@ -60,8 +58,7 @@ def test_query_weekly_stats_returns_expected_keys(tmp_path):
     assert stats["writing_scores"][0]["score"] == 7
 
 
-def test_get_article_for_date(tmp_path):
-    db = Database(str(tmp_path / "test.sqlite3"))
+def test_get_article_for_date(db):
     db.upsert_user_profile(
         UserProfile(
             goal="test",

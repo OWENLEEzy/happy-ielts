@@ -100,7 +100,7 @@ async def main() -> None:
         UserGoalProfile,
     )
 
-    db = Database(db_path)
+    db = Database()
 
     # ── Step 1: Create project + learning map + 2 lessons ────────────────────
     print("── Step 1: Seed project, learning map, and lessons ──")

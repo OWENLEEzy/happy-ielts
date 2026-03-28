@@ -69,7 +69,7 @@ def _mock_db(**method_returns) -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# POST /api/planner/run
+# POST /api/planner/jobs
 # ---------------------------------------------------------------------------
 
 
@@ -77,7 +77,7 @@ def test_run_planner_already_ready(client: TestClient):
     """Returns already_ready status when today's article already exists."""
     mock_db = _mock_db(get_today_article=SAMPLE_ARTICLE)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.post("/api/planner/run")
+        r = client.post("/api/planner/jobs")
     assert r.status_code == 200
     assert r.json()["status"] == "already_ready"
 
@@ -88,7 +88,7 @@ def test_run_planner_already_running(client: TestClient):
     _planner_state[today] = {"status": "running", "error": None}
     mock_db = _mock_db(get_today_article=None)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.post("/api/planner/run")
+        r = client.post("/api/planner/jobs")
     assert r.status_code == 200
     assert r.json()["status"] == "running"
     _planner_state.pop(today, None)
@@ -104,7 +104,7 @@ def test_run_planner_starts_new_thread(client: TestClient):
         patch("backend.database.get_db", return_value=mock_db),
         patch("threading.Thread", return_value=mock_thread_instance),
     ):
-        r = client.post("/api/planner/run")
+        r = client.post("/api/planner/jobs")
     assert r.status_code == 200
     assert r.json()["status"] == "started"
     mock_thread_instance.start.assert_called_once()
@@ -127,7 +127,7 @@ def test_onboarding_message_streams_token_when_agent_yields_content(client: Test
     mock_agent = MagicMock()
     mock_agent.astream = _fake_astream
     with patch("backend.onboarding.agent.create_onboarding_agent", return_value=mock_agent):
-        r = client.post("/api/onboarding/message", json={"message": "Hello"})
+        r = client.post("/api/onboarding/messages", json={"message": "Hello"})
     assert r.status_code == 200
     assert '"type": "token"' in r.text
     assert "[DONE]" in r.text
@@ -144,7 +144,7 @@ def test_onboarding_message_skips_empty_content(client: TestClient):
     mock_agent = MagicMock()
     mock_agent.astream = _fake_astream
     with patch("backend.onboarding.agent.create_onboarding_agent", return_value=mock_agent):
-        r = client.post("/api/onboarding/message", json={"message": "Hello"})
+        r = client.post("/api/onboarding/messages", json={"message": "Hello"})
     assert r.status_code == 200
     assert '"type": "token"' not in r.text
     assert "[DONE]" in r.text
@@ -164,7 +164,7 @@ def test_lesson_action_streams_graph_chunks(client: TestClient):
     mock_graph = MagicMock()
     mock_graph.astream = fake_astream
     with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
-        r = client.post("/api/lesson/action", json={"type": "done_reading"})
+        r = client.post("/api/lessons/today/actions", json={"type": "done_reading"})
     assert r.status_code == 200
     assert "review_question" in r.text
     assert "[DONE]" in r.text
@@ -180,7 +180,7 @@ def test_lesson_action_streams_done_when_graph_is_empty(client: TestClient):
     mock_graph = MagicMock()
     mock_graph.astream = fake_astream
     with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
-        r = client.post("/api/lesson/action", json={"type": "done_reading"})
+        r = client.post("/api/lessons/today/actions", json={"type": "done_reading"})
     assert r.status_code == 200
     assert "[DONE]" in r.text
 
@@ -200,7 +200,7 @@ def test_start_lesson_returns_409_when_checkpoint_has_pending_nodes(client: Test
     mock_state.tasks = []
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
     with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
-        r = client.post("/api/lesson/start")
+        r = client.post("/api/lessons/today/session")
     assert r.status_code == 409
     data = r.json()
     assert data["status"] == "already_started"
@@ -217,7 +217,7 @@ def test_start_lesson_409_includes_spaced_review_node(client: TestClient):
     mock_state.tasks = []
     mock_graph.aget_state = AsyncMock(return_value=mock_state)
     with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
-        r = client.post("/api/lesson/start")
+        r = client.post("/api/lessons/today/session")
     assert r.status_code == 409
     assert r.json()["next"] == ["spaced_review"]
 
@@ -232,7 +232,7 @@ def test_start_lesson_streams_initial_chunks(client: TestClient):
     mock_graph = MagicMock()
     mock_graph.astream = fake_astream
     with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
-        r = client.post("/api/lesson/start")
+        r = client.post("/api/lessons/today/session")
     assert r.status_code == 200
     assert "[DONE]" in r.text
     assert "loading" in r.text
@@ -250,7 +250,7 @@ def test_start_lesson_returns_409_when_checkpoint_metadata_has_next_empty(client
     mock_graph = MagicMock()
     mock_graph.astream = fake_astream
     with patch("backend.tutor.graph.get_tutor_graph", return_value=mock_graph):
-        r = client.post("/api/lesson/start")
+        r = client.post("/api/lessons/today/session")
     assert r.status_code == 200
 
 
@@ -302,7 +302,7 @@ def test_prepare_next_endpoint_triggers_planner(client: TestClient):
         patch("backend.database.get_db", return_value=mock_db),
         patch("backend.orchestrator._start_planner_thread"),
     ):
-        r = client.post("/api/planner/prepare-next")
+        r = client.post("/api/planner/jobs/next")
     assert r.status_code == 200
     data = r.json()
     assert data["status"] in ("started", "already_ready")
@@ -328,5 +328,5 @@ def test_prepare_next_skips_if_already_ready(client: TestClient):
     )
     mock_db = _mock_db(get_article_for_date=mock_article)
     with patch("backend.database.get_db", return_value=mock_db):
-        r = client.post("/api/planner/prepare-next")
+        r = client.post("/api/planner/jobs/next")
     assert r.json()["status"] == "already_ready"
