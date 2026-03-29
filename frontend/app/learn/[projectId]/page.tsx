@@ -4,7 +4,6 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
-import { GL } from '@/lib/learn-theme'
 import { client } from '@/lib/client'
 import type { components } from '@/types/api'
 
@@ -22,7 +21,7 @@ function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="rgba(201,168,76,0.12)"
+        stroke="rgba(109,40,217,0.12)"
         strokeWidth={3}
       />
       <circle
@@ -30,7 +29,7 @@ function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
         cy={size / 2}
         r={r}
         fill="none"
-        stroke={GL.amber}
+        stroke="var(--primary)"
         strokeWidth={3}
         strokeDasharray={`${dash} ${circ}`}
         strokeLinecap="round"
@@ -42,8 +41,9 @@ function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
         y={size / 2 + 5}
         textAnchor="middle"
         fontSize={size < 40 ? 9 : 11}
-        fontFamily="DM Mono, monospace"
-        fill={GL.amber}
+        fontFamily="Plus Jakarta Sans, sans-serif"
+        fontWeight={700}
+        fill="var(--primary)"
       >
         {Math.round(value * 100)}%
       </text>
@@ -52,25 +52,11 @@ function MasteryRing({ value, size = 48 }: { value: number; size?: number }) {
 }
 
 function TrendBadge({ trend }: { trend: DimensionState['trend'] }) {
-  if (trend === 'improving') {
-    return (
-      <span className="text-xs font-mono-dm" style={{ color: '#6fba8a' }}>
-        ↑ 进步中
-      </span>
-    )
-  }
-  if (trend === 'worsening') {
-    return (
-      <span className="text-xs font-mono-dm" style={{ color: '#ba6f6f' }}>
-        ↓ 需加强
-      </span>
-    )
-  }
-  return (
-    <span className="text-xs font-mono-dm" style={{ color: 'rgba(240,235,224,0.3)' }}>
-      — 稳定
-    </span>
-  )
+  if (trend === 'improving')
+    return <span className="text-xs font-bold font-label text-primary">↑ 进步中</span>
+  if (trend === 'worsening')
+    return <span className="text-xs font-bold font-label text-error">↓ 需加强</span>
+  return <span className="text-xs font-label text-on-surface-variant">— 稳定</span>
 }
 
 export default function ProjectDashboard() {
@@ -89,7 +75,6 @@ export default function ProjectDashboard() {
       .then(({ data }) => {
         if (!data) return
         setProject(data)
-        // Find first ready lesson to highlight
         for (const ch of data.chapters) {
           const first = ch.lessons.find((l) => l.status === 'ready')
           if (first) {
@@ -101,7 +86,6 @@ export default function ProjectDashboard() {
       .catch(() => {})
   }, [projectId])
 
-  // Fetch fsrs_due_count — API doesn't exist yet, silently fail
   useEffect(() => {
     fetch(`/api/learn/projects/${projectId}/review`)
       .then((res) => {
@@ -123,21 +107,20 @@ export default function ProjectDashboard() {
 
   if (!project) {
     return (
-      <div
-        className="min-h-screen flex items-center justify-center"
-        style={{ background: GL.bg, color: GL.fg }}
-      >
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <motion.div
           animate={{ opacity: [0.3, 1, 0.3] }}
           transition={{ duration: 1.6, repeat: Infinity }}
+          className="flex gap-1.5"
         >
-          <span className="font-mono-dm text-sm opacity-40">载入中...</span>
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="w-2.5 h-2.5 bg-primary rounded-full inline-block" />
+          ))}
         </motion.div>
       </div>
     )
   }
 
-  // Chapters that have a worsening dimension with low mastery
   const worseningChapters = project.chapters
     .map((ch) => {
       const dim = project.dimensions[ch.title]
@@ -146,14 +129,8 @@ export default function ProjectDashboard() {
     .filter((t): t is string => t !== null)
 
   return (
-    <div
-      className="min-h-screen"
-      style={{
-        background: GL.bg,
-        color: GL.fg,
-      }}
-    >
-      <Header dark />
+    <div className="min-h-screen bg-background">
+      <Header />
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-12">
         {/* Goal progress hero */}
@@ -163,38 +140,23 @@ export default function ProjectDashboard() {
           className="flex items-end gap-8"
         >
           <div>
-            <div
-              className="text-xs font-mono-dm tracking-widest uppercase mb-2"
-              style={{ color: 'rgba(201,168,76,0.6)' }}
-            >
+            <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label mb-2">
               学习目标
             </div>
-            <h1
-              className="font-cormorant font-light leading-tight"
-              style={{ fontSize: 'clamp(1.8rem, 4vw, 3rem)' }}
-            >
+            <h1 className="text-2xl md:text-3xl font-extrabold font-headline text-on-surface leading-tight">
               {project.goal_outcome}
             </h1>
 
-            {/* 开始复习 button — only shown when fsrs items are due */}
             {fsrsDueCount > 0 && (
               <motion.button
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
                 onClick={() => router.push(`/learn/${projectId}/review`)}
-                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-mono-dm border transition-all duration-200"
-                style={{
-                  background: 'rgba(201,168,76,0.08)',
-                  borderColor: 'rgba(201,168,76,0.3)',
-                  color: GL.amber,
-                }}
+                className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold font-label bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
               >
                 ⟳ 开始复习
-                <span
-                  className="px-1.5 py-0.5 rounded-full text-xs"
-                  style={{ background: 'rgba(201,168,76,0.2)' }}
-                >
+                <span className="px-1.5 py-0.5 rounded-full text-xs bg-primary text-white">
                   {fsrsDueCount}
                 </span>
               </motion.button>
@@ -214,13 +176,9 @@ export default function ProjectDashboard() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.25 }}
-              className="flex items-start gap-3 rounded-xl px-4 py-3 border"
-              style={{
-                background: 'rgba(180,120,40,0.06)',
-                borderColor: 'rgba(180,120,40,0.3)',
-              }}
+              className="flex items-start gap-3 rounded-xl px-4 py-3 bg-error/5 border border-error/10"
             >
-              <span className="flex-1 text-sm font-mono-dm" style={{ color: '#d4a24a' }}>
+              <span className="flex-1 text-sm font-body text-error">
                 ⚠{' '}
                 {worseningChapters.map((name, i) => (
                   <span key={name}>
@@ -231,8 +189,7 @@ export default function ProjectDashboard() {
               </span>
               <button
                 onClick={() => setBannerDismissed(true)}
-                className="text-xs font-mono-dm opacity-40 hover:opacity-70 transition-opacity flex-shrink-0 mt-0.5"
-                style={{ color: '#d4a24a' }}
+                className="text-xs text-error/50 hover:text-error/80 transition-colors flex-shrink-0 mt-0.5"
                 aria-label="关闭提示"
               >
                 ✕
@@ -243,12 +200,9 @@ export default function ProjectDashboard() {
 
         {/* Chapters + lessons */}
         <section className="space-y-8">
-          <h2
-            className="text-xs font-mono-dm tracking-widest uppercase"
-            style={{ color: 'rgba(201,168,76,0.5)' }}
-          >
+          <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
             课程地图
-          </h2>
+          </div>
 
           {project.chapters.map((ch, ci) => {
             const dim: DimensionState | undefined = project.dimensions[ch.title]
@@ -260,12 +214,9 @@ export default function ProjectDashboard() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 + ci * 0.08 }}
               >
-                {/* Chapter header with inline dimension state */}
+                {/* Chapter header */}
                 <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="text-xs font-mono-dm tracking-widest uppercase"
-                    style={{ color: 'rgba(240,235,224,0.35)' }}
-                  >
+                  <div className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest font-label">
                     Chapter {ci + 1} · {ch.title}
                   </div>
 
@@ -273,10 +224,7 @@ export default function ProjectDashboard() {
                     <>
                       <MasteryRing value={dim.mastery} size={28} />
                       <TrendBadge trend={dim.trend} />
-                      <span
-                        className="text-xs font-mono-dm"
-                        style={{ color: 'rgba(240,235,224,0.25)' }}
-                      >
+                      <span className="text-xs text-on-surface-variant/40 font-label">
                         {dim.sessions} 次练习
                       </span>
                     </>
@@ -303,44 +251,23 @@ export default function ProjectDashboard() {
                             onClick={() =>
                               isReady && router.push(`/learn/${projectId}/lesson/${lesson.id}`)
                             }
-                            className="w-full text-left rounded-xl px-5 py-4 flex items-center gap-4 transition-all duration-300 border group"
-                            style={{
-                              background: isNew
-                                ? 'linear-gradient(135deg, rgba(201,168,76,0.12), rgba(201,168,76,0.04))'
+                            className={`w-full text-left rounded-xl px-5 py-4 flex items-center gap-4 transition-all border ${
+                              isNew
+                                ? 'bg-primary-container/30 border-primary/20 shadow-[0_0_16px_color-mix(in_srgb,var(--primary)_10%,transparent)]'
                                 : isReady
-                                  ? 'rgba(240,235,224,0.03)'
-                                  : 'rgba(240,235,224,0.01)',
-                              borderColor: isNew
-                                ? 'rgba(201,168,76,0.35)'
-                                : isReady
-                                  ? 'rgba(240,235,224,0.08)'
-                                  : 'rgba(240,235,224,0.04)',
-                              cursor: isReady ? 'pointer' : 'not-allowed',
-                              boxShadow: isNew ? '0 0 24px rgba(201,168,76,0.12)' : 'none',
-                            }}
+                                  ? 'bg-surface-container-lowest border-outline-variant/20 hover:shadow-[0_2px_12px_color-mix(in_srgb,var(--primary)_6%,transparent)]'
+                                  : 'bg-surface-container border-transparent cursor-not-allowed opacity-50'
+                            }`}
                           >
                             {/* Status dot */}
-                            <div
-                              className="w-2 h-2 rounded-full flex-shrink-0 transition-all duration-500"
-                              style={{
-                                background: isNew
-                                  ? GL.amber
-                                  : isReady
-                                    ? 'rgba(201,168,76,0.5)'
-                                    : 'rgba(240,235,224,0.12)',
-                                boxShadow: isNew ? '0 0 8px #c9a84c' : 'none',
-                              }}
-                            />
+                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              isNew ? 'bg-primary' : isReady ? 'bg-primary/50' : 'bg-outline-variant/30'
+                            }`} />
 
                             {/* Title */}
-                            <span
-                              className="flex-1 text-sm"
-                              style={{
-                                fontFamily: 'Manrope, sans-serif',
-                                fontWeight: isReady ? 500 : 400,
-                                color: isReady ? GL.fg : 'rgba(240,235,224,0.3)',
-                              }}
-                            >
+                            <span className={`flex-1 text-sm font-body ${
+                              isReady ? 'text-on-surface font-medium' : 'text-on-surface-variant'
+                            }`}>
                               {lesson.title}
                             </span>
 
@@ -350,8 +277,7 @@ export default function ProjectDashboard() {
                                 initial={{ scale: 0 }}
                                 animate={{ scale: 1 }}
                                 transition={{ type: 'spring', stiffness: 300, delay: 0.3 }}
-                                className="text-xs px-2.5 py-1 rounded-full font-mono-dm"
-                                style={{ background: 'rgba(201,168,76,0.2)', color: GL.amber }}
+                                className="text-xs font-bold font-label px-2.5 py-1 rounded-full bg-primary/10 text-primary"
                               >
                                 新解锁
                               </motion.span>
@@ -359,17 +285,14 @@ export default function ProjectDashboard() {
 
                             {/* Arrow */}
                             {isReady && !isNew && (
-                              <span className="text-xs opacity-0 group-hover:opacity-40 transition-opacity font-mono-dm">
+                              <span className="text-xs text-on-surface-variant opacity-0 group-hover:opacity-60 transition-opacity">
                                 →
                               </span>
                             )}
 
-                            {/* Pending lock */}
+                            {/* Pending */}
                             {!isReady && (
-                              <span
-                                className="text-xs font-mono-dm"
-                                style={{ color: 'rgba(240,235,224,0.15)' }}
-                              >
+                              <span className="text-xs font-label text-on-surface-variant/40">
                                 准备中
                               </span>
                             )}
@@ -385,7 +308,7 @@ export default function ProjectDashboard() {
         </section>
 
         {/* Tier info */}
-        <div className="text-xs font-mono-dm opacity-20 pb-8">
+        <div className="text-xs text-on-surface-variant/30 font-label pb-8">
           {project.tier === 'paid' ? '✦ 付费版' : '◇ 免费版'} · {project.budget_used} 个来源
         </div>
       </main>

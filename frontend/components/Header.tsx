@@ -5,10 +5,9 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { getRandomTogetherDogUrl, getRandomUserDogUrl } from '@/lib/constants'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
-import { GL } from '@/lib/learn-theme'
 import { subscribeToStorage } from '@/lib/storage'
 
-export function Header({ streak = 0, dark }: { streak?: number; dark?: boolean }) {
+export function Header({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname()
   const router = useRouter()
   const [logoUrl] = useState(getRandomTogetherDogUrl)
@@ -24,17 +23,8 @@ export function Header({ streak = 0, dark }: { streak?: number; dark?: boolean }
     router.push('/')
   }
 
-  const headerBg = dark ? '' : 'bg-background/90 backdrop-blur-md border-outline-variant/20'
-
   return (
-    <header
-      className={`sticky top-0 z-50 h-16 ${headerBg} border-b flex items-center`}
-      style={
-        dark
-          ? { background: GL.headerBg, borderColor: GL.headerBorder, backdropFilter: 'blur(12px)' }
-          : undefined
-      }
-    >
+    <header className="sticky top-0 z-50 h-16 bg-background/90 backdrop-blur-md border-b border-outline-variant/20 flex items-center">
       <div className="flex items-center justify-between max-w-5xl mx-auto px-6 gap-4 w-full">
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
@@ -43,9 +33,7 @@ export function Header({ streak = 0, dark }: { streak?: number; dark?: boolean }
               <Image src={logoUrl} fill sizes="36px" className="object-cover" alt="logo" />
             )}
           </div>
-          <span
-            className={`text-lg font-black tracking-tighter font-headline hidden sm:block ${dark ? 'text-amber-300/80' : 'text-primary'}`}
-          >
+          <span className="text-lg font-black tracking-tighter font-headline hidden sm:block text-primary">
             Happy Learning
           </span>
         </div>

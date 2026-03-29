@@ -63,17 +63,23 @@ function LessonContent() {
     const isRunning = plannerStatus?.status === 'running'
 
     return (
-      <main className="max-w-3xl mx-auto px-6 py-12 pb-[calc(var(--mobile-nav-height)+16px)] md:pb-12 text-center space-y-6 flex-1">
+      <main className="max-w-2xl mx-auto px-6 py-16 pb-[calc(var(--mobile-nav-height)+16px)] md:pb-16 text-center space-y-6 flex-1">
         <div
-          className={`rounded-lg p-10 relative overflow-hidden ${isError ? 'bg-error-container/20' : 'bg-primary-container/20'}`}
+          className={`rounded-2xl p-10 relative overflow-hidden ${
+            isError ? 'bg-error/5 border border-error/15' : 'bg-primary/5 border border-primary/10'
+          }`}
         >
           <div className="relative z-10">
-            <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto mb-6">
+            <div
+              className={`relative w-20 h-20 rounded-full overflow-hidden mx-auto mb-6 flex-shrink-0 border-2 ${
+                isError ? 'border-error/25' : 'border-primary/20'
+              }`}
+            >
               {loadingDogUrl && (
                 <Image
                   src={loadingDogUrl}
                   fill
-                  sizes="96px"
+                  sizes="80px"
                   className="object-cover"
                   alt="准备中"
                 />
@@ -85,17 +91,17 @@ function LessonContent() {
                 <h1 className="text-2xl font-extrabold font-headline text-error mb-3">
                   课程生成失败
                 </h1>
-                <p className="text-on-surface-variant mb-2 text-sm">
+                <p className="text-sm font-body text-on-surface-variant mb-3">
                   Planner 遇到了问题，请检查 API Key 或网络连接后重试。
                 </p>
                 {plannerStatus.error && (
-                  <p className="text-xs text-error/70 font-mono bg-error-container/30 rounded px-3 py-2 mb-6 text-left break-all">
+                  <p className="text-xs rounded-xl px-4 py-3 mb-6 text-left break-all font-label text-error/70 bg-error/5 border border-error/15">
                     {plannerStatus.error}
                   </p>
                 )}
                 <button
                   onClick={() => client.POST('/api/planner/jobs', {}).catch(console.error)}
-                  className="signature-gradient text-white px-6 py-2 rounded-full font-bold text-sm font-label shadow-lg hover:scale-105 transition-transform"
+                  className="signature-gradient text-white px-6 py-2.5 rounded-full text-sm font-bold font-label shadow shadow-primary/25 hover:scale-105 transition-transform"
                 >
                   重新生成课程
                 </button>
@@ -105,7 +111,7 @@ function LessonContent() {
                 <h1 className="text-2xl font-extrabold font-headline text-primary mb-3">
                   今日课程准备中…
                 </h1>
-                <p className="text-on-surface-variant mb-8">
+                <p className="text-sm font-body text-on-surface-variant mb-8">
                   DeepAgent Planner 正在为你抓取今日文章和生成写作任务，请稍候。
                 </p>
                 {isRunning && (
@@ -116,18 +122,13 @@ function LessonContent() {
                 {!isRunning && (
                   <button
                     onClick={() => client.POST('/api/planner/jobs', {}).catch(console.error)}
-                    className="bg-surface-container-highest text-on-surface px-6 py-2 rounded-full font-bold text-sm font-label hover:bg-surface-variant transition-colors"
+                    className="px-6 py-2.5 rounded-full text-sm font-bold font-label bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 transition-colors"
                   >
                     手动触发课程生成
                   </button>
                 )}
               </>
             )}
-          </div>
-          <div className="absolute -right-10 -bottom-10 opacity-5 pointer-events-none">
-            <span className="material-symbols-outlined text-[200px] text-primary">
-              {isError ? 'error' : 'menu_book'}
-            </span>
           </div>
         </div>
       </main>
@@ -181,7 +182,7 @@ function LessonContent() {
 
 export default function LessonPage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col bg-background">
       <Header />
       <Suspense
         fallback={

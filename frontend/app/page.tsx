@@ -1,109 +1,130 @@
 'use client'
-import { useEffect, useSyncExternalStore } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
-import { subscribeToStorage } from '@/lib/storage'
+import type { components } from '@/types/api'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
+import Image from 'next/image'
 
-type AppMode = 'english' | 'general'
+type Project = components['schemas']['GeneralProject']
 
 export default function HomePage() {
   const router = useRouter()
-  const mode = useSyncExternalStore(
-    subscribeToStorage,
-    () => localStorage.getItem('appMode') as AppMode | null,
-    () => null,
-  )
-
-  const chooseMode = (m: AppMode) => {
-    localStorage.setItem('appMode', m)
-    redirectForMode(m, router)
-  }
+  const [englishOnboarded, setEnglishOnboarded] = useState<boolean | null>(null)
+  const [englishReady, setEnglishReady] = useState<boolean | null>(null)
+  const [activeProject, setActiveProject] = useState<Project | null>(null)
+  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   useEffect(() => {
-    if (mode) redirectForMode(mode, router)
-  }, [mode, router])
+    client
+      .GET('/api/onboarding/status')
+      .then(({ data }) => {
+        setEnglishOnboarded(data?.ready ?? false)
+        if (data?.ready) {
+          client
+            .GET('/api/planner/status')
+            .then(({ data: p }) => setEnglishReady(p?.ready ?? false))
+            .catch(() => setEnglishReady(false))
+        } else {
+          setEnglishReady(false)
+        }
+      })
+      .catch(() => {
+        setEnglishOnboarded(false)
+        setEnglishReady(false)
+      })
 
-  if (mode) return null
-  return <ModeSelectScreen onChoose={chooseMode} />
-}
+    client
+      .GET('/api/learn/projects')
+      .then(({ data }) => {
+        const active = (data ?? []).find((p) => p.status === 'active') ?? null
+        setActiveProject(active)
+      })
+      .catch(() => {})
+  }, [])
 
-async function redirectForMode(mode: AppMode, router: ReturnType<typeof useRouter>) {
-  if (mode === 'english') {
-    const [onb, planner] = await Promise.all([
-      client
-        .GET('/api/onboarding/status')
-        .then(({ data }) => data ?? { ready: false })
-        .catch(() => ({ ready: false })),
-      client
-        .GET('/api/planner/status')
-        .then(({ data }) => data ?? { ready: false })
-        .catch(() => ({ ready: false })),
-    ])
-    if (!onb.ready) {
-      router.replace('/onboarding')
+  const enterEnglish = async () => {
+    localStorage.setItem('appMode', 'english')
+    if (!englishOnboarded) {
+      router.push('/onboarding')
       return
     }
-    if (!planner.ready) {
-      router.replace('/lesson?loading=true')
-      return
-    }
-    router.replace('/lesson')
-  } else {
-    const projectId = localStorage.getItem('generalProjectId')
-    if (!projectId) {
-      router.replace('/learn/onboarding')
-      return
-    }
-    router.replace(`/learn/${projectId}`)
+    router.push('/lesson')
   }
-}
 
-function ModeSelectScreen({ onChoose }: { onChoose: (m: AppMode) => void }) {
+  const enterGeneral = () => {
+    localStorage.setItem('appMode', 'general')
+    router.push('/learn')
+  }
+
+  const englishBadge =
+    englishReady === null ? null :
+    !englishOnboarded ? { label: '未初始化', cls: 'bg-surface-container text-on-surface-variant' } :
+    englishReady ? { label: '● 就绪', cls: 'bg-primary/10 text-primary' } :
+    { label: '○ 备课中', cls: 'bg-surface-container text-on-surface-variant' }
+
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center gap-8 px-6"
-      style={{ background: 'linear-gradient(160deg, #0f0d1a 0%, #1a1428 50%, #0d1118 100%)' }}
-    >
-      <div className="text-center space-y-2">
-        <h1 className="font-cormorant font-light text-5xl" style={{ color: '#f0ebe0' }}>
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-10 px-6">
+      {/* Logo + title */}
+      <div className="flex flex-col items-center gap-3">
+        {dogUrl && (
+          <div className="relative w-16 h-16 rounded-full overflow-hidden border-4 border-primary/20 shadow-lg shadow-primary/10">
+            <Image src={dogUrl} fill sizes="64px" className="object-cover" alt="Professor 金毛" />
+          </div>
+        )}
+        <h1 className="text-3xl font-extrabold font-headline text-on-surface tracking-tight">
           Happy Learning
         </h1>
-        <p
-          className="text-sm opacity-40"
-          style={{ color: '#f0ebe0', fontFamily: 'Manrope, sans-serif' }}
-        >
-          选择你的学习模式
-        </p>
+        <p className="text-sm text-on-surface-variant font-body">选择今日学习内容</p>
       </div>
+
+      {/* Mode cards */}
       <div className="flex flex-col gap-4 w-full max-w-sm">
+        {/* English */}
         <button
-          onClick={() => onChoose('english')}
-          className="w-full p-6 rounded-2xl border text-left transition-all hover:scale-[1.02]"
-          style={{ background: 'rgba(109,40,217,0.08)', borderColor: 'rgba(109,40,217,0.3)' }}
+          onClick={enterEnglish}
+          className="w-full bg-surface-container-lowest rounded-xl p-6 text-left shadow-[0_2px_12px_color-mix(in_srgb,var(--primary)_6%,transparent)] hover:shadow-[0_4px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)] transition-shadow group"
         >
-          <div className="text-base font-semibold mb-1" style={{ color: '#a78bfa' }}>
-            英语飞轮
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-base font-bold font-label text-on-surface">英语飞轮</span>
+            {englishBadge && (
+              <span className={`text-xs font-bold font-label px-2 py-0.5 rounded-full ${englishBadge.cls}`}>
+                {englishBadge.label}
+              </span>
+            )}
           </div>
-          <div
-            className="text-xs opacity-50"
-            style={{ color: '#f0ebe0', fontFamily: 'Manrope, sans-serif' }}
-          >
-            每日文章精读 + 写作训练 + 生词复习
+          <p className="text-xs text-on-surface-variant font-body">
+            每日文章精读 · 写作训练 · 生词复习
+          </p>
+          <div className="mt-4 flex justify-end">
+            <span className="signature-gradient text-white text-xs font-bold font-label px-4 py-1.5 rounded-full shadow shadow-primary/25 group-hover:scale-105 transition-transform inline-block">
+              进入 →
+            </span>
           </div>
         </button>
+
+        {/* General learning */}
         <button
-          onClick={() => onChoose('general')}
-          className="w-full p-6 rounded-2xl border text-left transition-all hover:scale-[1.02]"
-          style={{ background: 'rgba(201,168,76,0.08)', borderColor: 'rgba(201,168,76,0.3)' }}
+          onClick={enterGeneral}
+          className="w-full bg-surface-container-lowest rounded-xl p-6 text-left shadow-[0_2px_12px_color-mix(in_srgb,var(--primary)_6%,transparent)] hover:shadow-[0_4px_20px_color-mix(in_srgb,var(--primary)_10%,transparent)] transition-shadow group"
         >
-          <div className="text-base font-semibold mb-1" style={{ color: '#c9a84c' }}>
-            通用技能学习
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-base font-bold font-label text-on-surface">通用技能学习</span>
+            {activeProject && (
+              <span className="text-xs font-bold font-label px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                ● 进行中
+              </span>
+            )}
           </div>
-          <div
-            className="text-xs opacity-50"
-            style={{ color: '#f0ebe0', fontFamily: 'Manrope, sans-serif' }}
-          >
-            AI 备课 · 吉他 / 投资 / 摄影 / 任何你想学的
+          <p className="text-xs text-on-surface-variant font-body">
+            {activeProject
+              ? `继续：${activeProject.user_topic}`
+              : 'AI 备课 · 吉他 / 投资 / 摄影 / 任何你想学的'}
+          </p>
+          <div className="mt-4 flex justify-end">
+            <span className="signature-gradient text-white text-xs font-bold font-label px-4 py-1.5 rounded-full shadow shadow-primary/25 group-hover:scale-105 transition-transform inline-block">
+              进入 →
+            </span>
           </div>
         </button>
       </div>

@@ -11,7 +11,8 @@ import {
 } from '@/hooks/useGeneralLesson'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
-import { GL, glBtn, glBtnDisabled } from '@/lib/learn-theme'
+import { getRandomTeacherDogUrl } from '@/lib/constants'
+import Image from 'next/image'
 
 // ── Retry hint banner ────────────────────────────────────────────────────────
 
@@ -19,17 +20,13 @@ function RetryHintBanner({ hints }: { hints: RetryHintItem[] }) {
   const [open, setOpen] = useState(false)
   if (!hints.length) return null
   return (
-    <div
-      className="rounded-2xl mb-5 overflow-hidden"
-      style={{ background: 'rgba(201,168,76,0.06)', border: `1px solid rgba(201,168,76,0.25)` }}
-    >
+    <div className="rounded-xl mb-5 overflow-hidden bg-error/5 border border-error/10">
       <button
-        className="w-full flex items-center justify-between px-5 py-4 text-sm font-medium"
-        style={{ color: GL.amber, fontFamily: 'Manrope, sans-serif' }}
+        className="w-full flex items-center justify-between px-5 py-4 text-sm font-medium text-error"
         onClick={() => setOpen((v) => !v)}
       >
         <span>⚠ 上次答错了 {hints.length} 题，重点回顾一下</span>
-        <span className="text-xs opacity-60 font-mono-dm">{open ? '收起 ↑' : '展开 ↓'}</span>
+        <span className="text-xs text-error/50 font-label">{open ? '收起 ↑' : '展开 ↓'}</span>
       </button>
       <AnimatePresence>
         {open && (
@@ -41,11 +38,9 @@ function RetryHintBanner({ hints }: { hints: RetryHintItem[] }) {
           >
             <div className="px-5 pb-5 flex flex-col gap-3">
               {hints.map((h, i) => (
-                <div key={i} className="text-sm" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                  <p style={{ color: GL.fg, opacity: 0.7 }}>{h.question}</p>
-                  <p className="mt-1 font-medium" style={{ color: GL.amber }}>
-                    正确答案：{h.correct_answer}
-                  </p>
+                <div key={i} className="text-sm font-body">
+                  <p className="text-on-surface-variant">{h.question}</p>
+                  <p className="mt-1 font-medium text-primary">正确答案：{h.correct_answer}</p>
                 </div>
               ))}
             </div>
@@ -70,17 +65,9 @@ function QuizCard({
   onSelect: (idx: number) => void
 }) {
   return (
-    <div
-      className="rounded-2xl p-5"
-      style={{ background: GL.card, border: `1px solid ${GL.cardBorder}` }}
-    >
-      <p
-        className="text-sm mb-4 font-medium leading-relaxed"
-        style={{ color: GL.fg, fontFamily: 'Manrope, sans-serif' }}
-      >
-        <span style={{ color: GL.amber }} className="font-mono-dm mr-2">
-          {index + 1}.
-        </span>
+    <div className="bg-surface-container-lowest rounded-xl p-5 shadow-[0_2px_12px_color-mix(in_srgb,var(--primary)_6%,transparent)]">
+      <p className="text-sm mb-4 font-body text-on-surface font-medium leading-relaxed">
+        <span className="font-black font-label text-primary mr-2">{index + 1}.</span>
         {question.question}
       </p>
       <div className="flex flex-col gap-2">
@@ -89,16 +76,14 @@ function QuizCard({
           return (
             <button
               key={j}
-              className="w-full text-left rounded-xl px-4 py-3 text-sm transition-all"
-              style={{
-                fontFamily: 'Manrope, sans-serif',
-                background: chosen ? 'rgba(201,168,76,0.12)' : GL.inputBg,
-                border: `1px solid ${chosen ? 'rgba(201,168,76,0.5)' : GL.inputBorder}`,
-                color: chosen ? GL.amber : GL.fg,
-              }}
+              className={`w-full text-left rounded-lg px-4 py-3 text-sm font-body border-2 transition-all ${
+                chosen
+                  ? 'border-primary bg-primary/10 text-primary'
+                  : 'border-outline-variant/20 bg-surface-container-low text-on-surface hover:border-primary/30'
+              }`}
               onClick={() => onSelect(j)}
             >
-              <span className="font-mono-dm mr-2 opacity-50">
+              <span className="font-black font-label text-on-surface-variant/50 mr-2">
                 {String.fromCharCode(65 + j)}.
               </span>
               {opt.text}
@@ -131,21 +116,16 @@ function QuizResultView({
     >
       {/* Score header */}
       <div className="text-center mb-6">
-        <div
-          className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-3"
-          style={{
-            background: passed ? 'rgba(201,168,76,0.1)' : 'rgba(220,60,60,0.08)',
-            border: `2px solid ${passed ? 'rgba(201,168,76,0.4)' : 'rgba(220,60,60,0.3)'}`,
-          }}
-        >
-          <span
-            className="font-cormorant font-light"
-            style={{ fontSize: '1.8rem', color: passed ? GL.amber : '#e05555' }}
-          >
+        <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-3 ${
+          passed
+            ? 'bg-primary-container/30 border-2 border-primary/30'
+            : 'bg-error/10 border-2 border-error/20'
+        }`}>
+          <span className={`text-3xl font-extrabold font-headline ${passed ? 'text-primary' : 'text-error'}`}>
             {pct}%
           </span>
         </div>
-        <p className="text-sm opacity-50" style={{ fontFamily: 'Manrope, sans-serif' }}>
+        <p className="text-sm text-on-surface-variant font-body">
           {result.score}/{result.total} 正确 · {passed ? '通过' : '需要加强'}
         </p>
       </div>
@@ -155,27 +135,19 @@ function QuizResultView({
         {result.details.map((d: QuizDetail, i: number) => (
           <div
             key={i}
-            className="rounded-2xl overflow-hidden"
-            style={{ background: GL.card, border: `1px solid ${GL.cardBorder}` }}
+            className="rounded-xl overflow-hidden bg-surface-container-lowest shadow-[0_1px_6px_color-mix(in_srgb,var(--primary)_4%,transparent)]"
           >
             <button
               className="w-full flex items-center gap-3 px-5 py-4 text-sm text-left"
-              style={{ fontFamily: 'Manrope, sans-serif' }}
               onClick={() => setExpandedIdx(expandedIdx === i ? null : i)}
             >
-              <span
-                className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
-                style={{
-                  background: d.is_correct ? 'rgba(80,200,120,0.15)' : 'rgba(220,60,60,0.12)',
-                  color: d.is_correct ? '#50c878' : '#e05555',
-                }}
-              >
+              <span className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${
+                d.is_correct ? 'bg-primary/10 text-primary' : 'bg-error/10 text-error'
+              }`}>
                 {d.is_correct ? '✓' : '✗'}
               </span>
-              <span className="flex-1 leading-snug" style={{ color: GL.fg, opacity: 0.85 }}>
-                {d.question}
-              </span>
-              <span className="text-xs opacity-30 font-mono-dm">{expandedIdx === i ? '↑' : '↓'}</span>
+              <span className="flex-1 leading-snug text-on-surface font-body">{d.question}</span>
+              <span className="text-xs text-on-surface-variant/40 font-label">{expandedIdx === i ? '↑' : '↓'}</span>
             </button>
             <AnimatePresence>
               {expandedIdx === i && (
@@ -190,52 +162,35 @@ function QuizResultView({
                       const isStudent = j === d.student_answer_index
                       const isCorrect = j === d.correct_answer_index
                       const bg = isCorrect
-                        ? 'rgba(80,200,120,0.08)'
+                        ? 'bg-primary/5 border-primary/15'
                         : isStudent
-                          ? 'rgba(220,60,60,0.08)'
-                          : 'transparent'
-                      const border = isCorrect
-                        ? 'rgba(80,200,120,0.3)'
-                        : isStudent
-                          ? 'rgba(220,60,60,0.25)'
-                          : 'transparent'
+                          ? 'bg-error/5 border-error/10'
+                          : 'bg-transparent border-transparent'
                       return (
                         <div
                           key={j}
-                          className="rounded-xl px-4 py-3 text-xs leading-relaxed"
-                          style={{
-                            background: bg,
-                            border: `1px solid ${border}`,
-                            fontFamily: 'Manrope, sans-serif',
-                            color: GL.fg,
-                            opacity: isCorrect || isStudent ? 1 : 0.45,
-                          }}
+                          className={`rounded-lg px-4 py-3 text-xs leading-relaxed border font-body text-on-surface ${bg} ${
+                            isCorrect || isStudent ? 'opacity-100' : 'opacity-40'
+                          }`}
                         >
-                          <span className="font-mono-dm mr-1.5 opacity-50">
+                          <span className="font-label text-on-surface-variant/50 mr-1.5">
                             {String.fromCharCode(65 + j)}.
                           </span>
                           <span>{opt.text}</span>
                           {opt.rationale && (
-                            <p className="mt-1.5 opacity-60 leading-relaxed">{opt.rationale}</p>
+                            <p className="mt-1.5 text-on-surface-variant/60 leading-relaxed">{opt.rationale}</p>
                           )}
                           {isCorrect && (
-                            <span className="ml-2 text-xs" style={{ color: '#50c878' }}>
-                              ✓ 正确答案
-                            </span>
+                            <span className="ml-2 text-xs text-primary font-label">✓ 正确答案</span>
                           )}
                           {isStudent && !isCorrect && (
-                            <span className="ml-2 text-xs" style={{ color: '#e05555' }}>
-                              ✗ 你的答案
-                            </span>
+                            <span className="ml-2 text-xs text-error font-label">✗ 你的答案</span>
                           )}
                         </div>
                       )
                     })}
                     {d.hint && (
-                      <p
-                        className="text-xs px-1 opacity-50 leading-relaxed"
-                        style={{ fontFamily: 'Manrope, sans-serif', color: GL.fg }}
-                      >
+                      <p className="text-xs px-1 text-on-surface-variant/50 leading-relaxed font-body">
                         💡 {d.hint}
                       </p>
                     )}
@@ -248,8 +203,7 @@ function QuizResultView({
       </div>
 
       <button
-        className="w-full py-4 rounded-xl font-medium transition-all"
-        style={glBtn}
+        className="w-full signature-gradient text-white py-3.5 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform"
         onClick={onContinue}
       >
         继续 →
@@ -278,10 +232,10 @@ export default function LessonPage() {
     abort,
   } = useGeneralLesson(projectId, lessonId)
 
-  // selectedAnswers[i] = index into question[i].answerOptions, or null
   const [selectedAnswers, setSelectedAnswers] = useState<(number | null)[]>([])
   const [qaInput, setQaInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   useEffect(() => {
     start()
@@ -301,7 +255,6 @@ export default function LessonPage() {
 
   const handleSubmitQuiz = async () => {
     setIsLoading(true)
-    // Send integer indices; unanswered questions send null
     await sendAction({ type: 'answers', answers: selectedAnswers })
     setIsLoading(false)
   }
@@ -337,52 +290,24 @@ export default function LessonPage() {
 
   if (phase === 'done') {
     return (
-      <div className="min-h-screen flex flex-col" style={{ background: GL.bg, color: GL.fg }}>
-        <Header dark />
+      <div className="min-h-screen flex flex-col bg-background">
+        <Header />
         <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 180, damping: 16 }}
-            className="space-y-6"
-          >
-            <div className="relative w-24 h-24 mx-auto">
-              {[0, 1].map((i) => (
-                <motion.div
-                  key={i}
-                  className="absolute inset-0 rounded-full border"
-                  style={{ borderColor: 'rgba(201,168,76,0.4)' }}
-                  initial={{ scale: 0.8, opacity: 1 }}
-                  animate={{ scale: 2, opacity: 0 }}
-                  transition={{ duration: 1.6, delay: i * 0.6, repeat: Infinity, ease: 'easeOut' }}
-                />
-              ))}
-              <div
-                className="absolute inset-0 rounded-full flex items-center justify-center text-3xl"
-                style={{ background: 'rgba(201,168,76,0.1)', border: `1px solid ${GL.cardBorder}` }}
-              >
-                ✦
-              </div>
+          <div className="flex flex-col items-center gap-6">
+            <div className="w-24 h-24 rounded-full bg-primary/10 border-2 border-primary/20 flex items-center justify-center text-4xl shadow-[0_0_32px_color-mix(in_srgb,var(--primary)_15%,transparent)]">
+              ✓
             </div>
             <div>
-              <h2
-                className="font-cormorant font-light"
-                style={{ fontSize: '2.5rem', color: GL.amber }}
-              >
-                课程完成
-              </h2>
-              <p className="mt-2 text-sm opacity-50" style={{ fontFamily: 'Manrope, sans-serif' }}>
-                你已完成本节课的学习
-              </p>
+              <h2 className="text-2xl font-extrabold font-headline text-primary mb-2">课程完成</h2>
+              <p className="text-sm text-on-surface-variant font-body">你已完成本节课的学习</p>
             </div>
             <button
-              className="px-8 py-3 rounded-xl font-medium transition-all"
-              style={glBtn}
+              className="signature-gradient text-white px-8 py-3 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform"
               onClick={() => router.push(`/learn/${projectId}`)}
             >
               返回课程地图
             </button>
-          </motion.div>
+          </div>
         </main>
         <MobileNav />
       </div>
@@ -390,28 +315,15 @@ export default function LessonPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: GL.bg, color: GL.fg }}>
-      <Header dark />
+    <div className="min-h-screen flex flex-col bg-background">
+      <Header />
 
       {/* Status bar */}
-      <div
-        className="flex items-center justify-between px-6 py-3 border-b"
-        style={{ borderColor: GL.navBorder }}
-      >
-        <span
-          className="text-sm font-medium truncate max-w-xs"
-          style={{ color: GL.fg, fontFamily: 'Manrope, sans-serif' }}
-        >
+      <div className="flex items-center justify-between px-6 py-3 border-b border-outline-variant/20">
+        <span className="text-sm font-medium font-body text-on-surface truncate max-w-xs">
           {lessonTitle || '正在加载...'}
         </span>
-        <span
-          className="text-xs font-mono-dm tracking-widest uppercase px-3 py-1 rounded-full flex-shrink-0"
-          style={{
-            color: GL.amber,
-            background: GL.amberFaint,
-            border: `1px solid rgba(201,168,76,0.2)`,
-          }}
-        >
+        <span className="text-xs font-bold font-label px-3 py-1 rounded-full bg-primary/10 text-primary flex-shrink-0">
           {phaseLabel[phase] ?? phase}
         </span>
       </div>
@@ -426,42 +338,18 @@ export default function LessonPage() {
           >
             <RetryHintBanner hints={retryHint} />
 
-            <div className="mb-3 flex items-center gap-2">
-              <span
-                className="text-xs font-mono-dm tracking-widest uppercase"
-                style={{ color: GL.amberMuted }}
-              >
+            <div className="mb-3">
+              <span className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
                 学习材料
               </span>
             </div>
-            <div
-              className="rounded-2xl p-6 text-sm leading-relaxed whitespace-pre-wrap mb-6"
-              style={{
-                background: GL.card,
-                border: `1px solid ${GL.cardBorder}`,
-                color: GL.fg,
-                fontFamily: 'Manrope, sans-serif',
-                lineHeight: 1.9,
-              }}
-            >
+            <div className="bg-surface-container-lowest rounded-xl p-6 text-sm leading-relaxed whitespace-pre-wrap mb-6 font-body text-on-surface shadow-[0_2px_12px_color-mix(in_srgb,var(--primary)_6%,transparent)]">
               {studyGuide || (
-                <div className="flex items-center gap-3 opacity-40">
-                  <div className="flex gap-1">
-                    {[1, 2, 3].map((k) => (
-                      <span
-                        key={k}
-                        className="w-1.5 h-1.5 rounded-full inline-block"
-                        style={{ background: GL.amber }}
-                      />
-                    ))}
-                  </div>
-                  <span style={{ fontFamily: 'Manrope, sans-serif' }}>正在加载学习材料...</span>
-                </div>
+                <span className="text-on-surface-variant/40">正在加载学习材料...</span>
               )}
             </div>
             <button
-              className="w-full py-4 rounded-xl font-medium transition-all disabled:opacity-30"
-              style={isLoading || !studyGuide ? glBtnDisabled : glBtn}
+              className="w-full signature-gradient text-white py-3.5 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform disabled:opacity-40 disabled:hover:scale-100"
               onClick={handleNext}
               disabled={isLoading || !studyGuide}
             >
@@ -478,16 +366,10 @@ export default function LessonPage() {
             transition={{ duration: 0.5 }}
           >
             <div className="mb-5">
-              <span
-                className="text-xs font-mono-dm tracking-widest uppercase"
-                style={{ color: GL.amberMuted }}
-              >
+              <span className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
                 随堂测验
               </span>
-              <h3
-                className="font-cormorant font-light mt-1"
-                style={{ fontSize: '1.8rem', color: GL.fg }}
-              >
+              <h3 className="text-2xl font-extrabold font-headline text-on-surface mt-1">
                 检验一下你的理解
               </h3>
             </div>
@@ -509,8 +391,7 @@ export default function LessonPage() {
               ))}
             </div>
             <button
-              className="w-full py-4 rounded-xl font-medium transition-all disabled:opacity-30"
-              style={isLoading ? glBtnDisabled : glBtn}
+              className="w-full signature-gradient text-white py-3.5 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform disabled:opacity-40 disabled:hover:scale-100"
               onClick={handleSubmitQuiz}
               disabled={isLoading}
             >
@@ -531,12 +412,11 @@ export default function LessonPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center py-12"
           >
-            <p className="text-sm opacity-50 mb-6" style={{ fontFamily: 'Manrope, sans-serif' }}>
+            <p className="text-sm text-on-surface-variant font-body mb-6">
               测验题目正在更新中，跳过本次测验
             </p>
             <button
-              className="px-8 py-3 rounded-xl font-medium transition-all"
-              style={glBtn}
+              className="signature-gradient text-white px-8 py-3 rounded-full font-bold text-sm font-label shadow-lg shadow-primary/25 hover:scale-105 transition-transform"
               onClick={handleContinueAfterResult}
             >
               继续 →
@@ -553,16 +433,10 @@ export default function LessonPage() {
             className="flex flex-col h-full"
           >
             <div className="mb-5">
-              <span
-                className="text-xs font-mono-dm tracking-widest uppercase"
-                style={{ color: GL.amberMuted }}
-              >
+              <span className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
                 自由问答
               </span>
-              <h3
-                className="font-cormorant font-light mt-1"
-                style={{ fontSize: '1.8rem', color: GL.fg }}
-              >
+              <h3 className="text-2xl font-extrabold font-headline text-on-surface mt-1">
                 问老师任何问题
               </h3>
             </div>
@@ -571,38 +445,15 @@ export default function LessonPage() {
               {qaHistory.map((entry) => (
                 <div key={entry.id} className="space-y-2">
                   <div className="flex justify-end">
-                    <div
-                      className="rounded-2xl px-4 py-3 text-sm max-w-[80%]"
-                      style={{
-                        background: `linear-gradient(135deg, ${GL.amber}, #e8c96a)`,
-                        color: '#0f0d1a',
-                        fontFamily: 'Manrope, sans-serif',
-                        fontWeight: 500,
-                      }}
-                    >
+                    <div className="signature-gradient text-white rounded-2xl rounded-br-sm px-4 py-3 max-w-[80%] text-sm font-body">
                       {entry.q}
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
-                    <div
-                      className="w-6 h-6 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center text-xs"
-                      style={{
-                        background: 'rgba(201,168,76,0.15)',
-                        border: `1px solid ${GL.cardBorder}`,
-                        color: GL.amber,
-                      }}
-                    >
-                      ✦
+                    <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 flex-shrink-0 mt-0.5">
+                      {dogUrl && <Image src={dogUrl} fill sizes="28px" className="object-cover" alt="Professor 金毛" />}
                     </div>
-                    <div
-                      className="rounded-2xl px-4 py-3 text-sm max-w-[80%] leading-relaxed"
-                      style={{
-                        background: GL.card,
-                        border: `1px solid ${GL.cardBorder}`,
-                        color: GL.fg,
-                        fontFamily: 'Manrope, sans-serif',
-                      }}
-                    >
+                    <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] text-sm font-body text-on-surface leading-relaxed">
                       {entry.a}
                     </div>
                   </div>
@@ -610,27 +461,13 @@ export default function LessonPage() {
               ))}
               {isLoading && (
                 <div className="flex items-start gap-2">
-                  <div
-                    className="w-6 h-6 rounded-full flex-shrink-0 mt-0.5 flex items-center justify-center text-xs"
-                    style={{
-                      background: 'rgba(201,168,76,0.15)',
-                      border: `1px solid ${GL.cardBorder}`,
-                      color: GL.amber,
-                    }}
-                  >
-                    ✦
+                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 flex-shrink-0 mt-0.5">
+                    {dogUrl && <Image src={dogUrl} fill sizes="28px" className="object-cover" alt="Professor 金毛" />}
                   </div>
-                  <div
-                    className="rounded-2xl px-4 py-3 text-sm"
-                    style={{ background: GL.card, border: `1px solid ${GL.cardBorder}` }}
-                  >
-                    <div className="flex gap-1 items-center opacity-50">
+                  <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl rounded-bl-sm px-4 py-3">
+                    <div className="flex gap-1 items-center">
                       {[1, 2, 3].map((k) => (
-                        <span
-                          key={k}
-                          className="w-1.5 h-1.5 rounded-full inline-block"
-                          style={{ background: GL.amber }}
-                        />
+                        <span key={k} className="w-1.5 h-1.5 bg-primary rounded-full inline-block opacity-50" />
                       ))}
                     </div>
                   </div>
@@ -640,13 +477,7 @@ export default function LessonPage() {
 
             <div className="flex gap-2 mb-3">
               <input
-                className="flex-1 rounded-xl px-4 py-3 text-sm outline-none transition-all"
-                style={{
-                  background: GL.inputBg,
-                  border: `1px solid ${GL.inputBorder}`,
-                  color: GL.fg,
-                  fontFamily: 'Manrope, sans-serif',
-                }}
+                className="flex-1 rounded-xl border border-outline-variant/20 bg-surface-container-low px-4 py-3 text-sm font-body text-on-surface focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-on-surface-variant/40"
                 placeholder="问老师任何问题..."
                 value={qaInput}
                 onChange={(e) => setQaInput(e.target.value)}
@@ -654,8 +485,7 @@ export default function LessonPage() {
                 disabled={isLoading}
               />
               <button
-                className="px-4 py-2 rounded-xl font-medium transition-all disabled:opacity-30"
-                style={qaInput.trim() ? glBtn : glBtnDisabled}
+                className="signature-gradient text-white px-4 py-2 rounded-xl font-bold text-sm font-label shadow shadow-primary/25 hover:scale-105 transition-transform disabled:opacity-40 disabled:hover:scale-100"
                 onClick={handleAsk}
                 disabled={isLoading || !qaInput.trim()}
               >
@@ -663,12 +493,7 @@ export default function LessonPage() {
               </button>
             </div>
             <button
-              className="w-full py-3 rounded-xl text-sm transition-opacity hover:opacity-80"
-              style={{
-                border: `1px solid rgba(240,235,224,0.1)`,
-                color: 'rgba(240,235,224,0.4)',
-                fontFamily: 'Manrope, sans-serif',
-              }}
+              className="w-full py-3 rounded-xl text-sm font-body text-on-surface-variant border border-outline-variant/20 hover:bg-surface-container-low transition-colors"
               onClick={handleExit}
             >
               结束本节课
