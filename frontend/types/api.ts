@@ -222,7 +222,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List General Projects */
+        get: operations["list_general_projects_api_learn_projects_get"];
         put?: never;
         /** General Onboarding Start */
         post: operations["general_onboarding_start_api_learn_projects_post"];
@@ -278,6 +279,40 @@ export interface paths {
         get: operations["get_general_dashboard_api_learn_projects__project_id__dashboard_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Fsrs Review */
+        get: operations["get_fsrs_review_api_learn_projects__project_id__review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/learn/projects/{project_id}/review/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post Fsrs Review Responses */
+        post: operations["post_fsrs_review_responses_api_learn_projects__project_id__review_responses_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -370,6 +405,42 @@ export interface components {
              */
             trend: "improving" | "stable" | "worsening";
         };
+        /** FsrsReviewItem */
+        FsrsReviewItem: {
+            /** Lesson Id */
+            lesson_id: number;
+            /** Q */
+            q: string;
+            /** Correct */
+            correct: string;
+            /** Fsrs State */
+            fsrs_state: {
+                [key: string]: unknown;
+            };
+        };
+        /** FsrsReviewResponse */
+        FsrsReviewResponse: {
+            /** Items */
+            items: components["schemas"]["FsrsReviewItem"][];
+            /** Count */
+            count: number;
+        };
+        /** FsrsReviewResponseItem */
+        FsrsReviewResponseItem: {
+            /** Q */
+            q: string;
+            /** Lesson Id */
+            lesson_id: number;
+            /** Is Correct */
+            is_correct: boolean;
+            /** Response Seconds */
+            response_seconds: number;
+        };
+        /** FsrsReviewResponseRequest */
+        FsrsReviewResponseRequest: {
+            /** Responses */
+            responses: components["schemas"]["FsrsReviewResponseItem"][];
+        };
         /** GeneralLessonActionRequest */
         GeneralLessonActionRequest: {
             /** Type */
@@ -380,6 +451,8 @@ export interface components {
             answers?: (number | string)[] | null;
             /** Question */
             question?: string | null;
+            /** Explanation */
+            explanation?: string | null;
         };
         /** GeneralOnboardingConfirmRequest */
         GeneralOnboardingConfirmRequest: {
@@ -944,6 +1017,26 @@ export interface operations {
             };
         };
     };
+    list_general_projects_api_learn_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GeneralProject"][];
+                };
+            };
+        };
+    };
     general_onboarding_start_api_learn_projects_post: {
         parameters: {
             query?: never;
@@ -1096,6 +1189,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectDashboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_fsrs_review_api_learn_projects__project_id__review_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FsrsReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_fsrs_review_responses_api_learn_projects__project_id__review_responses_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FsrsReviewResponseRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

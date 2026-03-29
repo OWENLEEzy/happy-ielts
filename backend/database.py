@@ -182,6 +182,8 @@ class DatabaseProtocol(Protocol):
         self, topic: str, profile: UserGoalProfile | None, tier: str
     ) -> int: ...
 
+    def list_general_projects(self) -> list[GeneralProject]: ...
+
     def get_general_project(self, project_id: int) -> GeneralProject | None: ...
 
     def update_general_project_status(self, project_id: int, status: str) -> None: ...
@@ -746,14 +748,14 @@ class Database:
             )
             return cur.fetchone()["id"]  # type: ignore[index]
 
-    def get_general_project(self, project_id: int) -> GeneralProject | None:
+    def list_general_projects(self) -> list[GeneralProject]:
         with self._conn() as conn:
             cur = self._cur(conn)
-            cur.execute("SELECT * FROM learning_projects WHERE id = %s", (project_id,))
-            row = cur.fetchone()
-        if not row:
-            return None
-        d = dict(row)
+            cur.execute("SELECT * FROM learning_projects ORDER BY id DESC")
+            rows = cur.fetchall()
+        return [p for p in (self._parse_general_project(dict(r)) for r in rows) if p]
+
+    def _parse_general_project(self, d: dict) -> GeneralProject | None:
         try:
             _raw = _safe_json(d["goal_profile"], None)
             d["goal_profile"] = UserGoalProfile(**_raw) if _raw else None
@@ -764,7 +766,19 @@ class Database:
             d["learning_map"] = LearningMap(**_raw) if _raw else None
         except (TypeError, KeyError, ValidationError):
             d["learning_map"] = None
-        return GeneralProject(**d)
+        try:
+            return GeneralProject(**d)
+        except (TypeError, ValidationError):
+            return None
+
+    def get_general_project(self, project_id: int) -> GeneralProject | None:
+        with self._conn() as conn:
+            cur = self._cur(conn)
+            cur.execute("SELECT * FROM learning_projects WHERE id = %s", (project_id,))
+            row = cur.fetchone()
+        if not row:
+            return None
+        return self._parse_general_project(dict(row))
 
     def update_general_project_status(self, project_id: int, status: str) -> None:
         with self._conn() as conn:

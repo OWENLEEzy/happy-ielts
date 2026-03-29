@@ -24,7 +24,7 @@ export default function LearnLandingPage() {
 
   useEffect(() => {
     client
-      .GET('/api/learn/projects')
+      .GET('/api/learn/projects', {})
       .then(({ data }) => setProjects(data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -63,10 +63,7 @@ export default function LearnLandingPage() {
             {loading ? (
               <div className="space-y-3">
                 {[0, 1].map((i) => (
-                  <div
-                    key={i}
-                    className="h-16 rounded-xl bg-surface-container-low animate-pulse"
-                  />
+                  <div key={i} className="h-16 rounded-xl bg-surface-container-low animate-pulse" />
                 ))}
               </div>
             ) : (
@@ -81,9 +78,11 @@ export default function LearnLandingPage() {
                     className="w-full text-left rounded-xl px-5 py-4 flex items-center gap-4 bg-surface-container-lowest shadow-[0_2px_12px_color-mix(in_srgb,var(--primary)_6%,transparent)] hover:shadow-[0_4px_16px_color-mix(in_srgb,var(--primary)_10%,transparent)] transition-shadow group"
                   >
                     {/* Status dot */}
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      p.status === 'active' ? 'bg-primary' : 'bg-outline-variant'
-                    }`} />
+                    <div
+                      className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        p.status === 'active' ? 'bg-primary' : 'bg-outline-variant'
+                      }`}
+                    />
 
                     {/* Topic */}
                     <div className="flex-1 min-w-0">
@@ -98,9 +97,11 @@ export default function LearnLandingPage() {
                     </div>
 
                     {/* Status badge */}
-                    <span className={`text-xs font-bold font-label flex-shrink-0 ${
-                      p.status === 'active' ? 'text-primary' : 'text-on-surface-variant'
-                    }`}>
+                    <span
+                      className={`text-xs font-bold font-label flex-shrink-0 ${
+                        p.status === 'active' ? 'text-primary' : 'text-on-surface-variant'
+                      }`}
+                    >
                       {STATUS_LABEL[p.status] ?? p.status}
                     </span>
 
@@ -132,7 +133,8 @@ export default function LearnLandingPage() {
             {projects.length === 0 && (
               <>
                 <h1 className="text-4xl md:text-5xl font-extrabold font-headline text-on-surface leading-tight">
-                  掌握任何<br />
+                  掌握任何
+                  <br />
                   <span className="text-primary">你想学的</span>
                 </h1>
                 <p className="max-w-md mx-auto text-base leading-relaxed text-on-surface-variant font-body">

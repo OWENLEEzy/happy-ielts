@@ -555,6 +555,14 @@ async def general_onboarding_confirm(
     return {"status": "researching", "project_id": project_id}
 
 
+@app.get("/api/learn/projects", response_model=list[GeneralProject])
+async def list_general_projects():
+    from backend.database import get_db
+
+    db = get_db()
+    return db.list_general_projects()
+
+
 @app.get("/api/learn/projects/{project_id}", response_model=GeneralProject)
 async def get_general_project(project_id: int):
     from backend.database import get_db

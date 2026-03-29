@@ -35,7 +35,7 @@ export default function HomePage() {
       })
 
     client
-      .GET('/api/learn/projects')
+      .GET('/api/learn/projects', {})
       .then(({ data }) => {
         const active = (data ?? []).find((p) => p.status === 'active') ?? null
         setActiveProject(active)
@@ -58,10 +58,13 @@ export default function HomePage() {
   }
 
   const englishBadge =
-    englishReady === null ? null :
-    !englishOnboarded ? { label: '未初始化', cls: 'bg-surface-container text-on-surface-variant' } :
-    englishReady ? { label: '● 就绪', cls: 'bg-primary/10 text-primary' } :
-    { label: '○ 备课中', cls: 'bg-surface-container text-on-surface-variant' }
+    englishReady === null
+      ? null
+      : !englishOnboarded
+        ? { label: '未初始化', cls: 'bg-surface-container text-on-surface-variant' }
+        : englishReady
+          ? { label: '● 就绪', cls: 'bg-primary/10 text-primary' }
+          : { label: '○ 备课中', cls: 'bg-surface-container text-on-surface-variant' }
 
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-10 px-6">
@@ -88,7 +91,9 @@ export default function HomePage() {
           <div className="flex items-center justify-between mb-2">
             <span className="text-base font-bold font-label text-on-surface">英语飞轮</span>
             {englishBadge && (
-              <span className={`text-xs font-bold font-label px-2 py-0.5 rounded-full ${englishBadge.cls}`}>
+              <span
+                className={`text-xs font-bold font-label px-2 py-0.5 rounded-full ${englishBadge.cls}`}
+              >
                 {englishBadge.label}
               </span>
             )}
