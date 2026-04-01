@@ -11,9 +11,27 @@ test.describe('dog role anchors', () => {
     ])
   })
 
-  test('home page uses relationship dog in the hero anchor', async ({ page }) => {
+  test('home page uses relationship dog in the hero anchor and hydrates cleanly', async ({
+    page,
+  }) => {
+    const hydrationMessages: string[] = []
+
+    page.on('console', (message) => {
+      if (message.type() === 'error' || message.type() === 'warning') {
+        hydrationMessages.push(message.text())
+      }
+    })
+    page.on('pageerror', (error) => {
+      hydrationMessages.push(error.message)
+    })
+
     await page.goto('/')
     await expect(page.locator('[data-dog-role="relationship"][data-dog-emphasis="hero"]')).toBeVisible()
+
+    const hydrationNoise = hydrationMessages.filter((text) =>
+      /hydration|did not match|server-rendered html|text content does not match/i.test(text),
+    )
+    expect(hydrationNoise, hydrationMessages.join('\n')).toEqual([])
   })
 
   test('english onboarding keeps a teacher dog for the guide card', async ({ page }) => {

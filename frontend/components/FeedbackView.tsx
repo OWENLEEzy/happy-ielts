@@ -29,7 +29,13 @@ export function FeedbackView({ feedback, onRetry }: Props) {
             <div className="text-sm opacity-70 mt-1 font-label">/ 10</div>
           </div>
           <div className="flex-shrink-0">
-            <DogAvatar role="relationship" size={64} emphasis="card" alt="一起完成写作" />
+            <DogAvatar
+              role="relationship"
+              size={64}
+              emphasis="card"
+              alt="一起完成写作"
+              seedKey="feedback-relationship"
+            />
           </div>
         </div>
         {feedback.rewrite_suggestions.length > 0 && (
@@ -121,7 +127,13 @@ export function FeedbackView({ feedback, onRetry }: Props) {
       {feedback.rewrite_suggestions.length > 1 && (
         <div className="bg-tertiary-container/25 rounded-lg p-5 flex gap-3">
           <div className="flex-shrink-0">
-            <DogAvatar role="teacher" size={40} emphasis="card" alt="Professor 金毛建议" />
+            <DogAvatar
+              role="teacher"
+              size={40}
+              emphasis="card"
+              alt="Professor 金毛建议"
+              seedKey="feedback-teacher-note"
+            />
           </div>
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

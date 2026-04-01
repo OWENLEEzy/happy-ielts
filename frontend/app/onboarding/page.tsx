@@ -99,7 +99,13 @@ export default function OnboardingPage() {
           data-testid="teacher-intro-card"
           className="flex items-center gap-3 bg-tertiary-container/25 rounded-lg p-4 border border-primary/10"
         >
-          <DogAvatar role="teacher" size={48} emphasis="card" alt="Professor 金毛" />
+          <DogAvatar
+            role="teacher"
+            size={48}
+            emphasis="card"
+            alt="Professor 金毛"
+            seedKey="english-onboarding-intro"
+          />
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label">
               Professor 金毛
@@ -115,11 +121,17 @@ export default function OnboardingPage() {
               key={m.id}
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-            {m.role === 'assistant' && (
-              <div className="mr-2 flex-shrink-0 mt-1">
-                <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
-              </div>
-            )}
+              {m.role === 'assistant' && (
+                <div className="mr-2 flex-shrink-0 mt-1">
+                  <DogAvatar
+                    role="teacher"
+                    size={28}
+                    emphasis="inline"
+                    alt="Professor 金毛"
+                    seedKey="english-onboarding-message"
+                  />
+                </div>
+              )}
               <div
                 className={`max-w-[80%] px-4 py-3 rounded-lg text-sm leading-relaxed ${
                   m.role === 'user'
@@ -134,7 +146,13 @@ export default function OnboardingPage() {
           {isStreaming && (
             <div className="flex justify-start">
               <div className="mr-2 flex-shrink-0 mt-1">
-                <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
+                <DogAvatar
+                  role="teacher"
+                  size={28}
+                  emphasis="inline"
+                  alt="Professor 金毛"
+                  seedKey="english-onboarding-streaming"
+                />
               </div>
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 flex gap-1.5 items-center">
                 <span className="dot1 w-2 h-2 bg-primary rounded-full inline-block" />

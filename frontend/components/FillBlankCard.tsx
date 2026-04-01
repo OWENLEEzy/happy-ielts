@@ -64,7 +64,13 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
         <div className="w-full max-w-md mx-auto bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_color-mix(in_srgb,var(--primary)_12%,transparent)] p-8 space-y-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="flex-shrink-0">
-              <DogAvatar role="teacher" size={32} emphasis="card" alt="Professor 金毛提示" />
+              <DogAvatar
+                role="teacher"
+                size={32}
+                emphasis="card"
+                alt="Professor 金毛提示"
+                seedKey="fill-blank-card"
+              />
             </div>
             <p className="text-xs font-bold text-on-surface-variant font-label">
               填入正确的词汇，解锁今日课程

@@ -28,7 +28,13 @@ export function Header({ streak = 0 }: { streak?: number }) {
       <div className="flex items-center justify-between max-w-5xl mx-auto px-6 gap-4 w-full">
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <DogAvatar role="relationship" size={36} emphasis="card" alt="Happy Learning" />
+          <DogAvatar
+            role="relationship"
+            size={36}
+            emphasis="card"
+            alt="Happy Learning"
+            seedKey="header-logo"
+          />
           <span className="text-lg font-black tracking-tighter font-headline hidden sm:block text-primary">
             Happy Learning
           </span>

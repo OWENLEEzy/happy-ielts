@@ -449,7 +449,13 @@ export default function LessonPage() {
                   </div>
                   <div className="flex items-start gap-2">
                     <div className="flex-shrink-0 mt-0.5">
-                      <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
+                      <DogAvatar
+                        role="teacher"
+                        size={28}
+                        emphasis="inline"
+                        alt="Professor 金毛"
+                        seedKey="general-lesson-qa-message"
+                      />
                     </div>
                     <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] text-sm font-body text-on-surface leading-relaxed">
                       {entry.a}
@@ -460,7 +466,13 @@ export default function LessonPage() {
               {isLoading && (
                 <div className="flex items-start gap-2">
                   <div className="flex-shrink-0 mt-0.5">
-                    <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
+                    <DogAvatar
+                      role="teacher"
+                      size={28}
+                      emphasis="inline"
+                      alt="Professor 金毛"
+                      seedKey="general-lesson-qa-loading"
+                    />
                   </div>
                   <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl rounded-bl-sm px-4 py-3">
                     <div className="flex gap-1 items-center">

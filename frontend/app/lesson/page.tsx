@@ -74,6 +74,7 @@ function LessonContent() {
                 size={80}
                 emphasis="hero"
                 alt="Professor 金毛准备中"
+                seedKey="daily-lesson-loading"
                 className={isError ? 'border-error/25' : 'border-primary/20'}
               />
             </div>

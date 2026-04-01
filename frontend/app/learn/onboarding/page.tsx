@@ -128,7 +128,13 @@ export default function GeneralOnboardingPage() {
           <div className="relative z-10 w-full max-w-md space-y-8">
             {/* Professor 金毛 tip card */}
             <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-center gap-3 mb-6">
-              <DogAvatar role="teacher" size={36} emphasis="card" alt="Professor 金毛" />
+              <DogAvatar
+                role="teacher"
+                size={36}
+                emphasis="card"
+                alt="Professor 金毛"
+                seedKey="general-onboarding-intro"
+              />
               <div>
                 <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
                   Professor 金毛
@@ -185,7 +191,13 @@ export default function GeneralOnboardingPage() {
           >
             {msg.role === 'assistant' && (
               <div className="mr-2 mt-1 flex-shrink-0">
-                <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
+                <DogAvatar
+                  role="teacher"
+                  size={28}
+                  emphasis="inline"
+                  alt="Professor 金毛"
+                  seedKey="general-onboarding-message"
+                />
               </div>
             )}
             <div

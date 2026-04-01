@@ -55,7 +55,13 @@ export function ArticleReader({ article, onDone }: Props) {
       {showTip && (
         <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-start gap-3">
           <div className="flex-shrink-0">
-            <DogAvatar role="teacher" size={32} emphasis="card" alt="Professor 金毛提示" />
+            <DogAvatar
+              role="teacher"
+              size={32}
+              emphasis="card"
+              alt="Professor 金毛提示"
+              seedKey="article-tip"
+            />
           </div>
           <div className="flex-1">
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label mb-1">

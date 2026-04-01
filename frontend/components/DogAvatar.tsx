@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { getRandomDogUrl, type DogRole } from '@/lib/constants'
+import { getDogUrl, type DogRole } from '@/lib/constants'
 
 type DogAvatarProps = {
   role: DogRole
   size: number
   emphasis?: 'inline' | 'card' | 'hero'
   alt: string
+  seedKey?: string
   className?: string
 }
 
@@ -30,14 +31,16 @@ export function DogAvatar({
   size,
   emphasis = 'inline',
   alt,
+  seedKey,
   className,
 }: DogAvatarProps) {
-  const [dogUrl] = useState(() => getRandomDogUrl(role))
+  const [dogUrl] = useState(() => getDogUrl(role, seedKey))
 
   return (
     <div
       data-dog-role={role}
       data-dog-emphasis={emphasis}
+      data-dog-seed={seedKey}
       className={cn(
         'relative shrink-0 overflow-hidden rounded-full border',
         ROLE_FRAME_CLASSES[role],

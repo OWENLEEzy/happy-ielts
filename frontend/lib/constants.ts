@@ -31,6 +31,18 @@ function pickRandom<T extends readonly string[]>(arr: T): string {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+function hashSeed(seed: string): number {
+  let hash = 0
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0
+  }
+  return hash
+}
+
+function pickStable<T extends readonly string[]>(arr: T, seedKey: string): string {
+  return arr[hashSeed(seedKey) % arr.length]
+}
+
 export function getRandomDogUrl(role: DogRole): string {
   switch (role) {
     case 'teacher':
@@ -40,6 +52,21 @@ export function getRandomDogUrl(role: DogRole): string {
     case 'relationship':
       return pickRandom(DOG_TOGETHER_IMAGES)
   }
+}
+
+export function getSeededDogUrl(role: DogRole, seedKey: string): string {
+  switch (role) {
+    case 'teacher':
+      return pickStable(DOG_TEACHER_IMAGES, `teacher:${seedKey}`)
+    case 'user':
+      return pickStable(DOG_USER_IMAGES, `user:${seedKey}`)
+    case 'relationship':
+      return pickStable(DOG_TOGETHER_IMAGES, `relationship:${seedKey}`)
+  }
+}
+
+export function getDogUrl(role: DogRole, seedKey?: string): string {
+  return seedKey ? getSeededDogUrl(role, seedKey) : getRandomDogUrl(role)
 }
 
 export const getRandomUserDogUrl = () => getRandomDogUrl('user')

@@ -60,7 +60,13 @@ export default function PreparingPage() {
 
           {/* Professor 金毛 */}
           <div className="mx-auto mb-6">
-            <DogAvatar role="teacher" size={80} emphasis="hero" alt="Professor 金毛" />
+            <DogAvatar
+              role="teacher"
+              size={80}
+              emphasis="hero"
+              alt="Professor 金毛"
+              seedKey={`preparing-${projectId}`}
+            />
           </div>
 
           <h2 className="text-xl font-extrabold font-headline text-primary mb-2">

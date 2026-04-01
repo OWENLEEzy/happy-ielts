@@ -73,6 +73,7 @@ export default function HomePage() {
           size={80}
           emphasis="hero"
           alt="Happy Learning 品牌大使"
+          seedKey="home-hero"
         />
         <h1 className="text-3xl font-extrabold font-headline text-on-surface tracking-tight">
           Happy Learning
