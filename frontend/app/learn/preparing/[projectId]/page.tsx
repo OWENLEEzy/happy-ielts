@@ -4,9 +4,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
+import { DogAvatar } from '@/components/DogAvatar'
 import { client } from '@/lib/client'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
-import Image from 'next/image'
 import type { components } from '@/types/api'
 
 type GeneralProject = components['schemas']['GeneralProject']
@@ -27,7 +26,6 @@ export default function PreparingPage() {
   const [project, setProject] = useState<GeneralProject | null>(null)
   const [unlocked, setUnlocked] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   // Poll project status
   useEffect(() => {
@@ -61,8 +59,8 @@ export default function PreparingPage() {
         <div className="w-full max-w-md bg-surface-container-lowest rounded-xl p-10 text-center shadow-[0_4px_24px_color-mix(in_srgb,var(--primary)_8%,transparent)]">
 
           {/* Professor 金毛 */}
-          <div className="relative w-20 h-20 rounded-full overflow-hidden border-4 border-primary/20 shadow-xl mx-auto mb-6">
-            {dogUrl && <Image src={dogUrl} fill sizes="80px" className="object-cover" alt="Professor 金毛" />}
+          <div className="mx-auto mb-6">
+            <DogAvatar role="teacher" size={80} emphasis="hero" alt="Professor 金毛" />
           </div>
 
           <h2 className="text-xl font-extrabold font-headline text-primary mb-2">

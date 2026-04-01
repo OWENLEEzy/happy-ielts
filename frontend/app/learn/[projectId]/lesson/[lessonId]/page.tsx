@@ -11,8 +11,7 @@ import {
 } from '@/hooks/useGeneralLesson'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
-import Image from 'next/image'
+import { DogAvatar } from '@/components/DogAvatar'
 
 // ── Retry hint banner ────────────────────────────────────────────────────────
 
@@ -235,7 +234,6 @@ export default function LessonPage() {
   const [selectedAnswers, setSelectedAnswers] = useState<(number | null)[]>([])
   const [qaInput, setQaInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   useEffect(() => {
     start()
@@ -450,8 +448,8 @@ export default function LessonPage() {
                     </div>
                   </div>
                   <div className="flex items-start gap-2">
-                    <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 flex-shrink-0 mt-0.5">
-                      {dogUrl && <Image src={dogUrl} fill sizes="28px" className="object-cover" alt="Professor 金毛" />}
+                    <div className="flex-shrink-0 mt-0.5">
+                      <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
                     </div>
                     <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[80%] text-sm font-body text-on-surface leading-relaxed">
                       {entry.a}
@@ -461,8 +459,8 @@ export default function LessonPage() {
               ))}
               {isLoading && (
                 <div className="flex items-start gap-2">
-                  <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 flex-shrink-0 mt-0.5">
-                    {dogUrl && <Image src={dogUrl} fill sizes="28px" className="object-cover" alt="Professor 金毛" />}
+                  <div className="flex-shrink-0 mt-0.5">
+                    <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
                   </div>
                   <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-2xl rounded-bl-sm px-4 py-3">
                     <div className="flex gap-1 items-center">

@@ -1,13 +1,12 @@
 'use client'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
 import type { components } from '@/types/api'
 import { sendGeneralOnboardingMessage } from '@/lib/sse'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
+import { DogAvatar } from '@/components/DogAvatar'
 
 type StartReq = components['schemas']['GeneralOnboardingStartRequest']
 
@@ -32,7 +31,6 @@ export default function GeneralOnboardingPage() {
   const [isStreaming, setIsStreaming] = useState(false)
   const [preview, setPreview] = useState<LearningMapPreview | null>(null)
   const [confirming, setConfirming] = useState(false)
-  const [dogUrl] = useState(getRandomTeacherDogUrl)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const msgIdRef = useRef(0)
@@ -130,11 +128,7 @@ export default function GeneralOnboardingPage() {
           <div className="relative z-10 w-full max-w-md space-y-8">
             {/* Professor 金毛 tip card */}
             <div className="bg-tertiary-container/25 border border-primary/10 rounded-lg p-4 flex items-center gap-3 mb-6">
-              <div className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
-                {dogUrl && (
-                  <Image src={dogUrl} fill sizes="36px" className="object-cover" alt="Professor 金毛" />
-                )}
-              </div>
+              <DogAvatar role="teacher" size={36} emphasis="card" alt="Professor 金毛" />
               <div>
                 <div className="text-[11px] font-black text-primary uppercase tracking-widest font-label">
                   Professor 金毛
@@ -190,10 +184,8 @@ export default function GeneralOnboardingPage() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'assistant' && (
-              <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 flex-shrink-0 mr-2 mt-1">
-                {dogUrl && (
-                  <Image src={dogUrl} fill sizes="28px" className="object-cover" alt="Professor 金毛" />
-                )}
+              <div className="mr-2 mt-1 flex-shrink-0">
+                <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
               </div>
             )}
             <div

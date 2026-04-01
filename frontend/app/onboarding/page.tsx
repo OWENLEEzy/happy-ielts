@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
 import type { components } from '@/types/api'
@@ -9,7 +8,6 @@ import { useOnboardingStatus } from '@/hooks/useLesson'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
 import { DogAvatar } from '@/components/DogAvatar'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
 
 interface Message {
   id: string
@@ -34,10 +32,6 @@ export default function OnboardingPage() {
   const [submitting, setSubmitting] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { data: status, mutate } = useOnboardingStatus()
-  const [dogUrls] = useState(() => ({
-    message: getRandomTeacherDogUrl(),
-    streaming: getRandomTeacherDogUrl(),
-  }))
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -121,19 +115,11 @@ export default function OnboardingPage() {
               key={m.id}
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {m.role === 'assistant' && (
-                <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
-                  {dogUrls && (
-                    <Image
-                      src={dogUrls.message}
-                      fill
-                      sizes="28px"
-                      className="object-cover"
-                      alt=""
-                    />
-                  )}
-                </div>
-              )}
+            {m.role === 'assistant' && (
+              <div className="mr-2 flex-shrink-0 mt-1">
+                <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
+              </div>
+            )}
               <div
                 className={`max-w-[80%] px-4 py-3 rounded-lg text-sm leading-relaxed ${
                   m.role === 'user'
@@ -147,16 +133,8 @@ export default function OnboardingPage() {
           ))}
           {isStreaming && (
             <div className="flex justify-start">
-              <div className="relative w-7 h-7 rounded-full overflow-hidden border border-primary/20 mr-2 flex-shrink-0 mt-1">
-                {dogUrls && (
-                  <Image
-                    src={dogUrls.streaming}
-                    fill
-                    sizes="28px"
-                    className="object-cover"
-                    alt=""
-                  />
-                )}
+              <div className="mr-2 flex-shrink-0 mt-1">
+                <DogAvatar role="teacher" size={28} emphasis="inline" alt="Professor 金毛" />
               </div>
               <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-lg px-4 py-3 flex gap-1.5 items-center">
                 <span className="dot1 w-2 h-2 bg-primary rounded-full inline-block" />

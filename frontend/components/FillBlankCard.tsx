@@ -1,8 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Image from 'next/image'
+import { DogAvatar } from '@/components/DogAvatar'
 import { sendAction } from '@/lib/sse'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
 import type { SSEChunk } from '@/types'
 
 interface Props {
@@ -14,7 +13,6 @@ interface Props {
 export function FillBlankCard({ question, word, onChunk }: Props) {
   const [answer, setAnswer] = useState('')
   const startTimeRef = useRef<number>(0)
-  const [dogUrl] = useState(getRandomTeacherDogUrl)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -65,10 +63,8 @@ export function FillBlankCard({ question, word, onChunk }: Props) {
         {/* Card */}
         <div className="w-full max-w-md mx-auto bg-surface-container-lowest rounded-lg shadow-[0_8px_32px_color-mix(in_srgb,var(--primary)_12%,transparent)] p-8 space-y-5">
           <div className="flex items-center gap-3 mb-2">
-            <div className="relative w-8 h-8 rounded-full overflow-hidden border border-primary/20 flex-shrink-0">
-              {dogUrl && (
-                <Image src={dogUrl} fill sizes="32px" className="object-cover" alt="tutor" />
-              )}
+            <div className="flex-shrink-0">
+              <DogAvatar role="teacher" size={32} emphasis="card" alt="Professor 金毛提示" />
             </div>
             <p className="text-xs font-bold text-on-surface-variant font-label">
               填入正确的词汇，解锁今日课程

@@ -1,6 +1,5 @@
 'use client'
-import { useReducer, useEffect, useState, useCallback, Suspense } from 'react'
-import Image from 'next/image'
+import { useReducer, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { lessonReducer, initialState } from './reducer'
 import { FillBlankCard } from '@/components/FillBlankCard'
@@ -13,7 +12,7 @@ import { MobileNav } from '@/components/MobileNav'
 import { useTodayLesson, usePlannerStatus } from '@/hooks/useLesson'
 import { client } from '@/lib/client'
 import { startLesson } from '@/lib/sse'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
+import { DogAvatar } from '@/components/DogAvatar'
 import type { SSEChunk } from '@/types'
 
 const LoadingDots = () => (
@@ -30,7 +29,6 @@ function LessonContent() {
   const { data: lesson, isLoading: lessonLoading } = useTodayLesson()
   const { data: plannerStatus } = usePlannerStatus()
   const [state, dispatch] = useReducer(lessonReducer, initialState)
-  const [loadingDogUrl] = useState(getRandomTeacherDogUrl)
 
   const handleChunk = useCallback((chunk: SSEChunk) => {
     switch (chunk.type) {
@@ -70,20 +68,14 @@ function LessonContent() {
           }`}
         >
           <div className="relative z-10">
-            <div
-              className={`relative w-20 h-20 rounded-full overflow-hidden mx-auto mb-6 flex-shrink-0 border-2 ${
-                isError ? 'border-error/25' : 'border-primary/20'
-              }`}
-            >
-              {loadingDogUrl && (
-                <Image
-                  src={loadingDogUrl}
-                  fill
-                  sizes="80px"
-                  className="object-cover"
-                  alt="准备中"
-                />
-              )}
+            <div className="mx-auto mb-6 flex-shrink-0">
+              <DogAvatar
+                role="teacher"
+                size={80}
+                emphasis="hero"
+                alt="Professor 金毛准备中"
+                className={isError ? 'border-error/25' : 'border-primary/20'}
+              />
             </div>
 
             {isError ? (

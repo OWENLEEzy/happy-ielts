@@ -3,14 +3,14 @@ import { useState, useEffect, useSyncExternalStore } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { getRandomTogetherDogUrl, getRandomUserDogUrl } from '@/lib/constants'
+import { getRandomUserDogUrl } from '@/lib/constants'
+import { DogAvatar } from '@/components/DogAvatar'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { subscribeToStorage } from '@/lib/storage'
 
 export function Header({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [logoUrl] = useState(getRandomTogetherDogUrl)
   const [avatarUrl] = useState(getRandomUserDogUrl)
   const mode = useSyncExternalStore(
     subscribeToStorage,
@@ -28,11 +28,7 @@ export function Header({ streak = 0 }: { streak?: number }) {
       <div className="flex items-center justify-between max-w-5xl mx-auto px-6 gap-4 w-full">
         {/* Logo */}
         <div className="flex items-center gap-2.5 flex-shrink-0">
-          <div className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-primary/30 flex-shrink-0">
-            {logoUrl && (
-              <Image src={logoUrl} fill sizes="36px" className="object-cover" alt="logo" />
-            )}
-          </div>
+          <DogAvatar role="relationship" size={36} emphasis="card" alt="Happy Learning" />
           <span className="text-lg font-black tracking-tighter font-headline hidden sm:block text-primary">
             Happy Learning
           </span>
