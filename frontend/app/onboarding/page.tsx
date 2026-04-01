@@ -35,7 +35,6 @@ export default function OnboardingPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const { data: status, mutate } = useOnboardingStatus()
   const [dogUrls] = useState(() => ({
-    intro: getRandomTeacherDogUrl(),
     message: getRandomTeacherDogUrl(),
     streaming: getRandomTeacherDogUrl(),
   }))
