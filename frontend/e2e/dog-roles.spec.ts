@@ -18,7 +18,7 @@ test.describe('dog role anchors', () => {
 
   test('english onboarding keeps a teacher dog for the guide card', async ({ page }) => {
     await page.goto('/onboarding')
-    const introCard = page.locator('div').filter({ hasText: '你的专属语言学习顾问' }).first()
+    const introCard = page.locator('[data-testid="teacher-intro-card"]')
     await expect(introCard).toContainText('Professor 金毛')
     await expect(introCard.locator('[data-dog-role="teacher"][data-dog-emphasis="card"]')).toBeVisible()
   })
