@@ -3,8 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { client } from '@/lib/client'
 import type { components } from '@/types/api'
-import { getRandomTeacherDogUrl } from '@/lib/constants'
-import Image from 'next/image'
+import { DogAvatar } from '@/components/DogAvatar'
 
 type Project = components['schemas']['GeneralProject']
 
@@ -13,7 +12,6 @@ export default function HomePage() {
   const [englishOnboarded, setEnglishOnboarded] = useState<boolean | null>(null)
   const [englishReady, setEnglishReady] = useState<boolean | null>(null)
   const [activeProject, setActiveProject] = useState<Project | null>(null)
-  const [dogUrl] = useState(getRandomTeacherDogUrl)
 
   useEffect(() => {
     client
@@ -70,11 +68,12 @@ export default function HomePage() {
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-10 px-6">
       {/* Logo + title */}
       <div className="flex flex-col items-center gap-3">
-        {dogUrl && (
-          <div className="relative w-16 h-16 rounded-full overflow-hidden border-4 border-primary/20 shadow-lg shadow-primary/10">
-            <Image src={dogUrl} fill sizes="64px" className="object-cover" alt="Professor 金毛" />
-          </div>
-        )}
+        <DogAvatar
+          role="relationship"
+          size={80}
+          emphasis="hero"
+          alt="Happy Learning 品牌大使"
+        />
         <h1 className="text-3xl font-extrabold font-headline text-on-surface tracking-tight">
           Happy Learning
         </h1>

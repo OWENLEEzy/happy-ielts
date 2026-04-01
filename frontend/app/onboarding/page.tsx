@@ -8,6 +8,7 @@ import { sendOnboardingMessage } from '@/lib/sse'
 import { useOnboardingStatus } from '@/hooks/useLesson'
 import { Header } from '@/components/Header'
 import { MobileNav } from '@/components/MobileNav'
+import { DogAvatar } from '@/components/DogAvatar'
 import { getRandomTeacherDogUrl } from '@/lib/constants'
 
 interface Message {
@@ -102,11 +103,7 @@ export default function OnboardingPage() {
       <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-8 pb-[calc(var(--mobile-nav-height)+8px)] md:pb-8 flex flex-col gap-4 min-h-0">
         {/* Tutor intro card */}
         <div className="flex items-center gap-3 bg-tertiary-container/25 rounded-lg p-4 border border-primary/10">
-          <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0">
-            {dogUrls && (
-              <Image src={dogUrls.intro} fill sizes="48px" className="object-cover" alt="顾问" />
-            )}
-          </div>
+          <DogAvatar role="teacher" size={48} emphasis="card" alt="Professor 金毛" />
           <div>
             <div className="text-[11px] font-black text-primary uppercase tracking-wider font-label">
               Professor 金毛

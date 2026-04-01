@@ -25,13 +25,26 @@ export const DOG_TOGETHER_IMAGES = [
   '/dogs/together.jpg',
 ] as const
 
+export type DogRole = 'teacher' | 'user' | 'relationship'
+
 function pickRandom<T extends readonly string[]>(arr: T): string {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-export const getRandomUserDogUrl    = () => pickRandom(DOG_USER_IMAGES)
-export const getRandomTeacherDogUrl = () => pickRandom(DOG_TEACHER_IMAGES)
-export const getRandomTogetherDogUrl = () => pickRandom(DOG_TOGETHER_IMAGES)
+export function getRandomDogUrl(role: DogRole): string {
+  switch (role) {
+    case 'teacher':
+      return pickRandom(DOG_TEACHER_IMAGES)
+    case 'user':
+      return pickRandom(DOG_USER_IMAGES)
+    case 'relationship':
+      return pickRandom(DOG_TOGETHER_IMAGES)
+  }
+}
+
+export const getRandomUserDogUrl = () => getRandomDogUrl('user')
+export const getRandomTeacherDogUrl = () => getRandomDogUrl('teacher')
+export const getRandomTogetherDogUrl = () => getRandomDogUrl('relationship')
 
 // 向后兼容（逐步迁移，不破坏未改到的地方）
 export const DOG_GOLDEN  = '/dogs/golden.jpg'
