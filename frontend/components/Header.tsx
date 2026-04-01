@@ -1,9 +1,7 @@
 'use client'
 import { useState, useEffect, useSyncExternalStore } from 'react'
-import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { getRandomUserDogUrl } from '@/lib/constants'
 import { DogAvatar } from '@/components/DogAvatar'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import { subscribeToStorage } from '@/lib/storage'
@@ -11,7 +9,6 @@ import { subscribeToStorage } from '@/lib/storage'
 export function Header({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [avatarUrl] = useState(getRandomUserDogUrl)
   const mode = useSyncExternalStore(
     subscribeToStorage,
     () => localStorage.getItem('appMode'),
@@ -75,10 +72,15 @@ export function Header({ streak = 0 }: { streak?: number }) {
 
           {/* Avatar → Sheet */}
           <Sheet>
-            <SheetTrigger className="relative w-9 h-9 rounded-full overflow-hidden border-2 border-primary/20 flex-shrink-0 hover:border-primary/60 transition-colors">
-              {avatarUrl && (
-                <Image src={avatarUrl} fill sizes="36px" className="object-cover" alt="我的设置" />
-              )}
+            <SheetTrigger className="group rounded-full flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+              <DogAvatar
+                role="user"
+                size={36}
+                emphasis="inline"
+                alt="我的设置"
+                seedKey="header-settings"
+                className="border-2 border-primary/20 transition-colors group-hover:border-primary/60"
+              />
             </SheetTrigger>
             <SheetContent side="right" className="w-72 p-6">
               <div className="flex flex-col gap-6 pt-4">
