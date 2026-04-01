@@ -121,28 +121,38 @@ export default function OnboardingPage() {
               key={m.id}
               className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {m.role === 'assistant' && (
-                <div className="mr-2 flex-shrink-0 mt-1">
-                  <DogAvatar
-                    role="teacher"
-                    size={28}
-                    emphasis="inline"
-                    alt="Professor 金毛"
-                    seedKey="english-onboarding-message"
-                  />
-                </div>
-              )}
-              <div
-                className={`max-w-[80%] px-4 py-3 rounded-lg text-sm leading-relaxed ${
-                  m.role === 'user'
-                    ? 'signature-gradient text-white rounded-br-sm'
-                    : 'bg-surface-container-lowest border border-outline-variant/20 text-on-surface rounded-bl-sm shadow-sm'
-                }`}
-              >
-                {m.content}
+            {m.role === 'assistant' && (
+              <div className="mr-2 flex-shrink-0 mt-1">
+                <DogAvatar
+                  role="teacher"
+                  size={28}
+                  emphasis="inline"
+                  alt="Professor 金毛"
+                  seedKey="english-onboarding-message"
+                />
               </div>
+            )}
+            <div
+              className={`max-w-[80%] px-4 py-3 rounded-lg text-sm leading-relaxed ${
+                m.role === 'user'
+                  ? 'signature-gradient text-white rounded-br-sm'
+                  : 'bg-surface-container-lowest border border-outline-variant/20 text-on-surface rounded-bl-sm shadow-sm'
+              }`}
+            >
+              {m.content}
             </div>
-          ))}
+            {m.role === 'user' && (
+              <div className="ml-2 flex-shrink-0 mt-1">
+                <DogAvatar
+                  role="user"
+                  size={28}
+                  emphasis="inline"
+                  alt="小白"
+                />
+              </div>
+            )}
+          </div>
+        ))}
           {isStreaming && (
             <div className="flex justify-start">
               <div className="mr-2 flex-shrink-0 mt-1">

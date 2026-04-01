@@ -443,8 +443,18 @@ export default function LessonPage() {
               {qaHistory.map((entry) => (
                 <div key={entry.id} className="space-y-2">
                   <div className="flex justify-end">
-                    <div className="signature-gradient text-white rounded-2xl rounded-br-sm px-4 py-3 max-w-[80%] text-sm font-body">
-                      {entry.q}
+                    <div className="flex items-start gap-2 max-w-[80%]">
+                      <div className="signature-gradient text-white rounded-2xl rounded-br-sm px-4 py-3 text-sm font-body">
+                        {entry.q}
+                      </div>
+                      <div className="flex-shrink-0 mt-0.5">
+                        <DogAvatar
+                          role="user"
+                          size={28}
+                          emphasis="inline"
+                          alt="小白"
+                        />
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-start gap-2">

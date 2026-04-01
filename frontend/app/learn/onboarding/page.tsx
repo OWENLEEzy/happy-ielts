@@ -214,6 +214,16 @@ export default function GeneralOnboardingPage() {
                   <span className="animate-pulse ml-1 text-primary">▋</span>
                 )}
             </div>
+            {msg.role === 'user' && (
+              <div className="ml-2 mt-1 flex-shrink-0">
+                <DogAvatar
+                  role="user"
+                  size={28}
+                  emphasis="inline"
+                  alt="小白"
+                />
+              </div>
+            )}
           </div>
         ))}
         <div ref={messagesEndRef} />

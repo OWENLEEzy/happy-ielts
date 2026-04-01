@@ -31,22 +31,3 @@ $font-body: var(--dl-font-body);
 $radius-sm: 0.5rem;
 $radius-md: 1rem;
 $radius-lg: 2rem;
-
-// ── General Learning dark theme ──────────────────────────────────────────────
-// Raw hex values (no CSS var — GL theme is not in globals.css)
-$gl-bg-start:     #0f0d1a;
-$gl-bg-mid:       #1a1428;
-$gl-bg-end:       #0d1118;
-$gl-fg:           #f0ebe0;
-$gl-fg-muted:     rgba(240, 235, 224, 0.5);
-$gl-fg-faint:     rgba(240, 235, 224, 0.25);
-$gl-amber:        #c9a84c;
-$gl-amber-light:  #e8c96a;
-$gl-amber-muted:  rgba(201, 168, 76, 0.6);
-$gl-amber-faint:  rgba(201, 168, 76, 0.08);
-$gl-card:         rgba(240, 235, 224, 0.04);
-$gl-card-border:  rgba(201, 168, 76, 0.15);
-$gl-input-bg:     rgba(240, 235, 224, 0.05);
-$gl-input-border: rgba(240, 235, 224, 0.12);
-$gl-nav-bg:       rgba(15, 13, 26, 0.9);
-$gl-header-bg:    rgba(15, 13, 26, 0.8);
